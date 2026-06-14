@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { BookingForm } from './BookingForm';
+import { ConsultationHistory } from './ConsultationHistory';
 
 interface Service {
   id: string;
@@ -15,6 +17,8 @@ interface DashboardProps {
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showBooking, setShowBooking] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     loadServices();
@@ -50,6 +54,25 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
   const statusGradient = statusColors[user.status] || 'from-gray-500 to-gray-600';
 
+  // Показываем форму записи
+  if (showBooking) {
+    return (
+      <BookingForm 
+        user={user} 
+        onSuccess={() => {
+          setShowBooking(false);
+          alert('Заявка отправлена! Я свяжусь с вами для подтверждения.');
+        }}
+        onCancel={() => setShowBooking(false)}
+      />
+    );
+  }
+
+  // Показываем историю консультаций
+  if (showHistory) {
+    return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-4 pb-20">
       {/* Header */}
@@ -83,12 +106,18 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
       {/* Основные действия */}
       <div className="grid grid-cols-1 gap-3 mb-6">
-        <button className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:from-purple-700 hover:to-purple-900 transition">
+        <button 
+          onClick={() => setShowBooking(true)}
+          className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:from-purple-700 hover:to-purple-900 transition"
+        >
           <span>📝 Записаться на консультацию</span>
           <span>→</span>
         </button>
 
-        <button className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10">
+        <button 
+          onClick={() => setShowHistory(true)}
+          className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10"
+        >
           <span>📜 История консультаций</span>
           <span>→</span>
         </button>
