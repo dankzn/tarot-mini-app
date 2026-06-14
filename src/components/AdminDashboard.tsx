@@ -14,7 +14,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   }, []);
 
   const loadUsers = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('users')
       .select('*')
       .order('created_at', { ascending: false });

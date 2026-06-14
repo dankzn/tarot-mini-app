@@ -28,7 +28,7 @@ function App() {
       }
 
       // Проверяем пользователя в базе
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('users')
         .select('*')
         .eq('telegram_id', tgUser.id)
