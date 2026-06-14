@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getTelegramUser, getStartParam } from '../lib/telegram';
 
 interface RegistrationFormProps {
   onSuccess: (user: any) => void;
@@ -7,9 +8,13 @@ interface RegistrationFormProps {
 
 export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
   const [loading, setLoading] = useState(false);
+  
+  const tgUser = getTelegramUser();
+  const startParam = getStartParam();
+
   const [formData, setFormData] = useState({
     last_name: '',
-    first_name: '',
+    first_name: tgUser?.first_name || '',
     patronymic: '',
     city: '',
     birth_date: '',
@@ -21,17 +26,22 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
     setLoading(true);
 
     try {
-      // Пока заглушка - telegram_id будет добавлен позже
+      let referredBy: string | null = null;
+      if (startParam && startParam.startsWith('ref_')) {
+        referredBy = startParam.replace('ref_', '');
+      }
+
       const { data, error } = await supabase
         .from('users')
         .insert([
           {
-            telegram_id: 0, // Временно, потом заменим на реальный ID из Telegram
+            telegram_id: tgUser?.id,
             last_name: formData.last_name,
             name: `${formData.last_name} ${formData.first_name} ${formData.patronymic}`.trim(),
             city: formData.city,
             birth_date: formData.birth_date,
             gender: formData.gender,
+            referred_by: referredBy,
             status: 'Первое знакомство',
             bonus_balance: 0,
             referrals_count: 0,
@@ -43,18 +53,20 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
 
       if (error) throw error;
 
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess(data);
     } catch (error: any) {
       console.error('Ошибка регистрации:', error);
       alert('Ошибка: ' + error.message);
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-6 flex flex-col">
-      <div className="text-center mb-8 mt-8">
+    <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] px-4 py-6 flex flex-col">
+      <div className="text-center mb-6">
         <div className="text-5xl mb-4">✨</div>
         <h2 className="text-2xl font-bold text-white mb-2">Создание профиля</h2>
         <p className="text-purple-300 text-sm">
@@ -62,7 +74,7 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto w-full flex-1">
+      <form onSubmit={handleSubmit} className="space-y-3 w-full max-w-md mx-auto flex-1">
         <div>
           <label className="text-purple-200 text-sm mb-1 block">Фамилия *</label>
           <input
@@ -106,8 +118,8 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+        <div className="flex flex-col gap-3">
+          <div className="w-full">
             <label className="text-purple-200 text-sm mb-1 block">Дата рождения *</label>
             <input
               required
@@ -118,7 +130,7 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
             />
           </div>
 
-          <div>
+          <div className="w-full">
             <label className="text-purple-200 text-sm mb-1 block">Пол *</label>
             <select
               className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
