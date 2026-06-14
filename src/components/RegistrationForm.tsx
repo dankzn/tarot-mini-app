@@ -118,29 +118,29 @@ export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
           />
         </div>
 
-        <div className="flex flex-col gap-3">
-          <div className="w-full">
-            <label className="text-purple-200 text-sm mb-1 block">Дата рождения *</label>
-            <input
-              required
-              type="date"
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-              value={formData.birth_date}
-              onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
-            />
-          </div>
+        {/* Дата рождения - ОТДЕЛЬНО */}
+        <div className="w-full">
+          <label className="text-purple-200 text-sm mb-1 block">Дата рождения *</label>
+          <input
+            required
+            type="date"
+            className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
+            value={formData.birth_date}
+            onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
+          />
+        </div>
 
-          <div className="w-full">
-            <label className="text-purple-200 text-sm mb-1 block">Пол *</label>
-            <select
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
-            >
-              <option value="female" className="bg-purple-900">Женский</option>
-              <option value="male" className="bg-purple-900">Мужской</option>
-            </select>
-          </div>
+        {/* Пол - ОТДЕЛЬНО */}
+        <div className="w-full">
+          <label className="text-purple-200 text-sm mb-1 block">Пол *</label>
+          <select
+            className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
+            value={formData.gender}
+            onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
+          >
+            <option value="female" className="bg-purple-900">Женский</option>
+            <option value="male" className="bg-purple-900">Мужской</option>
+          </select>
         </div>
 
         <div className="pt-4">
