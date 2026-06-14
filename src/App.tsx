@@ -68,11 +68,6 @@ function App() {
   }
 
   if (user) {
-    // 🔍 ОТЛАДКА: показываем роль
-    const roleValue = user.role || 'null'
-    alert(`Роль: "${roleValue}"\nИмя: ${user.name}\nTelegram ID: ${user.telegram_id}`)
-    
-    // 🔐 Проверка с trim() и toLowerCase()
     const normalizedRole = user.role ? user.role.trim().toLowerCase() : ''
     
     if (normalizedRole === 'admin') {
