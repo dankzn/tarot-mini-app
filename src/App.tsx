@@ -2,17 +2,47 @@ import { useEffect, useState } from 'react'
 import { SplashScreen } from './components/SplashScreen'
 import { RegistrationForm } from './components/RegistrationForm'
 import { Dashboard } from './components/Dashboard'
+import { initTelegram, getTelegramUser } from './lib/telegram'
+import { supabase } from './lib/supabase'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [showRegistration, setShowRegistration] = useState(false)
+  const [notInTelegram, setNotInTelegram] = useState(false)
 
   useEffect(() => {
-    setTimeout(() => {
-      setShowRegistration(true)
+    const init = async () => {
+      initTelegram()
+
+      // Ждём 2 секунды (splash screen)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      const tgUser = getTelegramUser()
+      
+      if (!tgUser) {
+        setNotInTelegram(true)
+        setIsLoading(false)
+        return
+      }
+
+      // Проверяем пользователя в базе
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('telegram_id', tgUser.id)
+        .single()
+
+      if (data) {
+        setUser(data)
+      } else {
+        setShowRegistration(true)
+      }
+
       setIsLoading(false)
-    }, 2000)
+    }
+
+    init()
   }, [])
 
   const handleRegistrationSuccess = (newUser: any) => {
@@ -22,6 +52,20 @@ function App() {
 
   if (isLoading) {
     return <SplashScreen />
+  }
+
+  if (notInTelegram) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e]">
+        <div className="bg-white/10 p-6 rounded-xl text-center">
+          <div className="text-5xl mb-4">📱</div>
+          <h2 className="text-white text-xl font-bold mb-2">Откройте через Telegram</h2>
+          <p className="text-purple-300">
+            Это приложение работает только внутри Telegram. Пожалуйста, откройте его через бота.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (showRegistration) {
