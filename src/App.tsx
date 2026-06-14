@@ -15,8 +15,6 @@ function App() {
   useEffect(() => {
     const init = async () => {
       initTelegram()
-      
-      // Ждём 2 секунды
       await new Promise(resolve => setTimeout(resolve, 2000))
 
       const tgUser = getTelegramUser()
@@ -27,7 +25,6 @@ function App() {
         return
       }
 
-      // Проверяем пользователя в базе
       const { data } = await supabase
         .from('users')
         .select('*')
@@ -35,13 +32,10 @@ function App() {
         .single()
 
       if (data) {
-  console.log('✅ User loaded:', data)
-  console.log('🔑 User role:', data.role)
-  setUser(data)
-} else {
-  console.log('❌ User not found, showing registration')
-  setShowRegistration(true)
-}
+        setUser(data)
+      } else {
+        setShowRegistration(true)
+      }
 
       setIsLoading(false)
     }
@@ -54,10 +48,10 @@ function App() {
     setShowRegistration(false)
   }
 
-  // 1. Загрузка
-  if (isLoading) return <SplashScreen />
+  if (isLoading) {
+    return <SplashScreen />
+  }
 
-  // 2. Не в Telegram
   if (notInTelegram) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e]">
@@ -69,14 +63,19 @@ function App() {
     )
   }
 
-  // 3. Регистрация
   if (showRegistration) {
     return <RegistrationForm onSuccess={handleRegistrationSuccess} />
   }
 
-  // 4. Логика: Админ или Клиент?
   if (user) {
-    if (user.role === 'admin') {
+    // 🔍 ОТЛАДКА: показываем роль
+    const roleValue = user.role || 'null'
+    alert(`Роль: "${roleValue}"\nИмя: ${user.name}\nTelegram ID: ${user.telegram_id}`)
+    
+    // 🔐 Проверка с trim() и toLowerCase()
+    const normalizedRole = user.role ? user.role.trim().toLowerCase() : ''
+    
+    if (normalizedRole === 'admin') {
       return <AdminDashboard currentUser={user} />
     } else {
       return <Dashboard user={user} />
