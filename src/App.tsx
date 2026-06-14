@@ -35,10 +35,13 @@ function App() {
         .single()
 
       if (data) {
-        setUser(data)
-      } else {
-        setShowRegistration(true)
-      }
+  console.log('✅ User loaded:', data)
+  console.log('🔑 User role:', data.role)
+  setUser(data)
+} else {
+  console.log('❌ User not found, showing registration')
+  setShowRegistration(true)
+}
 
       setIsLoading(false)
     }
