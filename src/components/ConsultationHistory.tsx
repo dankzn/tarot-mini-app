@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 interface ConsultationHistoryProps {
   user: any;
@@ -22,7 +24,6 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Отменена',
 };
 
-
 export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +33,14 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
   }, []);
 
   const loadConsultations = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('consultations')
       .select(`
         *,
         services (title, price)
       `)
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('scheduled_at', { ascending: false });
 
     if (data) {
       setConsultations(data);
@@ -67,7 +68,7 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
             <div key={consultation.id} className="bg-white/5 p-4 rounded-xl border border-white/10">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-white font-bold">
-                  {consultation.services?.title || 'Услуга удалена'}
+                  {consultation.services?.title || 'Услуга'}
                 </h3>
                 <span className={`px-2 py-1 rounded text-xs text-white ${statusColors[consultation.status]}`}>
                   {statusLabels[consultation.status]}
@@ -76,15 +77,29 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
 
               {consultation.scheduled_at && (
                 <p className="text-purple-300 text-sm mb-2">
-                  📅 {new Date(consultation.scheduled_at).toLocaleString('ru-RU')}
+                  📅 {format(new Date(consultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru })}
                 </p>
               )}
 
-              <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/10">
+              <div className="flex justify-between items-center mb-3">
                 <span className="text-yellow-400 font-bold">{consultation.price} ₽</span>
-                <span className="text-gray-400 text-xs">
-                  {new Date(consultation.created_at).toLocaleDateString('ru-RU')}
-                </span>
+                {consultation.bonus_used > 0 && (
+                  <span className="text-purple-300 text-xs">
+                    💎 Списано бонусов: {consultation.bonus_used} ₽
+                  </span>
+                )}
+              </div>
+
+              {/* Рекомендации администратора */}
+              {consultation.admin_notes && consultation.status === 'completed' && (
+                <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-lg mb-2">
+                  <p className="text-blue-300 text-xs font-bold mb-1">📝 Рекомендации:</p>
+                  <p className="text-white text-sm">{consultation.admin_notes}</p>
+                </div>
+              )}
+
+              <div className="text-gray-400 text-xs">
+                {format(new Date(consultation.created_at), 'dd.MM.yyyy')}
               </div>
             </div>
           ))}
