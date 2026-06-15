@@ -99,13 +99,17 @@ useEffect(() => {
   };
 
   const statusInfo = [
-    { name: 'Первое знакомство', desc: 'Начальный уровень', count: '0 консультаций' },
-    { name: 'Basic', desc: 'Базовый уровень', count: '1-2 консультации' },
-    { name: 'Silver', desc: 'Средний уровень', count: '3-5 консультаций' },
-    { name: 'Gold', desc: 'Продвинутый уровень', count: '6-10 консультаций' },
-    { name: 'Platinum', desc: 'Высокий уровень', count: '11-20 консультаций' },
-    { name: 'Личное ведение', desc: 'VIP уровень', count: '21+ консультаций' },
-  ];
+  { name: 'Первое знакомство', desc: 'Начальный уровень', count: '0 консультаций' },
+  { name: 'Basic', desc: 'Базовый уровень', count: '1-2 консультации' },
+  { name: 'Silver', desc: 'Средний уровень', count: '3-5 консультаций' },
+  { name: 'Gold', desc: 'Продвинутый уровень', count: '6-10 консультаций' },
+  { name: 'Platinum', desc: 'Высокий уровень', count: '11-20 консультаций' },
+  { 
+    name: 'Личное ведение', 
+    desc: 'При заказе услуги "Личный таролог" - статус на 30 дней', 
+    count: 'Особый статус' 
+  },
+];
 
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];

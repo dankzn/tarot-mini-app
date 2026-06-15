@@ -136,14 +136,31 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   if (!selectedConsultation) return;
 
   try {
-    const completedConsultations = consultations.filter(c => 
-      c.user_id === selectedConsultation.user_id && 
-      c.status === 'completed' &&
-      c.id !== selectedConsultation.id
-    );
+    // Проверяем, является ли услуга "Личное ведение"
+    const isPersonalTarologist = selectedConsultation.services?.title?.toLowerCase().includes('личный таролог') || 
+                                  selectedConsultation.services?.title?.toLowerCase().includes('личное ведение');
     
-    const totalCompleted = completedConsultations.length + 1;
-    const newStatus = calculateClientStatus(totalCompleted);
+    let newStatus = '';
+    let personalTarologistUntil = null;
+    
+    if (isPersonalTarologist) {
+      // Устанавливаем статус "Личное ведение" на 30 дней
+      newStatus = 'Личное ведение';
+      const untilDate = new Date();
+      untilDate.setDate(untilDate.getDate() + 30);
+      personalTarologistUntil = untilDate.toISOString();
+      console.log('🎯 Устанавливаю статус "Личное ведение" до:', personalTarologistUntil);
+    } else {
+      // Обычный расчёт статуса по количеству консультаций
+      const completedConsultations = consultations.filter(c => 
+        c.user_id === selectedConsultation.user_id && 
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id
+      );
+      
+      const totalCompleted = completedConsultations.length + 1;
+      newStatus = calculateClientStatus(totalCompleted);
+    }
     
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const finalPrice = completeData.new_price;
@@ -152,7 +169,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
-    console.log('🔄 Обновление консультации...');
+    console.log('🔄 Обновление...');
+    console.log('User ID:', selectedConsultation.user_id);
+    console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
+    console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
 
     // 1. Обновляем консультацию
     const { error: consultError } = await supabase
@@ -166,47 +186,49 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       })
       .eq('id', selectedConsultation.id);
 
-    if (consultError) throw consultError;
+    if (consultError) {
+      console.error('❌ Ошибка консультации:', consultError);
+      throw consultError;
+    }
 
-    console.log('✅ Обновляем пользователя...');
-    console.log('User ID:', selectedConsultation.user_id);
-    console.log('Новый баланс:', newBonusBalance);
-    console.log('Новый статус:', newStatus);
+    // 2. Обновляем пользователя с явным указанием всех полей
+    const updateData: any = {
+      status: newStatus,
+      bonus_balance: newBonusBalance,
+    };
+    
+    if (personalTarologistUntil) {
+      updateData.personal_tarologist_until = personalTarologistUntil;
+    }
 
-    // 2. ПРИНУДИТЕЛЬНО обновляем пользователя
     const { error: userError } = await supabase
       .from('users')
-      .update({
-        status: newStatus,
-        bonus_balance: newBonusBalance,
-      })
+      .update(updateData)
       .eq('id', selectedConsultation.user_id);
 
     if (userError) {
-      console.error('❌ Ошибка обновления пользователя:', userError);
+      console.error('❌ Ошибка пользователя:', userError);
       throw userError;
     }
 
-    // 3. Проверяем что данные обновились
+    // 3. Проверяем что обновили
     const { data: verifyUser } = await supabase
       .from('users')
-      .select('status, bonus_balance')
+      .select('status, bonus_balance, personal_tarologist_until')
       .eq('id', selectedConsultation.user_id)
       .single();
 
-    console.log('🔍 Проверка:', verifyUser);
+    console.log('✅ Проверка:', verifyUser);
 
-    alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nНовый баланс: ${verifyUser?.bonus_balance} ₽\nНовый статус: ${verifyUser?.status}`);
+    alert(`✅ Консультация завершена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${verifyUser?.bonus_balance} ₽\nСтатус: ${verifyUser?.status}`);
     
     setShowCompleteForm(false);
     setSelectedConsultation(null);
-    
-    // 4. Перезагружаем данные
     await loadConsultations();
     
-    // 5. ПРИНУДИТЕЛЬНАЯ перезагрузка ВСЕГО приложения
+    // 4. Перезагрузка
     setTimeout(() => {
-      window.location.href = window.location.href;
+      window.location.href = window.location.href + '?t=' + Date.now();
     }, 1000);
     
   } catch (error: any) {
