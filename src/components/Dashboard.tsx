@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingForm } from './BookingForm';
 import { ConsultationHistory } from './ConsultationHistory';
+import { 
+  Crown, 
+  Sparkles, 
+  ScrollText, 
+  Gift, 
+  CalendarCheck,
+  User,
+  MapPin,
+  Clock,
+  DollarSign
+} from 'lucide-react';
 
 interface Service {
   id: string;
@@ -20,7 +31,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showBooking, setShowBooking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedService, setSelectedService] = useState<any>(null);
 
   useEffect(() => {
     loadServices();
@@ -46,17 +57,18 @@ export const Dashboard = ({ user }: DashboardProps) => {
   };
 
   const statusColors: Record<string, string> = {
-    'Первое знакомство': 'from-gray-500 to-gray-600',
-    'Basic': 'from-blue-500 to-blue-600',
-    'Silver': 'from-gray-300 to-gray-400',
-    'Gold': 'from-yellow-400 to-yellow-600',
-    'Platinum': 'from-cyan-300 to-cyan-500',
-    'Личное ведение': 'from-purple-500 to-pink-500',
+    'Первое знакомство': 'bg-gray-200 text-gray-700',
+    'Basic': 'bg-blue-100 text-blue-700',
+    'Silver': 'bg-gray-100 text-gray-600',
+    'Gold': 'bg-yellow-100 text-yellow-700',
+    'Platinum': 'bg-purple-100 text-purple-700',
+    'Личное ведение': 'bg-[#6B4EE6]/10 text-[#6B4EE6]',
   };
 
-  const statusGradient = statusColors[user.status] || 'from-gray-500 to-gray-600';
+  const currentStatus = user.status || 'Первое знакомство';
+  const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
 
-  // Показываем форму записи ТОЛЬКО если selectedService не null
+  // Показываем форму записи
   if (showBooking && selectedService) {
     return (
       <BookingForm 
@@ -65,7 +77,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
         onSuccess={() => {
           setShowBooking(false);
           setSelectedService(null);
-          alert('Заявка отправлена! Я свяжусь с вами для подтверждения.');
+          alert('✅ Заявка отправлена! Я свяжусь с вами для подтверждения.');
         }}
         onCancel={() => {
           setShowBooking(false);
@@ -81,32 +93,44 @@ export const Dashboard = ({ user }: DashboardProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-4 pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className={`bg-gradient-to-r ${statusGradient} px-3 py-1.5 rounded-full shadow-lg`}>
-          <span className="text-white text-xs font-bold">
-            {user.status || 'Первое знакомство'}
-          </span>
-        </div>
-
-        <div className="flex items-center space-x-2 bg-white/10 px-3 py-1.5 rounded-full">
-          <span className="text-yellow-400">✨</span>
-          <span className="text-white font-bold text-sm">
-            {user.bonus_balance || 0}
-          </span>
-        </div>
-      </div>
-
-      {/* Профиль */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 mb-6 border border-white/10">
-        <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-            {user.name?.charAt(0) || 'U'}
+    <div className="min-h-screen bg-[#F8F5F2] p-4 pb-20">
+      {/* Шапка профиля */}
+      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-14 h-14 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white font-bold text-xl">
+              {user.name?.charAt(0) || 'U'}
+            </div>
+            <div>
+              <h2 className="text-[#385144] font-bold text-lg">{user.name || 'Пользователь'}</h2>
+              <div className="flex items-center text-gray-500 text-sm">
+                <MapPin className="w-3 h-3 mr-1" />
+                {user.city || 'Город не указан'}
+              </div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-white font-bold">{user.name || 'Пользователь'}</h2>
-            <p className="text-purple-300 text-sm">{user.city || 'Город не указан'}</p>
+        </div>
+
+        {/* Статус и бонусы */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100">
+            <div className="flex items-center mb-1">
+              <Crown className="w-4 h-4 mr-1 text-[#D4AF37]" />
+              <span className="text-gray-500 text-xs">Статус</span>
+            </div>
+            <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold ${statusColor}`}>
+              {currentStatus}
+            </span>
+          </div>
+
+          <div className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100">
+            <div className="flex items-center mb-1">
+              <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
+              <span className="text-gray-500 text-xs">Бонусы</span>
+            </div>
+            <span className="text-[#D4AF37] font-bold text-lg">
+              {user.bonus_balance || 0} ₽
+            </span>
           </div>
         </div>
       </div>
@@ -115,50 +139,76 @@ export const Dashboard = ({ user }: DashboardProps) => {
       <div className="grid grid-cols-1 gap-3 mb-6">
         <button 
           onClick={() => setShowHistory(true)}
-          className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10"
+          className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm"
         >
-          <span>📜 История консультаций</span>
-          <span>→</span>
+          <div className="flex items-center">
+            <ScrollText className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+            <span>История консультаций</span>
+          </div>
+          <span className="text-gray-400">→</span>
         </button>
 
-        <button className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10">
-          <span>🎁 Пригласить друга</span>
-          <span>→</span>
+        <button className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm">
+          <div className="flex items-center">
+            <Gift className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+            <span>Пригласить друга</span>
+          </div>
+          <span className="text-gray-400">→</span>
         </button>
       </div>
 
       {/* Услуги */}
       <div>
-        <h3 className="text-white font-bold mb-3 text-lg">Услуги</h3>
+        <h3 className="text-[#385144] font-bold mb-3 text-lg flex items-center">
+          <CalendarCheck className="w-5 h-5 mr-2" />
+          Услуги
+        </h3>
         
         {loading ? (
-          <p className="text-purple-300 text-center py-4">Загрузка услуг...</p>
+          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+            <p className="text-gray-500">Загрузка услуг...</p>
+          </div>
         ) : services.length === 0 ? (
-          <p className="text-purple-300 text-center py-4">Услуги пока не добавлены</p>
+          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+            <p className="text-gray-500">Услуги пока не добавлены</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {services.map((service) => (
               <div 
                 key={service.id} 
-                className="bg-white/5 rounded-xl p-4 border border-white/10"
+                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition"
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-white font-bold text-lg">{service.title}</h4>
-                  <span className="text-yellow-400 font-bold text-xl">{service.price} ₽</span>
+                  <h4 className="text-[#385144] font-bold text-lg flex-1 pr-2">
+                    {service.title}
+                  </h4>
+                  <div className="flex items-center text-[#D4AF37] font-bold text-xl">
+                    <DollarSign className="w-5 h-5" />
+                    <span>{service.price}</span>
+                  </div>
                 </div>
+
                 {service.description && (
-                  <p className="text-purple-300 text-sm mb-4">{service.description}</p>
+                  <p className="text-gray-600 text-sm mb-3">{service.description}</p>
                 )}
+
+                {service.duration_minutes && (
+                  <div className="flex items-center text-gray-500 text-xs mb-3">
+                    <Clock className="w-3 h-3 mr-1" />
+                    {service.duration_minutes} минут
+                  </div>
+                )}
+
                 <button
                   onClick={() => {
-                    if (service) {
-                      setSelectedService(service);
-                      setShowBooking(true);
-                    }
+                    setSelectedService(service);
+                    setShowBooking(true);
                   }}
-                  className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-3 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition"
+                  className="w-full bg-[#385144] text-white py-3 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
                 >
-                  📝 Записаться
+                  <CalendarCheck className="w-4 h-4 mr-2" />
+                  Записаться
                 </button>
               </div>
             ))}

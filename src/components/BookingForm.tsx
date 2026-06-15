@@ -5,9 +5,10 @@ import 'react-calendar/dist/Calendar.css';
 import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Clock, DollarSign, Sparkles, MessageSquare } from 'lucide-react';
 
 interface BookingFormProps {
-  user: any; // Здесь ожидается user.bonus_balance
+  user: any;
   service: any;
   onSuccess: () => void;
   onCancel: () => void;
@@ -29,10 +30,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const originalPrice = service.price || 0;
   const userBalance = user.bonus_balance || 0;
 
-  // Максимум бонусов, которые можно списать (не больше баланса и не больше цены)
   const maxBonusUsable = Math.min(userBalance, originalPrice);
-  
-  // Итоговая цена к оплате
   const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
 
   useEffect(() => {
@@ -67,7 +65,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
-    setStep(3); // Переход к подтверждению
+    setStep(3);
   };
 
   const handleSubmit = async () => {
@@ -80,7 +78,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const bookingDateTime = new Date(selectedDate);
       bookingDateTime.setHours(hours, minutes, 0, 0);
 
-      // Создаём консультацию
       const { error: consultError } = await supabase
         .from('consultations')
         .insert([
@@ -89,15 +86,14 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             service_id: service.id,
             scheduled_at: bookingDateTime.toISOString(),
             notes: notes,
-            price: finalPrice, // Сохраняем итоговую цену
-            bonus_used: useBonuses ? bonusAmount : 0, // Сохраняем сколько бонусов списали
+            price: finalPrice,
+            bonus_used: useBonuses ? bonusAmount : 0,
             status: 'pending',
           }
         ]);
 
       if (consultError) throw consultError;
 
-      // Находим слот и помечаем как забронированный
       const slot = allSlots.find(s => {
         const slotTime = format(new Date(s.start_time), 'HH:mm');
         return slotTime === selectedTime && !s.is_booked;
@@ -129,36 +125,44 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const bookedSlots = allSlots.filter(slot => slot.is_booked);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-4">
+    <div className="min-h-screen bg-[#F8F5F2] p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">📝 Запись на консультацию</h2>
-        <button onClick={onCancel} className="text-purple-300">✕</button>
+        <h2 className="text-2xl font-bold text-[#385144]">Запись на консультацию</h2>
+        <button onClick={onCancel} className="text-gray-500 hover:text-[#385144]">✕</button>
       </div>
 
       {/* Информация об услуге */}
-      <div className="bg-white/10 p-4 rounded-xl mb-6 border border-white/10">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-white font-bold text-lg">{service.title}</h3>
-          {/* Цена с учетом бонусов */}
-          <div className="text-right">
+      <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
+        <div className="flex justify-between items-start mb-3">
+          <h3 className="text-[#385144] font-bold text-lg flex-1">{service.title}</h3>
+          <div className="text-right ml-3">
             {useBonuses && bonusAmount > 0 ? (
               <div className="flex flex-col items-end">
                 <span className="text-gray-400 line-through text-sm">{originalPrice} ₽</span>
-                <span className="text-yellow-400 font-bold text-xl">{finalPrice} ₽</span>
+                <span className="text-[#6B4EE6] font-bold text-xl">{finalPrice} ₽</span>
               </div>
             ) : (
-              <span className="text-yellow-400 font-bold text-xl">{originalPrice} ₽</span>
+              <span className="text-[#D4AF37] font-bold text-xl">{originalPrice} ₽</span>
             )}
           </div>
         </div>
-        <p className="text-purple-300 text-sm">Длительность: {duration} минут</p>
+        <div className="flex items-center text-gray-600 text-sm mb-2">
+          <Clock className="w-4 h-4 mr-2" />
+          Длительность: {duration} минут
+        </div>
+        {service.description && (
+          <p className="text-gray-600 text-sm mt-2">{service.description}</p>
+        )}
       </div>
 
       {/* Шаг 1: Выбор даты */}
       {step === 1 && (
-        <div>
-          <h3 className="text-white font-bold mb-4">Выберите дату:</h3>
-          <div className="flex justify-center mb-4">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h3 className="text-[#385144] font-bold mb-4 flex items-center">
+            <CalendarIcon className="w-5 h-5 mr-2" />
+            Выберите дату
+          </h3>
+          <div className="flex justify-center">
             <Calendar
               onChange={(value: any) => {
                 if (value instanceof Date) {
@@ -176,28 +180,28 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       {/* Шаг 2: Выбор времени */}
       {step === 2 && (
-        <div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-bold">
-              📅 {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
+            <h3 className="text-[#385144] font-bold flex items-center">
+              <Clock className="w-5 h-5 mr-2" />
+              {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
             </h3>
-            <button onClick={() => setStep(1)} className="text-purple-300 text-sm">← Назад</button>
+            <button onClick={() => setStep(1)} className="text-gray-500 text-sm hover:text-[#385144]">← Назад</button>
           </div>
 
           {allSlots.length === 0 ? (
             <div className="text-center py-10">
-              <div className="text-6xl mb-4">📭</div>
-              <p className="text-purple-300">На эту дату нет доступных окон.<br/>Выберите другую дату.</p>
+              <p className="text-gray-500">На эту дату нет доступных окон</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-3 gap-2">
               {freeSlots.map((slot) => {
                 const slotTime = format(new Date(slot.start_time), 'HH:mm');
                 return (
                   <button
                     key={slot.id}
                     onClick={() => handleTimeSelect(slotTime)}
-                    className="p-3 rounded-lg font-bold transition bg-purple-600 text-white hover:bg-purple-700"
+                    className="p-3 rounded-lg font-bold transition bg-[#6B4EE6] text-white hover:bg-[#5a3fd4]"
                   >
                     {slotTime}
                   </button>
@@ -209,7 +213,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   <button
                     key={slot.id}
                     disabled
-                    className="p-3 rounded-lg font-bold bg-gray-600 text-gray-400 cursor-not-allowed"
+                    className="p-3 rounded-lg font-bold bg-gray-200 text-gray-400 cursor-not-allowed"
                   >
                     {slotTime}
                   </button>
@@ -222,26 +226,41 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       {/* Шаг 3: Подтверждение и Бонусы */}
       {step === 3 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-bold">Подтверждение</h3>
-            <button onClick={() => setStep(2)} className="text-purple-300 text-sm">← Назад</button>
-          </div>
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[#385144] font-bold">Подтверждение</h3>
+              <button onClick={() => setStep(2)} className="text-gray-500 text-sm">← Назад</button>
+            </div>
 
-          <div className="bg-white/10 p-4 rounded-xl mb-4">
-            <p className="text-white mb-2">📅 <span className="text-purple-300">Дата:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}</p>
-            <p className="text-white mb-2">⏰ <span className="text-purple-300">Время:</span> {selectedTime}</p>
-            
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center text-gray-700">
+                <CalendarIcon className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <span>{selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}</span>
+              </div>
+              <div className="flex items-center text-gray-700">
+                <Clock className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <span>{selectedTime}</span>
+              </div>
+              <div className="flex items-center text-gray-700">
+                <DollarSign className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <span className="font-bold">{finalPrice} ₽</span>
+              </div>
+            </div>
+
             {/* Блок с бонусами */}
             {userBalance > 0 && (
-              <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-white font-bold">💎 Использовать бонусы?</span>
+                  <span className="text-[#385144] font-bold flex items-center">
+                    <Sparkles className="w-5 h-5 mr-2 text-[#D4AF37]" />
+                    Использовать бонусы?
+                  </span>
                   <div 
-                    className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-purple-600' : 'bg-gray-600'}`}
+                    className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-[#6B4EE6]' : 'bg-gray-300'}`}
                     onClick={() => {
                       setUseBonuses(!useBonuses);
-                      if (!useBonuses) setBonusAmount(0); // Сброс при выключении
+                      if (!useBonuses) setBonusAmount(0);
                     }}
                   >
                     <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition ${useBonuses ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -249,16 +268,16 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 </div>
 
                 {useBonuses && (
-                  <div className="bg-purple-900/30 p-3 rounded-lg border border-purple-500/30">
-                    <p className="text-purple-200 text-sm mb-2">
-                      Ваш баланс: <span className="text-yellow-400 font-bold">{userBalance} ₽</span>
+                  <div className="bg-[#F8F5F2] p-4 rounded-xl border border-[#385144]/20">
+                    <p className="text-gray-700 text-sm mb-2">
+                      Ваш баланс: <span className="text-[#D4AF37] font-bold">{userBalance} ₽</span>
                     </p>
-                    <label className="text-purple-200 text-xs mb-1 block">Списать бонусов (макс. {maxBonusUsable}):</label>
+                    <label className="text-gray-700 text-xs mb-1 block">Списать бонусов (макс. {maxBonusUsable}):</label>
                     <input
                       type="number"
                       min="0"
                       max={maxBonusUsable}
-                      className="w-full p-2 bg-white/10 border border-purple-500/30 rounded-lg text-white text-lg font-bold focus:outline-none focus:border-purple-400"
+                      className="w-full p-2 bg-white border border-[#385144]/30 rounded-lg text-[#385144] text-lg font-bold focus:outline-none focus:border-[#6B4EE6]"
                       value={bonusAmount}
                       onChange={(e) => {
                         let val = Number(e.target.value);
@@ -269,24 +288,22 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                     />
                     <div className="flex justify-between mt-2 text-sm">
                       <span className="text-gray-400 line-through">Итого: {originalPrice} ₽</span>
-                      <span className="text-green-400 font-bold">К оплате: {finalPrice} ₽</span>
+                      <span className="text-[#4ADE80] font-bold">К оплате: {finalPrice} ₽</span>
                     </div>
                   </div>
                 )}
               </div>
             )}
-
-            {/* Если бонусов 0 или выключены - просто показываем цену */}
-            {userBalance === 0 && (
-               <p className="text-yellow-400 font-bold mt-2">💰 Стоимость: {originalPrice} ₽</p>
-            )}
           </div>
 
-          <div className="mb-6">
-            <label className="text-purple-200 text-sm mb-2 block">Комментарий (необязательно)</label>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Комментарий (необязательно)
+            </label>
             <textarea
               rows={3}
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#6B4EE6]"
               placeholder="Расскажите кратко о вашем вопросе..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -294,11 +311,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition">Назад</button>
+            <button onClick={() => setStep(2)} className="flex-1 bg-gray-200 text-gray-700 p-4 rounded-xl font-bold hover:bg-gray-300 transition">Назад</button>
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex-1 bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition disabled:opacity-50"
+              className="flex-1 bg-[#6B4EE6] text-white p-4 rounded-xl font-bold hover:bg-[#5a3fd4] transition disabled:opacity-50"
             >
               {loading ? 'Отправка...' : 'Подтвердить запись'}
             </button>
