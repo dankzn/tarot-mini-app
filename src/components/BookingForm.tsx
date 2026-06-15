@@ -7,7 +7,7 @@ import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 interface BookingFormProps {
-  user: any;
+  user: any; // Здесь ожидается user.bonus_balance
   service: any;
   onSuccess: () => void;
   onCancel: () => void;
@@ -21,7 +21,19 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [notes, setNotes] = useState('');
   const [step, setStep] = useState(1);
 
+  // Состояния для бонусов
+  const [useBonuses, setUseBonuses] = useState(false);
+  const [bonusAmount, setBonusAmount] = useState(0);
+
   const duration = service.duration_minutes || 60;
+  const originalPrice = service.price || 0;
+  const userBalance = user.bonus_balance || 0;
+
+  // Максимум бонусов, которые можно списать (не больше баланса и не больше цены)
+  const maxBonusUsable = Math.min(userBalance, originalPrice);
+  
+  // Итоговая цена к оплате
+  const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
 
   useEffect(() => {
     if (selectedDate) {
@@ -46,7 +58,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     }
 
     if (data) {
-      // Фильтруем только будущие слоты
       const futureSlots = data.filter(slot => 
         !isBefore(new Date(slot.start_time), now)
       );
@@ -56,7 +67,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
-    setStep(3);
+    setStep(3); // Переход к подтверждению
   };
 
   const handleSubmit = async () => {
@@ -78,7 +89,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             service_id: service.id,
             scheduled_at: bookingDateTime.toISOString(),
             notes: notes,
-            price: service.price,
+            price: finalPrice, // Сохраняем итоговую цену
+            bonus_used: useBonuses ? bonusAmount : 0, // Сохраняем сколько бонусов списали
             status: 'pending',
           }
         ]);
@@ -101,10 +113,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           .eq('id', slot.id);
       }
 
-      // Обновляем список слотов
       await loadAllSlots();
 
-      // Уведомление об успехе
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
     } catch (error: any) {
@@ -115,7 +125,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     }
   };
 
-  // Разделяем слоты на свободные и занятые
   const freeSlots = allSlots.filter(slot => !slot.is_booked);
   const bookedSlots = allSlots.filter(slot => slot.is_booked);
 
@@ -130,14 +139,19 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       <div className="bg-white/10 p-4 rounded-xl mb-6 border border-white/10">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-white font-bold text-lg">{service.title}</h3>
-          <span className="text-yellow-400 font-bold text-xl">{service.price} ₽</span>
+          {/* Цена с учетом бонусов */}
+          <div className="text-right">
+            {useBonuses && bonusAmount > 0 ? (
+              <div className="flex flex-col items-end">
+                <span className="text-gray-400 line-through text-sm">{originalPrice} ₽</span>
+                <span className="text-yellow-400 font-bold text-xl">{finalPrice} ₽</span>
+              </div>
+            ) : (
+              <span className="text-yellow-400 font-bold text-xl">{originalPrice} ₽</span>
+            )}
+          </div>
         </div>
-        <p className="text-purple-300 text-sm">
-          Длительность: {duration} минут
-        </p>
-        {service.description && (
-          <p className="text-purple-300 text-sm mt-2">{service.description}</p>
-        )}
+        <p className="text-purple-300 text-sm">Длительность: {duration} минут</p>
       </div>
 
       {/* Шаг 1: Выбор даты */}
@@ -167,25 +181,16 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             <h3 className="text-white font-bold">
               📅 {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
             </h3>
-            <button 
-              onClick={() => setStep(1)}
-              className="text-purple-300 text-sm"
-            >
-              ← Назад
-            </button>
+            <button onClick={() => setStep(1)} className="text-purple-300 text-sm">← Назад</button>
           </div>
 
           {allSlots.length === 0 ? (
             <div className="text-center py-10">
               <div className="text-6xl mb-4">📭</div>
-              <p className="text-purple-300">
-                На эту дату нет доступных окон.<br/>
-                Выберите другую дату.
-              </p>
+              <p className="text-purple-300">На эту дату нет доступных окон.<br/>Выберите другую дату.</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {/* Показываем свободные слоты */}
               {freeSlots.map((slot) => {
                 const slotTime = format(new Date(slot.start_time), 'HH:mm');
                 return (
@@ -198,8 +203,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   </button>
                 );
               })}
-
-              {/* Показываем занятые слоты серым */}
               {bookedSlots.map((slot) => {
                 const slotTime = format(new Date(slot.start_time), 'HH:mm');
                 return (
@@ -214,41 +217,69 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               })}
             </div>
           )}
-
-          {freeSlots.length === 0 && bookedSlots.length > 0 && (
-            <p className="text-purple-300 text-center py-4">
-              Все окна на эту дату заняты. Выберите другую дату.
-            </p>
-          )}
         </div>
       )}
 
-      {/* Шаг 3: Подтверждение */}
+      {/* Шаг 3: Подтверждение и Бонусы */}
       {step === 3 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-bold">Подтверждение</h3>
-            <button 
-              onClick={() => setStep(2)}
-              className="text-purple-300 text-sm"
-            >
-              ← Назад
-            </button>
+            <button onClick={() => setStep(2)} className="text-purple-300 text-sm">← Назад</button>
           </div>
 
           <div className="bg-white/10 p-4 rounded-xl mb-4">
-            <p className="text-white mb-2">
-              📅 <span className="text-purple-300">Дата:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
-            </p>
-            <p className="text-white mb-2">
-              ⏰ <span className="text-purple-300">Время:</span> {selectedTime}
-            </p>
-            <p className="text-white mb-2">
-              ⏱ <span className="text-purple-300">Длительность:</span> {duration} мин
-            </p>
-            <p className="text-white">
-              💰 <span className="text-purple-300">Стоимость:</span> {service.price} ₽
-            </p>
+            <p className="text-white mb-2">📅 <span className="text-purple-300">Дата:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}</p>
+            <p className="text-white mb-2">⏰ <span className="text-purple-300">Время:</span> {selectedTime}</p>
+            
+            {/* Блок с бонусами */}
+            {userBalance > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-white font-bold">💎 Использовать бонусы?</span>
+                  <div 
+                    className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-purple-600' : 'bg-gray-600'}`}
+                    onClick={() => {
+                      setUseBonuses(!useBonuses);
+                      if (!useBonuses) setBonusAmount(0); // Сброс при выключении
+                    }}
+                  >
+                    <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition ${useBonuses ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </div>
+                </div>
+
+                {useBonuses && (
+                  <div className="bg-purple-900/30 p-3 rounded-lg border border-purple-500/30">
+                    <p className="text-purple-200 text-sm mb-2">
+                      Ваш баланс: <span className="text-yellow-400 font-bold">{userBalance} ₽</span>
+                    </p>
+                    <label className="text-purple-200 text-xs mb-1 block">Списать бонусов (макс. {maxBonusUsable}):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={maxBonusUsable}
+                      className="w-full p-2 bg-white/10 border border-purple-500/30 rounded-lg text-white text-lg font-bold focus:outline-none focus:border-purple-400"
+                      value={bonusAmount}
+                      onChange={(e) => {
+                        let val = Number(e.target.value);
+                        if (val > maxBonusUsable) val = maxBonusUsable;
+                        if (val < 0) val = 0;
+                        setBonusAmount(val);
+                      }}
+                    />
+                    <div className="flex justify-between mt-2 text-sm">
+                      <span className="text-gray-400 line-through">Итого: {originalPrice} ₽</span>
+                      <span className="text-green-400 font-bold">К оплате: {finalPrice} ₽</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Если бонусов 0 или выключены - просто показываем цену */}
+            {userBalance === 0 && (
+               <p className="text-yellow-400 font-bold mt-2">💰 Стоимость: {originalPrice} ₽</p>
+            )}
           </div>
 
           <div className="mb-6">
@@ -263,12 +294,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => setStep(2)}
-              className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
-            >
-              Назад
-            </button>
+            <button onClick={() => setStep(2)} className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition">Назад</button>
             <button
               onClick={handleSubmit}
               disabled={loading}

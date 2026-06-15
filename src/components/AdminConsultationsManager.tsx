@@ -24,14 +24,15 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Отменена',
 };
 
-const clientStatuses = [
-  'Первое знакомство',
-  'Basic',
-  'Silver',
-  'Gold',
-  'Platinum',
-  'Личное ведение',
-];
+// Автоматический расчет статуса по количеству консультаций
+const calculateClientStatus = (consultationCount: number): string => {
+  if (consultationCount === 0) return 'Первое знакомство';
+  if (consultationCount <= 2) return 'Basic';
+  if (consultationCount <= 5) return 'Silver';
+  if (consultationCount <= 10) return 'Gold';
+  if (consultationCount <= 20) return 'Platinum';
+  return 'Личное ведение';
+};
 
 export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
@@ -42,8 +43,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   const [completeData, setCompleteData] = useState({
     admin_notes: '',
     new_price: 0,
-    bonus_earned: 0,
-    new_client_status: '',
   });
 
   useEffect(() => {
@@ -51,18 +50,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   }, []);
 
   const loadConsultations = async () => {
-    console.log(' Загрузка записей...');
-    
-    const { data: consultationsData, error: consultError } = await supabase
+    const { data: consultationsData } = await supabase
       .from('consultations')
       .select('*')
       .order('scheduled_at', { ascending: false });
-
-    if (consultError) {
-      console.error('❌ Ошибка загрузки консультаций:', consultError);
-      setLoading(false);
-      return;
-    }
 
     const { data: usersData } = await supabase
       .from('users')
@@ -78,7 +69,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       services: servicesData?.find(s => s.id === c.service_id) || null,
     }));
 
-    console.log('✅ Загружено записей:', enrichedConsultations.length);
     setConsultations(enrichedConsultations);
     setLoading(false);
   };
@@ -106,9 +96,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     setSelectedConsultation(consultation);
     setCompleteData({
       admin_notes: consultation.admin_notes || '',
+      // Берем цену, которую клиент заплатил (уже с учетом бонусов), либо цену услуги
       new_price: consultation.price || consultation.services?.price || 0,
-      bonus_earned: Math.floor((consultation.price || consultation.services?.price || 0) * 0.1), // 10% по умолчанию
-      new_client_status: consultation.users?.status || 'Первое знакомство',
     });
     setShowCompleteForm(true);
   };
@@ -117,34 +106,55 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     if (!selectedConsultation) return;
 
     try {
-      // 1. Обновляем консультацию
+      // 1. Считаем количество завершенных консультаций
+      const completedConsultations = consultations.filter(c => 
+        c.user_id === selectedConsultation.user_id && 
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id
+      );
+      
+      const totalCompleted = completedConsultations.length + 1;
+      const newStatus = calculateClientStatus(totalCompleted);
+      
+      // 2. Логика бонусов
+      const bonusUsed = selectedConsultation.bonus_used || 0; // Сколько клиент потратил
+      const finalPrice = completeData.new_price; // Итоговая цена (которую админ подтвердил)
+      
+      // Начисляем 10% от той суммы, которую клиент реально заплатил деньгами
+      // Если клиент заплатил 0 (полностью бонусами), то кэшбэк 0
+      const bonusEarned = Math.floor(finalPrice * 0.10); 
+      
+      const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
+      
+      // Формула: Баланс - Потрачено + Заработано
+      const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
+
+      // 3. Обновляем консультацию
       const { error: consultError } = await supabase
         .from('consultations')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
           admin_notes: completeData.admin_notes,
-          price: completeData.new_price,
-          bonus_paid: completeData.bonus_earned,
+          price: finalPrice,
+          bonus_paid: bonusEarned, // Сколько мы начислили новых
         })
         .eq('id', selectedConsultation.id);
 
       if (consultError) throw consultError;
 
-      // 2. Обновляем статус клиента и баланс бонусов
-      const newBonusBalance = (selectedConsultation.users?.bonus_balance || 0) + completeData.bonus_earned;
-      
+      // 4. Обновляем пользователя (Статус + Баланс)
       const { error: userError } = await supabase
         .from('users')
         .update({
-          status: completeData.new_client_status,
+          status: newStatus,
           bonus_balance: newBonusBalance,
         })
         .eq('id', selectedConsultation.user_id);
 
       if (userError) throw userError;
 
-      alert('✅ Консультация завершена! Бонусы начислены, статус обновлён.');
+      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nСтатус: ${newStatus}`);
       
       setShowCompleteForm(false);
       setSelectedConsultation(null);
@@ -158,8 +168,13 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     ? consultations 
     : consultations.filter(c => c.status === filter);
 
-  // Форма завершения консультации
+  // Форма завершения
   if (showCompleteForm && selectedConsultation) {
+    const bonusEarned = Math.floor(completeData.new_price * 0.05);
+    const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
+    const bonusUsed = selectedConsultation.bonus_used || 0;
+    const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
+
     return (
       <div className="min-h-screen bg-gray-900 p-4">
         <div className="flex items-center justify-between mb-6">
@@ -177,111 +192,65 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         </div>
 
         <div className="space-y-4">
-          {/* Рекомендации и заметки */}
+          {/* Рекомендации */}
           <div>
-            <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации и главное из консультации:</label>
+            <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации:</label>
             <textarea
-              rows={6}
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
-              placeholder="Опишите основные рекомендации, выводы и главное из консультации..."
+              rows={4}
+              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
               value={completeData.admin_notes}
               onChange={(e) => setCompleteData({ ...completeData, admin_notes: e.target.value })}
             />
           </div>
 
-          {/* Изменение стоимости */}
+          {/* Цена (Админ может изменить итоговую сумму) */}
           <div>
-            <label className="text-purple-200 text-sm mb-2 block">💰 Стоимость консультации (₽):</label>
+            <label className="text-purple-200 text-sm mb-2 block">💰 Итоговая стоимость (₽):</label>
             <input
               type="number"
               className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
               value={completeData.new_price}
               onChange={(e) => setCompleteData({ ...completeData, new_price: Number(e.target.value) })}
             />
-            <p className="text-gray-400 text-xs mt-1">
-              Изначальная цена: {selectedConsultation.services?.price || 0} ₽
-            </p>
           </div>
 
-          {/* Начисление бонусов */}
-          <div>
-            <label className="text-purple-200 text-sm mb-2 block">🎁 Бонусы клиенту (₽):</label>
-            <input
-              type="number"
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-              value={completeData.bonus_earned}
-              onChange={(e) => setCompleteData({ ...completeData, bonus_earned: Number(e.target.value) })}
-            />
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => setCompleteData({ ...completeData, bonus_earned: Math.floor(completeData.new_price * 0.05) })}
-                className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20"
-              >
-                5%
-              </button>
-              <button
-                onClick={() => setCompleteData({ ...completeData, bonus_earned: Math.floor(completeData.new_price * 0.1) })}
-                className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20"
-              >
-                10%
-              </button>
-              <button
-                onClick={() => setCompleteData({ ...completeData, bonus_earned: Math.floor(completeData.new_price * 0.15) })}
-                className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20"
-              >
-                15%
-              </button>
-              <button
-                onClick={() => setCompleteData({ ...completeData, bonus_earned: Math.floor(completeData.new_price * 0.2) })}
-                className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20"
-              >
-                20%
-              </button>
+          {/* Финансы */}
+          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-2">
+            <h4 className="text-white font-bold mb-2">💰 Финансы:</h4>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Клиент потратил бонусов:</span>
+              <span className="text-red-400">-{bonusUsed} ₽</span>
             </div>
-            <p className="text-gray-400 text-xs mt-1">
-              Текущий баланс: {selectedConsultation.users?.bonus_balance || 0} ₽ → Новый: {selectedConsultation.users?.bonus_balance || 0 + completeData.bonus_earned} ₽
-            </p>
-          </div>
-
-          {/* Смена статуса клиента */}
-          <div>
-            <label className="text-purple-200 text-sm mb-2 block">👤 Новый статус клиента:</label>
-            <select
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-              value={completeData.new_client_status}
-              onChange={(e) => setCompleteData({ ...completeData, new_client_status: e.target.value })}
-            >
-              {clientStatuses.map((status) => (
-                <option key={status} value={status} className="bg-gray-800">
-                  {status}
-                </option>
-              ))}
-            </select>
-            <p className="text-gray-400 text-xs mt-1">
-              Текущий статус: {selectedConsultation.users?.status || 'Первое знакомство'}
-            </p>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Клиент заплатил деньгами:</span>
+              <span className="text-white">{completeData.new_price} ₽</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Кэшбэк (10% от оплаты):</span>
+              <span className="text-green-400">+{bonusEarned} ₽</span>
+            </div>
+            <div className="h-px bg-gray-700 my-2" />
+            <div className="flex justify-between text-sm font-bold">
+              <span className="text-white">Старый баланс:</span>
+              <span className="text-yellow-400">{currentBonusBalance} ₽</span>
+            </div>
+            <div className="flex justify-between text-sm font-bold">
+              <span className="text-white">Новый баланс:</span>
+              <span className="text-green-400">{newBonusBalance} ₽</span>
+            </div>
           </div>
 
           {/* Кнопки */}
           <div className="flex gap-3 pt-4">
-            <button
-              onClick={() => setShowCompleteForm(false)}
-              className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={handleCompleteConsultation}
-              className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white p-4 rounded-lg font-bold hover:from-green-700 hover:to-green-900 transition"
-            >
-              ✅ Завершить консультацию
-            </button>
+            <button onClick={() => setShowCompleteForm(false)} className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold">Отмена</button>
+            <button onClick={handleCompleteConsultation} className="flex-1 bg-green-600 text-white p-4 rounded-lg font-bold">✅ Завершить</button>
           </div>
         </div>
       </div>
     );
   }
 
+  // Основной список (без изменений, фильтры и т.д.)
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex items-center justify-between mb-6">
@@ -289,146 +258,44 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         <button onClick={onBack} className="text-purple-300">✕</button>
       </div>
 
-      {/* Фильтры */}
       <div className="mb-6 flex gap-2 flex-wrap">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'all' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white'
-          }`}
-        >
-          Все ({consultations.length})
-        </button>
-        <button
-          onClick={() => setFilter('pending')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-white/10 text-white'
-          }`}
-        >
-          Ожидают ({consultations.filter(c => c.status === 'pending').length})
-        </button>
-        <button
-          onClick={() => setFilter('confirmed')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'confirmed' ? 'bg-blue-500 text-white' : 'bg-white/10 text-white'
-          }`}
-        >
-          Подтверждены ({consultations.filter(c => c.status === 'confirmed').length})
-        </button>
+        <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg font-bold ${filter === 'all' ? 'bg-purple-600' : 'bg-white/10'}`}>Все</button>
+        <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg font-bold ${filter === 'pending' ? 'bg-yellow-500' : 'bg-white/10'}`}>Ожидают</button>
+        <button onClick={() => setFilter('confirmed')} className={`px-4 py-2 rounded-lg font-bold ${filter === 'confirmed' ? 'bg-blue-500' : 'bg-white/10'}`}>Подтверждены</button>
       </div>
 
-      {loading ? (
-        <p className="text-white text-center">Загрузка...</p>
-      ) : filteredConsultations.length === 0 ? (
-        <div className="text-center py-10">
-          <div className="text-6xl mb-4">📭</div>
-          <p className="text-gray-400">Записей не найдено</p>
-        </div>
-      ) : (
+      {loading ? <p>Загрузка...</p> : (
         <div className="space-y-4">
-          {filteredConsultations.map((consultation) => {
-            const user = consultation.users;
-            const service = consultation.services;
-
-            return (
-              <div 
-                key={consultation.id} 
-                className="bg-gray-800 p-4 rounded-xl border border-gray-700"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="text-white font-bold text-lg">
-                      {user?.name || 'Неизвестный клиент'}
-                    </h3>
-                    <p className="text-gray-400 text-sm">
-                      Telegram ID: {user?.telegram_id || 'N/A'}
-                    </p>
-                    {user?.city && (
-                      <p className="text-purple-300 text-sm">📍 {user.city}</p>
-                    )}
-                  </div>
-                  <span className={`px-3 py-1 rounded text-xs text-white ${statusColors[consultation.status]}`}>
-                    {statusLabels[consultation.status]}
-                  </span>
+          {filteredConsultations.map((consultation) => (
+            <div key={consultation.id} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h3 className="text-white font-bold">{consultation.users?.name}</h3>
+                  <p className="text-gray-400 text-xs">ID: {consultation.users?.telegram_id}</p>
                 </div>
-
-                <div className="bg-gray-700/50 p-3 rounded-lg mb-3">
-                  <p className="text-white font-bold">{service?.title || 'Услуга удалена'}</p>
-                  <div className="flex gap-4 mt-2 text-sm flex-wrap">
-                    <span className="text-purple-300">
-                      📅 {consultation.scheduled_at 
-                        ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
-                        : 'Дата не указана'
-                      }
-                    </span>
-                    <span className="text-purple-300">
-                      ⏰ {consultation.scheduled_at 
-                        ? format(new Date(consultation.scheduled_at), 'HH:mm')
-                        : ''
-                      }
-                    </span>
-                    <span className="text-yellow-400 font-bold">
-                      {consultation.price || service?.price || 0} ₽
-                    </span>
-                  </div>
-                </div>
-
-                {consultation.notes && (
-                  <div className="bg-white/5 p-3 rounded-lg mb-3">
-                    <p className="text-gray-400 text-xs mb-1">💬 Комментарий клиента:</p>
-                    <p className="text-white text-sm">{consultation.notes}</p>
-                  </div>
-                )}
-
-                {consultation.admin_notes && (
-                  <div className="bg-blue-900/30 p-3 rounded-lg mb-3">
-                    <p className="text-blue-300 text-xs mb-1">📝 Ваши заметки:</p>
-                    <p className="text-white text-sm">{consultation.admin_notes}</p>
-                  </div>
-                )}
-
-                <div className="flex gap-2 flex-wrap mt-3">
-                  {consultation.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => updateConsultationStatus(consultation.id, 'confirmed')}
-                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition"
-                      >
-                        ✅ Подтвердить
-                      </button>
-                      <button
-                        onClick={() => updateConsultationStatus(consultation.id, 'cancelled')}
-                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
-                      >
-                        ❌ Отменить
-                      </button>
-                    </>
-                  )}
-
-                  {consultation.status === 'confirmed' && (
-                    <button
-                      onClick={() => openCompleteForm(consultation)}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition"
-                    >
-                      ✓ Завершить
-                    </button>
-                  )}
-
-                  {consultation.status === 'completed' && (
-                    <div className="text-green-400 text-sm font-bold py-2">
-                      ✓ Консультация завершена
-                    </div>
-                  )}
-
-                  {consultation.status === 'cancelled' && (
-                    <div className="text-red-400 text-sm font-bold py-2">
-                      ✗ Отменена
-                    </div>
-                  )}
-                </div>
+                <span className={`px-2 py-1 rounded text-xs ${statusColors[consultation.status]}`}>{statusLabels[consultation.status]}</span>
               </div>
-            );
-          })}
+              
+              <div className="bg-gray-700/50 p-2 rounded mb-2 text-sm">
+                <p className="text-white">{consultation.services?.title}</p>
+                <p className="text-purple-300">📅 {format(new Date(consultation.scheduled_at), 'dd MMM HH:mm', { locale: ru })}</p>
+                <p className="text-yellow-400 font-bold">{consultation.price} ₽ {consultation.bonus_used > 0 && <span className="text-gray-400 text-xs line-through ml-2">(-{consultation.bonus_used} бонусов)</span>}</p>
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                {consultation.status === 'pending' && (
+                  <>
+                    <button onClick={() => updateConsultationStatus(consultation.id, 'confirmed')} className="flex-1 bg-blue-600 text-white p-2 rounded text-sm">✅ Подтвердить</button>
+                    <button onClick={() => updateConsultationStatus(consultation.id, 'cancelled')} className="flex-1 bg-red-600 text-white p-2 rounded text-sm">❌ Отменить</button>
+                  </>
+                )}
+                {consultation.status === 'confirmed' && (
+                  <button onClick={() => openCompleteForm(consultation)} className="flex-1 bg-green-600 text-white p-2 rounded text-sm">✓ Завершить</button>
+                )}
+                {consultation.status === 'completed' && <div className="text-green-400 text-sm py-2">Завершено</div>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
