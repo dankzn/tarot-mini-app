@@ -33,7 +33,7 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
   }, []);
 
   const loadConsultations = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('consultations')
       .select(`
         *,
