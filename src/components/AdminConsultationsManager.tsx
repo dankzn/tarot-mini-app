@@ -50,10 +50,18 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   }, []);
 
   const loadConsultations = async () => {
-    const { data: consultationsData } = await supabase
+    console.log('🔍 Загрузка консультаций...');
+    
+    const { data: consultationsData, error: consultError } = await supabase
       .from('consultations')
       .select('*')
       .order('scheduled_at', { ascending: false });
+
+    if (consultError) {
+      console.error('❌ Ошибка загрузки консультаций:', consultError);
+      setLoading(false);
+      return;
+    }
 
     const { data: usersData } = await supabase
       .from('users')
@@ -69,6 +77,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       services: servicesData?.find(s => s.id === c.service_id) || null,
     }));
 
+    console.log('✅ Загружено записей:', enrichedConsultations.length);
     setConsultations(enrichedConsultations);
     setLoading(false);
   };
@@ -123,6 +132,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
       const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
+      console.log('🔄 Обновление консультации и пользователя...');
+      console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
+      console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
+
       // 3. Обновляем консультацию
       const { error: consultError } = await supabase
         .from('consultations')
@@ -135,30 +148,55 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         })
         .eq('id', selectedConsultation.id);
 
-      if (consultError) throw consultError;
+      if (consultError) {
+        console.error('❌ Ошибка обновления консультации:', consultError);
+        throw consultError;
+      }
 
-      // 4. Обновляем пользователя (Статус + Баланс)
-      const { error: userError } = await supabase
+      console.log('✅ Консультация обновлена');
+
+      // 4. ПРИНУДИТЕЛЬНОЕ обновление пользователя с возвратом данных
+      const { data: updatedUser, error: userError } = await supabase
         .from('users')
         .update({
           status: newStatus,
           bonus_balance: newBonusBalance,
         })
-        .eq('id', selectedConsultation.user_id);
+        .eq('id', selectedConsultation.user_id)
+        .select()
+        .single();
 
-      if (userError) throw userError;
+      if (userError) {
+        console.error('❌ Ошибка обновления пользователя:', userError);
+        throw userError;
+      }
 
-      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nСтатус: ${newStatus}`);
+      console.log('✅ Пользователь обновлен:', updatedUser);
+
+      // 5. Проверяем, что данные действительно обновились в базе
+      const { data: verifyUser } = await supabase
+        .from('users')
+        .select('status, bonus_balance')
+        .eq('id', selectedConsultation.user_id)
+        .single();
+
+      console.log('🔍 Проверка данных в базе:', verifyUser);
+
+      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nНовый статус: ${newStatus}`);
       
       setShowCompleteForm(false);
       setSelectedConsultation(null);
       
-      // 5. ПЕРЕЗАГРУЖАЕМ ДАННЫЕ
+      // 6. Перезагружаем данные
       await loadConsultations();
       
-      // 6. Обновляем приложение чтобы показать новый баланс клиенту
-      window.location.reload();
+      // 7. ПРИНУДИТЕЛЬНАЯ перезагрузка всего приложения
+      setTimeout(() => {
+        window.location.href = window.location.href;
+      }, 500);
+      
     } catch (error: any) {
+      console.error('❌ Ошибка:', error);
       alert('Ошибка: ' + error.message);
     }
   };
@@ -167,7 +205,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     ? consultations 
     : consultations.filter(c => c.status === filter);
 
-  // Форма завершения
+  // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
     const bonusEarned = Math.floor(completeData.new_price * 0.10);
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
@@ -193,16 +231,17 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         <div className="space-y-4">
           {/* Рекомендации */}
           <div>
-            <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации:</label>
+            <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации и главное из консультации:</label>
             <textarea
-              rows={4}
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
+              rows={6}
+              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
+              placeholder="Опишите основные рекомендации, выводы и главное из консультации..."
               value={completeData.admin_notes}
               onChange={(e) => setCompleteData({ ...completeData, admin_notes: e.target.value })}
             />
           </div>
 
-          {/* Цена (Админ может изменить итоговую сумму) */}
+          {/* Изменение стоимости */}
           <div>
             <label className="text-purple-200 text-sm mb-2 block">💰 Итоговая стоимость (₽):</label>
             <input
@@ -211,6 +250,9 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
               value={completeData.new_price}
               onChange={(e) => setCompleteData({ ...completeData, new_price: Number(e.target.value) })}
             />
+            <p className="text-gray-400 text-xs mt-1">
+              Изначальная цена: {selectedConsultation.services?.price || 0} ₽
+            </p>
           </div>
 
           {/* Финансы */}
@@ -239,6 +281,22 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             </div>
           </div>
 
+          {/* Автоматическая смена статуса */}
+          <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-xl">
+            <h4 className="text-blue-400 font-bold mb-2">👤 Автоматическая смена статуса:</h4>
+            <div className="space-y-1 text-sm">
+              <p className="text-white">
+                Текущий статус: <span className="text-yellow-400">{selectedConsultation.users?.status || 'Первое знакомство'}</span>
+              </p>
+              <p className="text-white">
+                Завершено консультаций: <span className="text-blue-400">{consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1}</span>
+              </p>
+              <p className="text-white">
+                Новый статус: <span className="text-blue-400 font-bold">{calculateClientStatus(consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1)}</span>
+              </p>
+            </div>
+          </div>
+
           {/* Кнопки */}
           <div className="flex gap-3 pt-4">
             <button
@@ -259,7 +317,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     );
   }
 
-  // Основной список
+  // Основной список консультаций
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex items-center justify-between mb-6">
@@ -349,6 +407,11 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                       {consultation.price || service?.price || 0} ₽
                     </span>
                   </div>
+                  {consultation.bonus_used > 0 && (
+                    <p className="text-gray-400 text-xs mt-1">
+                      💎 Списано бонусов: {consultation.bonus_used} ₽
+                    </p>
+                  )}
                 </div>
 
                 {consultation.notes && (
