@@ -34,18 +34,22 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   }, []);
 
   const loadConsultations = async () => {
+    console.log('🔍 Загрузка записей...');
+    
     const { data, error } = await supabase
       .from('consultations')
       .select(`
         *,
-        users (name, telegram_id, phone, city),
+        users (name, telegram_id, city),
         services (title, price)
       `)
       .order('scheduled_at', { ascending: false });
 
     if (error) {
-      console.error('Ошибка загрузки записей:', error);
+      console.error('❌ Ошибка загрузки:', error);
     } else {
+      console.log('✅ Загружено записей:', data?.length);
+      console.log('📋 Данные:', data);
       setConsultations(data || []);
     }
     setLoading(false);
@@ -60,7 +64,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
       if (error) throw error;
       
-      // Обновляем локально
       setConsultations(consultations.map(c => 
         c.id === consultationId ? { ...c, status: newStatus } : c
       ));
@@ -116,6 +119,11 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         <div className="text-center py-10">
           <div className="text-6xl mb-4">📭</div>
           <p className="text-gray-400">Записей не найдено</p>
+          {consultations.length === 0 && (
+            <p className="text-purple-300 text-sm mt-2">
+              Откройте консоль (F12) для отладки
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -128,7 +136,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                 key={consultation.id} 
                 className="bg-gray-800 p-4 rounded-xl border border-gray-700"
               >
-                {/* Шапка: клиент и статус */}
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-white font-bold text-lg">
@@ -146,10 +153,9 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   </span>
                 </div>
 
-                {/* Информация об услуге */}
                 <div className="bg-gray-700/50 p-3 rounded-lg mb-3">
                   <p className="text-white font-bold">{service?.title || 'Услуга удалена'}</p>
-                  <div className="flex gap-4 mt-2 text-sm">
+                  <div className="flex gap-4 mt-2 text-sm flex-wrap">
                     <span className="text-purple-300">
                       📅 {consultation.scheduled_at 
                         ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
@@ -168,7 +174,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   </div>
                 </div>
 
-                {/* Комментарий клиента */}
                 {consultation.notes && (
                   <div className="bg-white/5 p-3 rounded-lg mb-3">
                     <p className="text-gray-400 text-xs mb-1">💬 Комментарий клиента:</p>
@@ -176,7 +181,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   </div>
                 )}
 
-                {/* Админские заметки */}
                 {consultation.admin_notes && (
                   <div className="bg-blue-900/30 p-3 rounded-lg mb-3">
                     <p className="text-blue-300 text-xs mb-1">📝 Ваши заметки:</p>
@@ -184,7 +188,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   </div>
                 )}
 
-                {/* Кнопки управления статусом */}
                 <div className="flex gap-2 flex-wrap mt-3">
                   {consultation.status === 'pending' && (
                     <>
