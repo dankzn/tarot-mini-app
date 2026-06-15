@@ -133,70 +133,87 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   };
 
   const handleCompleteConsultation = async () => {
-    if (!selectedConsultation) return;
+  if (!selectedConsultation) return;
 
-    try {
-      const completedConsultations = consultations.filter(c => 
-        c.user_id === selectedConsultation.user_id && 
-        c.status === 'completed' &&
-        c.id !== selectedConsultation.id
-      );
-      
-      const totalCompleted = completedConsultations.length + 1;
-      const newStatus = calculateClientStatus(totalCompleted);
-      
-      const bonusUsed = selectedConsultation.bonus_used || 0;
-      const finalPrice = completeData.new_price;
-      const bonusEarned = Math.floor(finalPrice * 0.05);
-      
-      const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
-      const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
+  try {
+    const completedConsultations = consultations.filter(c => 
+      c.user_id === selectedConsultation.user_id && 
+      c.status === 'completed' &&
+      c.id !== selectedConsultation.id
+    );
+    
+    const totalCompleted = completedConsultations.length + 1;
+    const newStatus = calculateClientStatus(totalCompleted);
+    
+    const bonusUsed = selectedConsultation.bonus_used || 0;
+    const finalPrice = completeData.new_price;
+    const bonusEarned = Math.floor(finalPrice * 0.05); // 5%
+    
+    const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
+    const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
-      console.log('🔄 Обновление...');
+    console.log('🔄 Обновление консультации...');
 
-      const { error: consultError } = await supabase
-        .from('consultations')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          admin_notes: completeData.admin_notes,
-          price: finalPrice,
-          bonus_paid: bonusEarned,
-        })
-        .eq('id', selectedConsultation.id);
+    // 1. Обновляем консультацию
+    const { error: consultError } = await supabase
+      .from('consultations')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        admin_notes: completeData.admin_notes,
+        price: finalPrice,
+        bonus_paid: bonusEarned,
+      })
+      .eq('id', selectedConsultation.id);
 
-      if (consultError) throw consultError;
+    if (consultError) throw consultError;
 
-      const { error: userError } = await supabase
-        .from('users')
-        .update({
-          status: newStatus,
-          bonus_balance: newBonusBalance,
-        })
-        .eq('id', selectedConsultation.user_id);
+    console.log('✅ Обновляем пользователя...');
+    console.log('User ID:', selectedConsultation.user_id);
+    console.log('Новый баланс:', newBonusBalance);
+    console.log('Новый статус:', newStatus);
 
-      if (userError) throw userError;
+    // 2. ПРИНУДИТЕЛЬНО обновляем пользователя
+    const { error: userError } = await supabase
+      .from('users')
+      .update({
+        status: newStatus,
+        bonus_balance: newBonusBalance,
+      })
+      .eq('id', selectedConsultation.user_id);
 
-      console.log('✅ Обновление завершено');
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nНовый статус: ${newStatus}`);
-      
-      setShowCompleteForm(false);
-      setSelectedConsultation(null);
-      
-      await loadConsultations();
-      
-      setTimeout(() => {
-        window.location.href = window.location.href + '?t=' + Date.now();
-      }, 500);
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка:', error);
-      alert('Ошибка: ' + error.message);
+    if (userError) {
+      console.error('❌ Ошибка обновления пользователя:', userError);
+      throw userError;
     }
-  };
+
+    // 3. Проверяем что данные обновились
+    const { data: verifyUser } = await supabase
+      .from('users')
+      .select('status, bonus_balance')
+      .eq('id', selectedConsultation.user_id)
+      .single();
+
+    console.log('🔍 Проверка:', verifyUser);
+
+    alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nНовый баланс: ${verifyUser?.bonus_balance} ₽\nНовый статус: ${verifyUser?.status}`);
+    
+    setShowCompleteForm(false);
+    setSelectedConsultation(null);
+    
+    // 4. Перезагружаем данные
+    await loadConsultations();
+    
+    // 5. ПРИНУДИТЕЛЬНАЯ перезагрузка ВСЕГО приложения
+    setTimeout(() => {
+      window.location.href = window.location.href;
+    }, 1000);
+    
+  } catch (error: any) {
+    console.error('❌ Ошибка:', error);
+    alert('Ошибка: ' + error.message);
+  }
+};
 
   const handleEditConsultation = async () => {
     if (!selectedConsultation) return;

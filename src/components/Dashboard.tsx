@@ -41,6 +41,24 @@ export const Dashboard = ({ user }: DashboardProps) => {
     loadBonusHistory();
   }, []);
 
+  // Принудительная перезагрузка данных при монтировании
+useEffect(() => {
+  const reloadUserData = async () => {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    
+    if (userData) {
+      // Обновляем user объект с новыми данными
+      window.location.href = window.location.href;
+    }
+  };
+  
+  reloadUserData();
+}, []);
+
   const loadServices = async () => {
     try {
       const { data } = await supabase
