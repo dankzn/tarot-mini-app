@@ -24,7 +24,6 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Отменена',
 };
 
-// Автоматический расчет статуса по количеству консультаций
 const calculateClientStatus = (consultationCount: number): string => {
   if (consultationCount === 0) return 'Первое знакомство';
   if (consultationCount <= 2) return 'Basic';
@@ -114,7 +113,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     if (!selectedConsultation) return;
 
     try {
-      // 1. Считаем количество завершенных консультаций
       const completedConsultations = consultations.filter(c => 
         c.user_id === selectedConsultation.user_id && 
         c.status === 'completed' &&
@@ -124,7 +122,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       const totalCompleted = completedConsultations.length + 1;
       const newStatus = calculateClientStatus(totalCompleted);
       
-      // 2. Логика бонусов
       const bonusUsed = selectedConsultation.bonus_used || 0;
       const finalPrice = completeData.new_price;
       const bonusEarned = Math.floor(finalPrice * 0.10);
@@ -133,10 +130,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
       console.log('🔄 Обновление консультации и пользователя...');
+      console.log('User ID:', selectedConsultation.user_id);
       console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
       console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
 
-      // 3. Обновляем консультацию
       const { error: consultError } = await supabase
         .from('consultations')
         .update({
@@ -155,42 +152,29 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
       console.log('✅ Консультация обновлена');
 
-      // 4. ПРИНУДИТЕЛЬНОЕ обновление пользователя с возвратом данных
-      const { data: updatedUser, error: userError } = await supabase
+      const { data: updatedUsers, error: userError } = await supabase
         .from('users')
         .update({
           status: newStatus,
           bonus_balance: newBonusBalance,
         })
         .eq('id', selectedConsultation.user_id)
-        .select()
-        .single();
+        .select();
 
       if (userError) {
         console.error('❌ Ошибка обновления пользователя:', userError);
         throw userError;
       }
 
-      console.log('✅ Пользователь обновлен:', updatedUser);
-
-      // 5. Проверяем, что данные действительно обновились в базе
-      const { data: verifyUser } = await supabase
-        .from('users')
-        .select('status, bonus_balance')
-        .eq('id', selectedConsultation.user_id)
-        .single();
-
-      console.log('🔍 Проверка данных в базе:', verifyUser);
+      console.log('✅ Пользователь обновлен:', updatedUsers);
 
       alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nНовый статус: ${newStatus}`);
       
       setShowCompleteForm(false);
       setSelectedConsultation(null);
       
-      // 6. Перезагружаем данные
       await loadConsultations();
       
-      // 7. ПРИНУДИТЕЛЬНАЯ перезагрузка всего приложения
       setTimeout(() => {
         window.location.href = window.location.href;
       }, 500);
@@ -205,7 +189,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     ? consultations 
     : consultations.filter(c => c.status === filter);
 
-  // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
     const bonusEarned = Math.floor(completeData.new_price * 0.10);
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
@@ -229,7 +212,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         </div>
 
         <div className="space-y-4">
-          {/* Рекомендации */}
           <div>
             <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации и главное из консультации:</label>
             <textarea
@@ -241,7 +223,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             />
           </div>
 
-          {/* Изменение стоимости */}
           <div>
             <label className="text-purple-200 text-sm mb-2 block">💰 Итоговая стоимость (₽):</label>
             <input
@@ -255,9 +236,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             </p>
           </div>
 
-          {/* Финансы */}
           <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-2">
-            <h4 className="text-white font-bold mb-2">💰 Финансы:</h4>
+            <h4 className="text-white font-bold mb-2"> Финансы:</h4>
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Клиент потратил бонусов:</span>
               <span className="text-red-400">-{bonusUsed} ₽</span>
@@ -281,9 +261,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             </div>
           </div>
 
-          {/* Автоматическая смена статуса */}
           <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-xl">
-            <h4 className="text-blue-400 font-bold mb-2">👤 Автоматическая смена статуса:</h4>
+            <h4 className="text-blue-400 font-bold mb-2"> Автоматическая смена статуса:</h4>
             <div className="space-y-1 text-sm">
               <p className="text-white">
                 Текущий статус: <span className="text-yellow-400">{selectedConsultation.users?.status || 'Первое знакомство'}</span>
@@ -297,7 +276,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             </div>
           </div>
 
-          {/* Кнопки */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={() => setShowCompleteForm(false)}
@@ -317,15 +295,13 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     );
   }
 
-  // Основной список консультаций
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">📋 Управление записями</h2>
+        <h2 className="text-2xl font-bold text-white"> Управление записями</h2>
         <button onClick={onBack} className="text-purple-300">✕</button>
       </div>
 
-      {/* Фильтры */}
       <div className="mb-6 flex gap-2 flex-wrap">
         <button
           onClick={() => setFilter('all')}
@@ -416,7 +392,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
                 {consultation.notes && (
                   <div className="bg-white/5 p-3 rounded-lg mb-3">
-                    <p className="text-gray-400 text-xs mb-1">💬 Комментарий клиента:</p>
+                    <p className="text-gray-400 text-xs mb-1"> Комментарий клиента:</p>
                     <p className="text-white text-sm">{consultation.notes}</p>
                   </div>
                 )}
