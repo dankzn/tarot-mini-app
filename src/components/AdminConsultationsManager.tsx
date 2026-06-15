@@ -46,6 +46,26 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
   useEffect(() => {
     loadConsultations();
+
+    // Подписка на изменения в таблице users
+    const subscription = supabase
+      .channel('users_changes')
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'users' 
+        }, 
+        payload => {
+          console.log('🔄 Пользователь обновлён:', payload);
+          loadConsultations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadConsultations = async () => {
@@ -134,6 +154,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
       console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
 
+      // 1. Обновляем консультацию
       const { error: consultError } = await supabase
         .from('consultations')
         .update({
@@ -152,31 +173,45 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
       console.log('✅ Консультация обновлена');
 
-      const { data: updatedUsers, error: userError } = await supabase
+      // 2. Обновляем пользователя
+      const { error: userError } = await supabase
         .from('users')
         .update({
           status: newStatus,
           bonus_balance: newBonusBalance,
         })
-        .eq('id', selectedConsultation.user_id)
-        .select();
+        .eq('id', selectedConsultation.user_id);
 
       if (userError) {
         console.error('❌ Ошибка обновления пользователя:', userError);
         throw userError;
       }
 
-      console.log('✅ Пользователь обновлен:', updatedUsers);
+      console.log('✅ Пользователь обновлён');
 
-      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nНовый статус: ${newStatus}`);
+      // 3. Ждём чтобы триггеры сработали
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 4. Принудительно перечитываем данные из базы
+      const { data: verifyUser } = await supabase
+        .from('users')
+        .select('status, bonus_balance, updated_at')
+        .eq('id', selectedConsultation.user_id)
+        .single();
+
+      console.log('🔍 Проверка данных в базе:', verifyUser);
+
+      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${verifyUser?.bonus_balance || newBonusBalance} ₽\nНовый статус: ${verifyUser?.status || newStatus}`);
       
       setShowCompleteForm(false);
       setSelectedConsultation(null);
       
+      // 5. Перезагружаем данные
       await loadConsultations();
       
+      // 6. ПРИНУДИТЕЛЬНАЯ перезагрузка всего приложения с очисткой кэша
       setTimeout(() => {
-        window.location.href = window.location.href;
+        window.location.href = window.location.href + '?t=' + Date.now();
       }, 500);
       
     } catch (error: any) {
@@ -189,6 +224,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     ? consultations 
     : consultations.filter(c => c.status === filter);
 
+  // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
     const bonusEarned = Math.floor(completeData.new_price * 0.10);
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
@@ -237,7 +273,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
           </div>
 
           <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-2">
-            <h4 className="text-white font-bold mb-2"> Финансы:</h4>
+            <h4 className="text-white font-bold mb-2">💰 Финансы:</h4>
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Клиент потратил бонусов:</span>
               <span className="text-red-400">-{bonusUsed} ₽</span>
@@ -262,7 +298,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
           </div>
 
           <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-xl">
-            <h4 className="text-blue-400 font-bold mb-2"> Автоматическая смена статуса:</h4>
+            <h4 className="text-blue-400 font-bold mb-2">👤 Автоматическая смена статуса:</h4>
             <div className="space-y-1 text-sm">
               <p className="text-white">
                 Текущий статус: <span className="text-yellow-400">{selectedConsultation.users?.status || 'Первое знакомство'}</span>
@@ -295,13 +331,15 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     );
   }
 
+  // Основной список консультаций
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white"> Управление записями</h2>
+        <h2 className="text-2xl font-bold text-white">📋 Управление записями</h2>
         <button onClick={onBack} className="text-purple-300">✕</button>
       </div>
 
+      {/* Фильтры */}
       <div className="mb-6 flex gap-2 flex-wrap">
         <button
           onClick={() => setFilter('all')}
@@ -368,7 +406,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   <p className="text-white font-bold">{service?.title || 'Услуга удалена'}</p>
                   <div className="flex gap-4 mt-2 text-sm flex-wrap">
                     <span className="text-purple-300">
-                      📅 {consultation.scheduled_at 
+                       {consultation.scheduled_at 
                         ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
                         : 'Дата не указана'
                       }
@@ -392,14 +430,14 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
                 {consultation.notes && (
                   <div className="bg-white/5 p-3 rounded-lg mb-3">
-                    <p className="text-gray-400 text-xs mb-1"> Комментарий клиента:</p>
+                    <p className="text-gray-400 text-xs mb-1">💬 Комментарий клиента:</p>
                     <p className="text-white text-sm">{consultation.notes}</p>
                   </div>
                 )}
 
                 {consultation.admin_notes && (
                   <div className="bg-blue-900/30 p-3 rounded-lg mb-3">
-                    <p className="text-blue-300 text-xs mb-1">📝 Ваши заметки:</p>
+                    <p className="text-blue-300 text-xs mb-1"> Ваши заметки:</p>
                     <p className="text-white text-sm">{consultation.admin_notes}</p>
                   </div>
                 )}
