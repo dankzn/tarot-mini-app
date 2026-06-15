@@ -1,4 +1,3 @@
-import { supabase } from './supabase';
 
 // Отправка уведомления через Telegram Bot API
 export const sendTelegramNotification = async (

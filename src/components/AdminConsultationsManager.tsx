@@ -19,7 +19,6 @@ import {
   Crown
 } from 'lucide-react';
 import { 
-  notifyAdminNewBooking,
   notifyClientBonusUpdate,
   notifyClientStatusChange 
 } from '../lib/notifications';

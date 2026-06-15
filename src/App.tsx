@@ -1,83 +1,93 @@
-import { useEffect, useState } from 'react'
-import { SplashScreen } from './components/SplashScreen'
-import { RegistrationForm } from './components/RegistrationForm'
-import { Dashboard } from './components/Dashboard'
-import { AdminDashboard } from './components/AdminDashboard'
-import { supabase } from './lib/supabase'
-import { initTelegram, getTelegramUser } from './lib/telegram'
+import { useEffect, useState } from 'react';
+import { supabase } from './lib/supabase';
+import { SplashScreen } from './components/SplashScreen';
+import { RegistrationForm } from './components/RegistrationForm';
+import { Dashboard } from './components/Dashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 
-function App() {
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [showRegistration, setShowRegistration] = useState(false)
-  const [notInTelegram, setNotInTelegram] = useState(false)
+export const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
-      initTelegram()
-      await new Promise(resolve => setTimeout(resolve, 2000))
+    initUser();
+  }, []);
 
-      const tgUser = getTelegramUser()
-      
-      if (!tgUser) {
-        setNotInTelegram(true)
-        setIsLoading(false)
-        return
+  const initUser = async () => {
+    try {
+      const tg = window.Telegram?.WebApp;
+      if (!tg) {
+        console.error('Telegram WebApp не найден');
+        setLoading(false);
+        return;
       }
 
-      const { data } = await supabase
+      const tgUser = tg.initDataUnsafe?.user;
+      if (!tgUser) {
+        console.error('Пользователь Telegram не найден');
+        setLoading(false);
+        return;
+      }
+
+      // Ищем пользователя в базе
+      const { data: existingUser } = await supabase
         .from('users')
         .select('*')
         .eq('telegram_id', tgUser.id)
-        .single()
+        .single();
 
-      if (data) {
-        setUser(data)
+      if (existingUser) {
+        setUser(existingUser);
       } else {
-        setShowRegistration(true)
+        // Новый пользователь - показываем регистрацию
+        setUser({ needsRegistration: true, telegramUser: tgUser });
       }
-
-      setIsLoading(false)
+    } catch (error) {
+      console.error('Ошибка инициализации:', error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    init()
-  }, [])
+  const handleRegistrationComplete = async (userData: any) => {
+    setUser(userData);
+  };
 
-  const handleRegistrationSuccess = (newUser: any) => {
-    setUser(newUser)
-    setShowRegistration(false)
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
-  if (isLoading) {
-    return <SplashScreen />
-  }
-
-  if (notInTelegram) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e]">
-        <div className="bg-white/10 p-6 rounded-xl text-center">
-          <div className="text-5xl mb-4">📱</div>
-          <h2 className="text-white text-xl font-bold mb-2">Откройте через Telegram</h2>
-        </div>
+      <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
+        <div className="text-[#385144]">Загрузка...</div>
       </div>
-    )
+    );
   }
 
-  if (showRegistration) {
-    return <RegistrationForm onSuccess={handleRegistrationSuccess} />
+  if (user?.needsRegistration) {
+    return (
+      <RegistrationForm 
+        telegramUser={user.telegramUser}
+        onComplete={handleRegistrationComplete}
+      />
+    );
   }
 
-  if (user) {
-    const normalizedRole = user.role ? user.role.trim().toLowerCase() : ''
-    
-    if (normalizedRole === 'admin') {
-      return <AdminDashboard currentUser={user} />
-    } else {
-      return <Dashboard user={user} />
-    }
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
+        <div className="text-[#385144]">Ошибка загрузки пользователя</div>
+      </div>
+    );
   }
 
-  return null
-}
+  // Если админ - показываем админку
+  if (user.role === 'admin') {
+    return <AdminDashboard currentUser={user} />;
+  }
 
-export default App
+  // Иначе - клиентский дашборд
+  return <Dashboard user={user} />;
+};
