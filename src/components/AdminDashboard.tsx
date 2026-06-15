@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { AdminSlotsManager } from './AdminSlotsManager';
 
 interface AdminDashboardProps {
   currentUser: any;
@@ -8,6 +9,7 @@ interface AdminDashboardProps {
 export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSlotsManager, setShowSlotsManager] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -23,14 +25,28 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
     setLoading(false);
   };
 
+  // Показываем менеджер слотов
+  if (showSlotsManager) {
+    return <AdminSlotsManager admin={currentUser} onBack={() => setShowSlotsManager(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">👑 Панель Администратора</h1>
+        <h1 className="text-2xl font-bold text-white"> Панель Администратора</h1>
         <div className="bg-purple-600 px-3 py-1 rounded-full text-sm">
           {currentUser.name}
         </div>
       </div>
+
+      {/* Кнопка управления окнами */}
+      <button
+        onClick={() => setShowSlotsManager(true)}
+        className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-xl font-bold mb-6 hover:from-blue-700 hover:to-blue-900 transition flex items-center justify-between"
+      >
+        <span>📅 Управление окнами</span>
+        <span>→</span>
+      </button>
 
       {loading ? (
         <p className="text-white">Загрузка данных...</p>
