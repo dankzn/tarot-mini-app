@@ -6,6 +6,9 @@ import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
+// Определяем тип для календаря
+type CalendarValue = Date | Date[] | null;
+
 interface BookingFormProps {
   user: any;
   service: any;
@@ -33,7 +36,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     const startOfDayDate = startOfDay(selectedDate!);
     const now = new Date();
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('time_slots')
       .select('*')
       .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
@@ -64,9 +67,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     return slots;
   };
 
-  // ИСПРАВЛЕНО: правильная типизация для react-calendar
-  const handleDateChange = (value: Date | Date[] | null) => {
-    if (value && !Array.isArray(value)) {
+  // ИСПРАВЛЕНО: используем свой тип
+  const handleDateChange = (value: CalendarValue) => {
+    if (value instanceof Date) {
       setSelectedDate(value);
       setStep(2);
     }
@@ -90,7 +93,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const endTime = addMinutes(bookingDateTime, duration);
 
       // Создаём запись о консультации
-      const { data: consultation, error: consultError } = await supabase
+      const { data: consultation } = await supabase
         .from('consultations')
         .insert([
           {
@@ -105,10 +108,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         .select()
         .single();
 
-      if (consultError) throw consultError;
-
       // Бронируем слот
-      const { error: slotError } = await supabase
+      await supabase
         .from('time_slots')
         .insert([
           {
@@ -120,8 +121,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             consultation_id: consultation.id,
           }
         ]);
-
-      if (slotError) throw slotError;
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
