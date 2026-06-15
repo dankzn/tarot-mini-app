@@ -8,7 +8,6 @@ import {
   ScrollText, 
   Gift, 
   CalendarCheck,
-  User,
   MapPin,
   Clock,
   DollarSign
@@ -39,15 +38,13 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
   const loadServices = async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('services')
         .select('*')
         .order('price', { ascending: true });
 
-      if (error) {
-        console.error('Ошибка загрузки услуг:', error);
-      } else {
-        setServices(data || []);
+      if (data) {
+        setServices(data);
       }
     } catch (err) {
       console.error('Ошибка:', err);
@@ -68,7 +65,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
 
-  // Показываем форму записи
   if (showBooking && selectedService) {
     return (
       <BookingForm 
@@ -87,14 +83,12 @@ export const Dashboard = ({ user }: DashboardProps) => {
     );
   }
 
-  // Показываем историю консультаций
   if (showHistory) {
     return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
   }
 
   return (
     <div className="min-h-screen bg-[#F8F5F2] p-4 pb-20">
-      {/* Шапка профиля */}
       <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
@@ -111,7 +105,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </div>
         </div>
 
-        {/* Статус и бонусы */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100">
             <div className="flex items-center mb-1">
@@ -135,7 +128,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
         </div>
       </div>
 
-      {/* Основные действия */}
       <div className="grid grid-cols-1 gap-3 mb-6">
         <button 
           onClick={() => setShowHistory(true)}
@@ -157,9 +149,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
         </button>
       </div>
 
-      {/* Услуги */}
       <div>
-        <h3 className="text-[#385144] font-bold mb-3 text-lg flex items-center">
+        <h3 className="text-[#385144] font-bold mb-3 flex items-center">
           <CalendarCheck className="w-5 h-5 mr-2" />
           Услуги
         </h3>

@@ -34,7 +34,7 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
   }, []);
 
   const loadConsultations = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('consultations')
       .select(`
         *,
@@ -107,7 +107,6 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
                 </div>
               </div>
 
-              {/* Рекомендации администратора */}
               {consultation.admin_notes && consultation.status === 'completed' && (
                 <div className="bg-[#F8F5F2] border-l-4 border-[#6B4EE6] p-4 rounded-r-xl mb-3">
                   <div className="flex items-start">
@@ -120,7 +119,6 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
                 </div>
               )}
 
-              {/* Комментарий клиента */}
               {consultation.notes && (
                 <div className="bg-gray-50 border-l-4 border-gray-300 p-4 rounded-r-xl">
                   <p className="text-gray-500 text-xs mb-1">Ваш комментарий:</p>
@@ -128,7 +126,6 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
                 </div>
               )}
 
-              {/* Бонусы */}
               {consultation.bonus_paid > 0 && (
                 <div className="mt-3 flex items-center text-sm">
                   <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
