@@ -69,13 +69,21 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const bookingDateTime = new Date(selectedDate);
       bookingDateTime.setHours(hours, minutes, 0, 0);
 
-      // Находим слот в базе
-      const slot = availableSlots.find(s => {
-        const slotTime = format(new Date(s.start_time), 'HH:mm');
-        return slotTime === selectedTime;
-      });
+      const endTime = addMinutes(bookingDateTime, duration);
 
-      const { data: consultation } = await supabase
+      // Проверяем, есть ли такой слот в базе
+      const startOfDayDate = startOfDay(selectedDate);
+      const { data: existingSlot } = await supabase
+        .from('time_slots')
+        .select('id')
+        .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
+        .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
+        .eq('is_booked', false)
+        .eq('duration_minutes', duration)
+        .single();
+
+      // Создаём консультацию
+      const { data: consultation, error: consultError } = await supabase
         .from('consultations')
         .insert([
           {
@@ -90,7 +98,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         .select()
         .single();
 
-      if (slot) {
+      if (consultError) throw consultError;
+
+      // Если слот есть — помечаем его как забронированный
+      if (existingSlot) {
         await supabase
           .from('time_slots')
           .update({ 
@@ -98,7 +109,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             booked_by: user.id,
             consultation_id: consultation.id
           })
-          .eq('id', slot.id);
+          .eq('id', existingSlot.id);
       }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
