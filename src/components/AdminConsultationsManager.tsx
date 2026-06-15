@@ -147,7 +147,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       
       const bonusUsed = selectedConsultation.bonus_used || 0;
       const finalPrice = completeData.new_price;
-      const bonusEarned = Math.floor(finalPrice * 0.10);
+      const bonusEarned = Math.floor(finalPrice * 0.05);
       
       const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
       const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
@@ -231,7 +231,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
   // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
-    const bonusEarned = Math.floor(completeData.new_price * 0.10);
+    const bonusEarned = Math.floor(completeData.new_price * 0.05);
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;

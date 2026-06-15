@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css';
 import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Clock, DollarSign, Sparkles, MessageSquare, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
 
 interface BookingFormProps {
   user: any;
@@ -236,7 +236,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 <span>{selectedTime}</span>
               </div>
               <div className="flex items-center text-gray-700">
-                <DollarSign className="w-5 h-5 mr-3 text-[#385144]" />
+                <span className="text-[#D4AF37]">₽</span>
                 <span className="font-bold">{finalPrice} ₽</span>
               </div>
             </div>
