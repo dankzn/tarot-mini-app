@@ -51,7 +51,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         !isBefore(new Date(slot.start_time), now)
       );
       setAvailableSlots(futureSlots);
-      console.log('Загружено слотов:', futureSlots.length);
     }
   };
 
@@ -69,8 +68,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const [hours, minutes] = selectedTime.split(':').map(Number);
       const bookingDateTime = new Date(selectedDate);
       bookingDateTime.setHours(hours, minutes, 0, 0);
-
-      const endTime = addMinutes(bookingDateTime, duration);
 
       // Находим слот в базе
       const slot = availableSlots.find(s => {
