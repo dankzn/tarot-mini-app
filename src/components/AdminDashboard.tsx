@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { AdminSlotsManager } from './AdminSlotsManager';
+import { AdminConsultationsManager } from './AdminConsultationsManager';
 
 interface AdminDashboardProps {
   currentUser: any;
@@ -10,6 +11,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSlotsManager, setShowSlotsManager] = useState(false);
+  const [showConsultationsManager, setShowConsultationsManager] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -25,29 +27,43 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
     setLoading(false);
   };
 
-  // Показываем менеджер слотов
   if (showSlotsManager) {
     return <AdminSlotsManager admin={currentUser} onBack={() => setShowSlotsManager(false)} />;
+  }
+
+  if (showConsultationsManager) {
+    return <AdminConsultationsManager admin={currentUser} onBack={() => setShowConsultationsManager(false)} />;
   }
 
   return (
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white"> Панель Администратора</h1>
+        <h1 className="text-2xl font-bold text-white">👑 Панель Администратора</h1>
         <div className="bg-purple-600 px-3 py-1 rounded-full text-sm">
           {currentUser.name}
         </div>
       </div>
 
-      {/* Кнопка управления окнами */}
-      <button
-        onClick={() => setShowSlotsManager(true)}
-        className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-xl font-bold mb-6 hover:from-blue-700 hover:to-blue-900 transition flex items-center justify-between"
-      >
-        <span>📅 Управление окнами</span>
-        <span>→</span>
-      </button>
+      {/* Кнопки управления */}
+      <div className="grid grid-cols-1 gap-3 mb-6">
+        <button
+          onClick={() => setShowConsultationsManager(true)}
+          className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white p-4 rounded-xl font-bold hover:from-green-700 hover:to-green-900 transition flex items-center justify-between"
+        >
+          <span>📋 Управление записями</span>
+          <span>→</span>
+        </button>
 
+        <button
+          onClick={() => setShowSlotsManager(true)}
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition flex items-center justify-between"
+        >
+          <span>📅 Управление окнами</span>
+          <span>→</span>
+        </button>
+      </div>
+
+      {/* Список пользователей */}
       {loading ? (
         <p className="text-white">Загрузка данных...</p>
       ) : (
