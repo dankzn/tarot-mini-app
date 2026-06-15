@@ -15,6 +15,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
   const [duration, setDuration] = useState(60);
   const [existingSlots, setExistingSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
 
   useEffect(() => {
     loadSlots();
@@ -34,29 +35,51 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
     if (data) setExistingSlots(data);
   };
 
-  const createMultipleSlots = async () => {
-    const startHour = 10;
-    const endHour = 21;
-    
-    setLoading(true);
+  const toggleTimeSelection = (time: string) => {
+    if (selectedTimes.includes(time)) {
+      setSelectedTimes(selectedTimes.filter(t => t !== time));
+    } else {
+      setSelectedTimes([...selectedTimes, time]);
+    }
+  };
 
-    const slots = [];
-    for (let hour = startHour; hour < endHour; hour++) {
+  const selectAllTimes = () => {
+    const allTimes = [];
+    for (let hour = 10; hour < 21; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
-        const slotStart = new Date(selectedDate);
-        slotStart.setHours(hour, minute, 0, 0);
-        
-        const slotEnd = addMinutes(slotStart, duration);
-
-        slots.push({
-          admin_id: admin.id,
-          start_time: slotStart.toISOString(),
-          end_time: slotEnd.toISOString(),
-          duration_minutes: duration,
-          is_booked: false,
-        });
+        allTimes.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
       }
     }
+    setSelectedTimes(allTimes);
+  };
+
+  const clearSelection = () => {
+    setSelectedTimes([]);
+  };
+
+  const createSelectedSlots = async () => {
+    if (selectedTimes.length === 0) {
+      alert('Выберите хотя бы одно время!');
+      return;
+    }
+
+    setLoading(true);
+
+    const slots = selectedTimes.map(time => {
+      const [hours, minutes] = time.split(':').map(Number);
+      const slotStart = new Date(selectedDate);
+      slotStart.setHours(hours, minutes, 0, 0);
+      
+      const slotEnd = addMinutes(slotStart, duration);
+
+      return {
+        admin_id: admin.id,
+        start_time: slotStart.toISOString(),
+        end_time: slotEnd.toISOString(),
+        duration_minutes: duration,
+        is_booked: false,
+      };
+    });
 
     try {
       const { error } = await supabase
@@ -64,14 +87,30 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
         .insert(slots);
 
       if (error) throw error;
+      
+      setSelectedTimes([]);
       loadSlots();
-      alert('Окна созданы!');
+      alert(`Создано ${slots.length} окон!`);
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Генерируем все возможные временные слоты
+  const allTimeSlots = [];
+  for (let hour = 10; hour < 21; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      const isBooked = existingSlots.some(slot => {
+        const slotTime = format(new Date(slot.start_time), 'HH:mm');
+        return slotTime === timeString && slot.is_booked;
+      });
+      
+      allTimeSlots.push({ time: timeString, isBooked });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 p-4">
@@ -107,12 +146,60 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
       </div>
 
       <div className="mb-4">
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={selectAllTimes}
+            className="flex-1 bg-blue-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition"
+          >
+            Выбрать все
+          </button>
+          <button
+            onClick={clearSelection}
+            className="flex-1 bg-gray-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-gray-700 transition"
+          >
+            Очистить
+          </button>
+        </div>
+
+        <p className="text-purple-200 text-sm mb-3">
+          Выбрано: {selectedTimes.length} окон
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {allTimeSlots.map(({ time, isBooked }) => {
+            const isSelected = selectedTimes.includes(time);
+            const isAlreadyInDb = existingSlots.some(slot => {
+              const slotTime = format(new Date(slot.start_time), 'HH:mm');
+              return slotTime === time;
+            });
+
+            return (
+              <button
+                key={time}
+                onClick={() => !isBooked && toggleTimeSelection(time)}
+                disabled={isBooked}
+                className={`p-3 rounded-lg font-bold transition ${
+                  isBooked
+                    ? 'bg-red-900/50 text-red-300 cursor-not-allowed'
+                    : isSelected
+                    ? 'bg-green-600 text-white'
+                    : isAlreadyInDb
+                    ? 'bg-yellow-600/50 text-yellow-200'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {time}
+              </button>
+            );
+          })}
+        </div>
+
         <button
-          onClick={createMultipleSlots}
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold mb-3 disabled:opacity-50"
+          onClick={createSelectedSlots}
+          disabled={loading || selectedTimes.length === 0}
+          className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold disabled:opacity-50"
         >
-          {loading ? 'Создание...' : `Создать все окна на ${format(selectedDate, 'd MMMM', { locale: ru })}`}
+          {loading ? 'Создание...' : `Создать ${selectedTimes.length || 'выбранные'} окна на ${format(selectedDate, 'd MMMM', { locale: ru })}`}
         </button>
       </div>
 
@@ -142,7 +229,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
 
       {existingSlots.length === 0 && (
         <p className="text-gray-400 text-center py-4">
-          На этот день ещё нет окон. Нажмите кнопку выше, чтобы создать.
+          На этот день ещё нет окон. Выберите время выше и нажмите кнопку.
         </p>
       )}
     </div>
