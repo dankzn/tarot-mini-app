@@ -17,7 +17,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [allSlots, setAllSlots] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
   const [step, setStep] = useState(1);
 
@@ -25,11 +25,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   useEffect(() => {
     if (selectedDate) {
-      loadAvailableSlots();
+      loadAllSlots();
     }
   }, [selectedDate, service.id]);
 
-  const loadAvailableSlots = async () => {
+  const loadAllSlots = async () => {
     const startOfDayDate = startOfDay(selectedDate!);
     const now = new Date();
 
@@ -38,7 +38,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       .select('*')
       .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
       .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
-      .eq('is_booked', false)
       .eq('duration_minutes', duration);
 
     if (error) {
@@ -47,10 +46,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     }
 
     if (data) {
+      // Фильтруем только будущие слоты
       const futureSlots = data.filter(slot => 
         !isBefore(new Date(slot.start_time), now)
       );
-      setAvailableSlots(futureSlots);
+      setAllSlots(futureSlots);
     }
   };
 
@@ -85,6 +85,25 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       if (consultError) throw consultError;
 
+      // Находим слот и помечаем как забронированный
+      const slot = allSlots.find(s => {
+        const slotTime = format(new Date(s.start_time), 'HH:mm');
+        return slotTime === selectedTime && !s.is_booked;
+      });
+
+      if (slot) {
+        await supabase
+          .from('time_slots')
+          .update({ 
+            is_booked: true,
+            booked_by: user.id,
+          })
+          .eq('id', slot.id);
+      }
+
+      // Обновляем список слотов
+      await loadAllSlots();
+
       // Уведомление об успехе
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
@@ -95,6 +114,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       setLoading(false);
     }
   };
+
+  // Разделяем слоты на свободные и занятые
+  const freeSlots = allSlots.filter(slot => !slot.is_booked);
+  const bookedSlots = allSlots.filter(slot => slot.is_booked);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-4">
@@ -152,7 +175,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             </button>
           </div>
 
-          {availableSlots.length === 0 ? (
+          {allSlots.length === 0 ? (
             <div className="text-center py-10">
               <div className="text-6xl mb-4">📭</div>
               <p className="text-purple-300">
@@ -162,7 +185,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {availableSlots.map((slot) => {
+              {/* Показываем свободные слоты */}
+              {freeSlots.map((slot) => {
                 const slotTime = format(new Date(slot.start_time), 'HH:mm');
                 return (
                   <button
@@ -174,7 +198,27 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   </button>
                 );
               })}
+
+              {/* Показываем занятые слоты серым */}
+              {bookedSlots.map((slot) => {
+                const slotTime = format(new Date(slot.start_time), 'HH:mm');
+                return (
+                  <button
+                    key={slot.id}
+                    disabled
+                    className="p-3 rounded-lg font-bold bg-gray-600 text-gray-400 cursor-not-allowed"
+                  >
+                    {slotTime}
+                  </button>
+                );
+              })}
             </div>
+          )}
+
+          {freeSlots.length === 0 && bookedSlots.length > 0 && (
+            <p className="text-purple-300 text-center py-4">
+              Все окна на эту дату заняты. Выберите другую дату.
+            </p>
           )}
         </div>
       )}
