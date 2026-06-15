@@ -6,9 +6,6 @@ import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-// Определяем тип для календаря
-type CalendarValue = Date | Date[] | null;
-
 interface BookingFormProps {
   user: any;
   service: any;
@@ -22,7 +19,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
-  const [step, setStep] = useState(1); // 1 - выбор даты, 2 - выбор времени, 3 - подтверждение
+  const [step, setStep] = useState(1);
 
   const duration = service.duration_minutes || 60;
 
@@ -45,7 +42,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       .eq('duration_minutes', duration);
 
     if (data) {
-      // Фильтруем слоты, которые уже прошли
       const futureSlots = data.filter(slot => 
         !isBefore(new Date(slot.start_time), now)
       );
@@ -55,8 +51,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   const generateTimeSlots = () => {
     const slots = [];
-    const startHour = 10; // с 10:00
-    const endHour = 21;   // до 21:00
+    const startHour = 10;
+    const endHour = 21;
 
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
@@ -65,14 +61,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       }
     }
     return slots;
-  };
-
-  // ИСПРАВЛЕНО: используем свой тип
-  const handleDateChange = (value: CalendarValue) => {
-    if (value instanceof Date) {
-      setSelectedDate(value);
-      setStep(2);
-    }
   };
 
   const handleTimeSelect = (time: string) => {
@@ -92,7 +80,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       const endTime = addMinutes(bookingDateTime, duration);
 
-      // Создаём запись о консультации
       const { data: consultation } = await supabase
         .from('consultations')
         .insert([
@@ -108,7 +95,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         .select()
         .single();
 
-      // Бронируем слот
       await supabase
         .from('time_slots')
         .insert([
@@ -141,7 +127,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         <button onClick={onCancel} className="text-purple-300">✕</button>
       </div>
 
-      {/* Информация об услуге */}
       <div className="bg-white/10 p-4 rounded-xl mb-6 border border-white/10">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-white font-bold text-lg">{service.title}</h3>
@@ -155,22 +140,25 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         )}
       </div>
 
-      {/* Шаг 1: Выбор даты */}
       {step === 1 && (
         <div>
           <h3 className="text-white font-bold mb-4">Выберите дату:</h3>
           <div className="flex justify-center mb-4">
             <Calendar
-              onChange={handleDateChange}
-              value={selectedDate}
-              minDate={new Date()}
-              locale="ru-RU"
-            />
+  onChange={(value) => {
+    if (value instanceof Date) {
+      setSelectedDate(value);
+      setStep(2);
+    }
+  }}
+  value={selectedDate}
+  minDate={new Date()}
+  locale="ru-RU"
+/>
           </div>
         </div>
       )}
 
-      {/* Шаг 2: Выбор времени */}
       {step === 2 && (
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -217,7 +205,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         </div>
       )}
 
-      {/* Шаг 3: Подтверждение */}
       {step === 3 && (
         <div>
           <div className="flex items-center justify-between mb-4">
