@@ -2,6 +2,22 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { 
+  ListChecks, 
+  Clock, 
+  DollarSign, 
+  Calendar, 
+  User, 
+  MapPin, 
+  FileText, 
+  CheckCircle2, 
+  XCircle, 
+  Edit3,
+  Save,
+  MessageSquare,
+  Sparkles,
+  Crown
+} from 'lucide-react';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -9,11 +25,11 @@ interface AdminConsultationsManagerProps {
 }
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-500',
-  confirmed: 'bg-blue-500',
-  in_progress: 'bg-purple-500',
-  completed: 'bg-green-500',
-  cancelled: 'bg-red-500',
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
+  in_progress: 'bg-purple-100 text-purple-800 border-purple-300',
+  completed: 'bg-green-100 text-green-800 border-green-300',
+  cancelled: 'bg-red-100 text-red-800 border-red-300',
 };
 
 const statusLabels: Record<string, string> = {
@@ -38,49 +54,29 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [showCompleteForm, setShowCompleteForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [selectedConsultation, setSelectedConsultation] = useState<any>(null);
   const [completeData, setCompleteData] = useState({
     admin_notes: '',
     new_price: 0,
   });
+  const [editData, setEditData] = useState({
+    admin_notes: '',
+    price: 0,
+    status: '',
+  });
 
   useEffect(() => {
     loadConsultations();
-
-    // Подписка на изменения в таблице users
-    const subscription = supabase
-      .channel('users_changes')
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'users' 
-        }, 
-        payload => {
-          console.log('🔄 Пользователь обновлён:', payload);
-          loadConsultations();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   const loadConsultations = async () => {
     console.log('🔍 Загрузка консультаций...');
     
-    const { data: consultationsData, error: consultError } = await supabase
+    const { data: consultationsData } = await supabase
       .from('consultations')
       .select('*')
       .order('scheduled_at', { ascending: false });
-
-    if (consultError) {
-      console.error('❌ Ошибка загрузки консультаций:', consultError);
-      setLoading(false);
-      return;
-    }
 
     const { data: usersData } = await supabase
       .from('users')
@@ -110,10 +106,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
       if (error) throw error;
       
-      setConsultations(consultations.map(c => 
-        c.id === consultationId ? { ...c, status: newStatus } : c
-      ));
-      
+      await loadConsultations();
       alert('Статус обновлён!');
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
@@ -127,6 +120,16 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       new_price: consultation.price || consultation.services?.price || 0,
     });
     setShowCompleteForm(true);
+  };
+
+  const openEditForm = (consultation: any) => {
+    setSelectedConsultation(consultation);
+    setEditData({
+      admin_notes: consultation.admin_notes || '',
+      price: consultation.price || 0,
+      status: consultation.status,
+    });
+    setShowEditForm(true);
   };
 
   const handleCompleteConsultation = async () => {
@@ -149,12 +152,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
       const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
-      console.log('🔄 Обновление консультации и пользователя...');
-      console.log('User ID:', selectedConsultation.user_id);
-      console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
-      console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
+      console.log('🔄 Обновление...');
 
-      // 1. Обновляем консультацию
       const { error: consultError } = await supabase
         .from('consultations')
         .update({
@@ -166,14 +165,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         })
         .eq('id', selectedConsultation.id);
 
-      if (consultError) {
-        console.error('❌ Ошибка обновления консультации:', consultError);
-        throw consultError;
-      }
+      if (consultError) throw consultError;
 
-      console.log('✅ Консультация обновлена');
-
-      // 2. Обновляем пользователя
       const { error: userError } = await supabase
         .from('users')
         .update({
@@ -182,40 +175,52 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         })
         .eq('id', selectedConsultation.user_id);
 
-      if (userError) {
-        console.error('❌ Ошибка обновления пользователя:', userError);
-        throw userError;
-      }
+      if (userError) throw userError;
 
-      console.log('✅ Пользователь обновлён');
+      console.log('✅ Обновление завершено');
 
-      // 3. Ждём чтобы триггеры сработали
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // 4. Принудительно перечитываем данные из базы
-      const { data: verifyUser } = await supabase
-        .from('users')
-        .select('status, bonus_balance, updated_at')
-        .eq('id', selectedConsultation.user_id)
-        .single();
-
-      console.log('🔍 Проверка данных в базе:', verifyUser);
-
-      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${verifyUser?.bonus_balance || newBonusBalance} ₽\nНовый статус: ${verifyUser?.status || newStatus}`);
+      alert(`✅ Консультация завершена!\n\nСписано бонусов: -${bonusUsed} ₽\nНачислено новых: +${bonusEarned} ₽\nНовый баланс: ${newBonusBalance} ₽\nНовый статус: ${newStatus}`);
       
       setShowCompleteForm(false);
       setSelectedConsultation(null);
       
-      // 5. Перезагружаем данные
       await loadConsultations();
       
-      // 6. ПРИНУДИТЕЛЬНАЯ перезагрузка всего приложения с очисткой кэша
       setTimeout(() => {
         window.location.href = window.location.href + '?t=' + Date.now();
       }, 500);
       
     } catch (error: any) {
       console.error('❌ Ошибка:', error);
+      alert('Ошибка: ' + error.message);
+    }
+  };
+
+  const handleEditConsultation = async () => {
+    if (!selectedConsultation) return;
+
+    try {
+      const { error } = await supabase
+        .from('consultations')
+        .update({
+          admin_notes: editData.admin_notes,
+          price: editData.price,
+          status: editData.status,
+        })
+        .eq('id', selectedConsultation.id);
+
+      if (error) throw error;
+
+      alert('✅ Консультация обновлена!');
+      
+      setShowEditForm(false);
+      setSelectedConsultation(null);
+      
+      await loadConsultations();
+      
+    } catch (error: any) {
       alert('Ошибка: ' + error.message);
     }
   };
@@ -232,98 +237,195 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
 
     return (
-      <div className="min-h-screen bg-gray-900 p-4">
+      <div className="min-h-screen bg-[#F8F5F2] p-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white">✅ Завершение консультации</h2>
-          <button onClick={() => setShowCompleteForm(false)} className="text-purple-300">✕</button>
+          <h2 className="text-2xl font-bold text-[#385144] flex items-center">
+            <CheckCircle2 className="w-6 h-6 mr-2" />
+            Завершение консультации
+          </h2>
+          <button onClick={() => setShowCompleteForm(false)} className="text-gray-500 hover:text-[#385144]">✕</button>
         </div>
 
-        <div className="bg-gray-800 p-4 rounded-xl mb-6">
-          <h3 className="text-white font-bold mb-2">
+        <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
+          <h3 className="text-[#385144] font-bold mb-2 flex items-center">
+            <User className="w-5 h-5 mr-2" />
             {selectedConsultation.users?.name || 'Клиент'}
           </h3>
-          <p className="text-purple-300 text-sm">
+          <p className="text-gray-600 text-sm">
             {selectedConsultation.services?.title} • {format(new Date(selectedConsultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru })}
           </p>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="text-purple-200 text-sm mb-2 block">📝 Рекомендации и главное из консультации:</label>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <FileText className="w-4 h-4 mr-2" />
+              Рекомендации и главное из консультации:
+            </label>
             <textarea
               rows={6}
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
               placeholder="Опишите основные рекомендации, выводы и главное из консультации..."
               value={completeData.admin_notes}
               onChange={(e) => setCompleteData({ ...completeData, admin_notes: e.target.value })}
             />
           </div>
 
-          <div>
-            <label className="text-purple-200 text-sm mb-2 block">💰 Итоговая стоимость (₽):</label>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Итоговая стоимость (₽):
+            </label>
             <input
               type="number"
-              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
               value={completeData.new_price}
               onChange={(e) => setCompleteData({ ...completeData, new_price: Number(e.target.value) })}
             />
-            <p className="text-gray-400 text-xs mt-1">
+            <p className="text-gray-500 text-xs mt-1">
               Изначальная цена: {selectedConsultation.services?.price || 0} ₽
             </p>
           </div>
 
-          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-2">
-            <h4 className="text-white font-bold mb-2">💰 Финансы:</h4>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Клиент потратил бонусов:</span>
-              <span className="text-red-400">-{bonusUsed} ₽</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Клиент заплатил деньгами:</span>
-              <span className="text-white">{completeData.new_price} ₽</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Кэшбэк (10% от оплаты):</span>
-              <span className="text-green-400">+{bonusEarned} ₽</span>
-            </div>
-            <div className="h-px bg-gray-700 my-2" />
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-white">Старый баланс:</span>
-              <span className="text-yellow-400">{currentBonusBalance} ₽</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-white">Новый баланс:</span>
-              <span className="text-green-400">{newBonusBalance} ₽</span>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h4 className="text-[#385144] font-bold mb-3 flex items-center">
+              <DollarSign className="w-5 h-5 mr-2" />
+              Финансы:
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Клиент потратил бонусов:</span>
+                <span className="text-red-600 font-bold">-{bonusUsed} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Клиент заплатил деньгами:</span>
+                <span className="text-[#385144] font-bold">{completeData.new_price} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Кэшбэк (10% от оплаты):</span>
+                <span className="text-green-600 font-bold">+{bonusEarned} ₽</span>
+              </div>
+              <div className="h-px bg-gray-200 my-2" />
+              <div className="flex justify-between text-sm font-bold">
+                <span className="text-gray-700">Старый баланс:</span>
+                <span className="text-[#D4AF37]">{currentBonusBalance} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold">
+                <span className="text-gray-700">Новый баланс:</span>
+                <span className="text-green-600">{newBonusBalance} ₽</span>
+              </div>
             </div>
           </div>
 
-          <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-xl">
-            <h4 className="text-blue-400 font-bold mb-2">👤 Автоматическая смена статуса:</h4>
-            <div className="space-y-1 text-sm">
-              <p className="text-white">
-                Текущий статус: <span className="text-yellow-400">{selectedConsultation.users?.status || 'Первое знакомство'}</span>
-              </p>
-              <p className="text-white">
-                Завершено консультаций: <span className="text-blue-400">{consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1}</span>
-              </p>
-              <p className="text-white">
-                Новый статус: <span className="text-blue-400 font-bold">{calculateClientStatus(consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1)}</span>
-              </p>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h4 className="text-[#385144] font-bold mb-3 flex items-center">
+              <Crown className="w-5 h-5 mr-2" />
+              Автоматическая смена статуса:
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Текущий статус:</span>
+                <span className="text-[#D4AF37] font-bold">{selectedConsultation.users?.status || 'Первое знакомство'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Завершено консультаций:</span>
+                <span className="text-[#385144] font-bold">{consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Новый статус:</span>
+                <span className="text-[#6B4EE6] font-bold">{calculateClientStatus(consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1)}</span>
+              </div>
             </div>
           </div>
 
           <div className="flex gap-3 pt-4">
             <button
               onClick={() => setShowCompleteForm(false)}
-              className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
+              className="flex-1 bg-gray-200 text-gray-700 p-4 rounded-xl font-bold hover:bg-gray-300 transition"
             >
               Отмена
             </button>
             <button
               onClick={handleCompleteConsultation}
-              className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white p-4 rounded-lg font-bold hover:from-green-700 hover:to-green-900 transition"
+              className="flex-1 bg-[#385144] text-white p-4 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
             >
-              ✅ Завершить консультацию
+              <CheckCircle2 className="w-5 h-5 mr-2" />
+              Завершить консультацию
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Форма редактирования консультации
+  if (showEditForm && selectedConsultation) {
+    return (
+      <div className="min-h-screen bg-[#F8F5F2] p-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-[#385144] flex items-center">
+            <Edit3 className="w-6 h-6 mr-2" />
+            Редактирование консультации
+          </h2>
+          <button onClick={() => setShowEditForm(false)} className="text-gray-500 hover:text-[#385144]">✕</button>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
+          <h3 className="text-[#385144] font-bold mb-2">{selectedConsultation.users?.name}</h3>
+          <p className="text-gray-600 text-sm">
+            {selectedConsultation.services?.title} • {format(new Date(selectedConsultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru })}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block">Рекомендации:</label>
+            <textarea
+              rows={6}
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+              value={editData.admin_notes}
+              onChange={(e) => setEditData({ ...editData, admin_notes: e.target.value })}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block">Стоимость (₽):</label>
+            <input
+              type="number"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
+              value={editData.price}
+              onChange={(e) => setEditData({ ...editData, price: Number(e.target.value) })}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block">Статус:</label>
+            <select
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
+              value={editData.status}
+              onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+            >
+              <option value="pending">Ожидает подтверждения</option>
+              <option value="confirmed">Подтверждена</option>
+              <option value="in_progress">В процессе</option>
+              <option value="completed">Завершена</option>
+              <option value="cancelled">Отменена</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={() => setShowEditForm(false)}
+              className="flex-1 bg-gray-200 text-gray-700 p-4 rounded-xl font-bold hover:bg-gray-300 transition"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleEditConsultation}
+              className="flex-1 bg-[#385144] text-white p-4 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+            >
+              <Save className="w-5 h-5 mr-2" />
+              Сохранить изменения
             </button>
           </div>
         </div>
@@ -333,46 +435,57 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
   // Основной список консультаций
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className="min-h-screen bg-[#F8F5F2] p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">📋 Управление записями</h2>
-        <button onClick={onBack} className="text-purple-300">✕</button>
+        <h2 className="text-2xl font-bold text-[#385144] flex items-center">
+          <ListChecks className="w-6 h-6 mr-2" />
+          Управление записями
+        </h2>
+        <button onClick={onBack} className="text-gray-500 hover:text-[#385144]">✕</button>
       </div>
 
-      {/* Фильтры */}
       <div className="mb-6 flex gap-2 flex-wrap">
         <button
           onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'all' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white'
+          className={`px-4 py-2 rounded-xl font-bold transition ${
+            filter === 'all' ? 'bg-[#385144] text-white' : 'bg-white text-[#385144] border border-gray-200'
           }`}
         >
           Все ({consultations.length})
         </button>
         <button
           onClick={() => setFilter('pending')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-white/10 text-white'
+          className={`px-4 py-2 rounded-xl font-bold transition ${
+            filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-white text-[#385144] border border-gray-200'
           }`}
         >
           Ожидают ({consultations.filter(c => c.status === 'pending').length})
         </button>
         <button
           onClick={() => setFilter('confirmed')}
-          className={`px-4 py-2 rounded-lg font-bold transition ${
-            filter === 'confirmed' ? 'bg-blue-500 text-white' : 'bg-white/10 text-white'
+          className={`px-4 py-2 rounded-xl font-bold transition ${
+            filter === 'confirmed' ? 'bg-blue-500 text-white' : 'bg-white text-[#385144] border border-gray-200'
           }`}
         >
           Подтверждены ({consultations.filter(c => c.status === 'confirmed').length})
         </button>
+        <button
+          onClick={() => setFilter('completed')}
+          className={`px-4 py-2 rounded-xl font-bold transition ${
+            filter === 'completed' ? 'bg-green-500 text-white' : 'bg-white text-[#385144] border border-gray-200'
+          }`}
+        >
+          Завершены ({consultations.filter(c => c.status === 'completed').length})
+        </button>
       </div>
 
       {loading ? (
-        <p className="text-white text-center">Загрузка...</p>
+        <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-gray-500">Загрузка...</p>
+        </div>
       ) : filteredConsultations.length === 0 ? (
-        <div className="text-center py-10">
-          <div className="text-6xl mb-4">📭</div>
-          <p className="text-gray-400">Записей не найдено</p>
+        <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <p className="text-gray-500">Записей не найдено</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -383,62 +496,76 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             return (
               <div 
                 key={consultation.id} 
-                className="bg-gray-800 p-4 rounded-xl border border-gray-700"
+                className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="text-white font-bold text-lg">
+                    <h3 className="text-[#385144] font-bold text-lg flex items-center">
+                      <User className="w-5 h-5 mr-2" />
                       {user?.name || 'Неизвестный клиент'}
                     </h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-500 text-sm">
                       Telegram ID: {user?.telegram_id || 'N/A'}
                     </p>
                     {user?.city && (
-                      <p className="text-purple-300 text-sm">📍 {user.city}</p>
+                      <p className="text-gray-500 text-sm flex items-center mt-1">
+                        <MapPin className="w-3 h-3 mr-1" />
+                        {user.city}
+                      </p>
                     )}
                   </div>
-                  <span className={`px-3 py-1 rounded text-xs text-white ${statusColors[consultation.status]}`}>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[consultation.status]}`}>
                     {statusLabels[consultation.status]}
                   </span>
                 </div>
 
-                <div className="bg-gray-700/50 p-3 rounded-lg mb-3">
-                  <p className="text-white font-bold">{service?.title || 'Услуга удалена'}</p>
+                <div className="bg-[#F8F5F2] p-3 rounded-xl mb-3">
+                  <p className="text-[#385144] font-bold">{service?.title || 'Услуга удалена'}</p>
                   <div className="flex gap-4 mt-2 text-sm flex-wrap">
-                    <span className="text-purple-300">
-                       {consultation.scheduled_at 
+                    <span className="text-gray-600 flex items-center">
+                      <Calendar className="w-4 h-4 mr-1" />
+                      {consultation.scheduled_at 
                         ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
                         : 'Дата не указана'
                       }
                     </span>
-                    <span className="text-purple-300">
-                      ⏰ {consultation.scheduled_at 
+                    <span className="text-gray-600 flex items-center">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {consultation.scheduled_at 
                         ? format(new Date(consultation.scheduled_at), 'HH:mm')
                         : ''
                       }
                     </span>
-                    <span className="text-yellow-400 font-bold">
+                    <span className="text-[#D4AF37] font-bold flex items-center">
+                      <DollarSign className="w-4 h-4 mr-1" />
                       {consultation.price || service?.price || 0} ₽
                     </span>
                   </div>
                   {consultation.bonus_used > 0 && (
-                    <p className="text-gray-400 text-xs mt-1">
-                      💎 Списано бонусов: {consultation.bonus_used} ₽
+                    <p className="text-gray-500 text-xs mt-2 flex items-center">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Списано бонусов: {consultation.bonus_used} ₽
                     </p>
                   )}
                 </div>
 
                 {consultation.notes && (
-                  <div className="bg-white/5 p-3 rounded-lg mb-3">
-                    <p className="text-gray-400 text-xs mb-1">💬 Комментарий клиента:</p>
-                    <p className="text-white text-sm">{consultation.notes}</p>
+                  <div className="bg-gray-50 p-3 rounded-xl mb-3">
+                    <p className="text-gray-500 text-xs mb-1 flex items-center">
+                      <MessageSquare className="w-3 h-3 mr-1" />
+                      Комментарий клиента:
+                    </p>
+                    <p className="text-gray-700 text-sm">{consultation.notes}</p>
                   </div>
                 )}
 
                 {consultation.admin_notes && (
-                  <div className="bg-blue-900/30 p-3 rounded-lg mb-3">
-                    <p className="text-blue-300 text-xs mb-1"> Ваши заметки:</p>
-                    <p className="text-white text-sm">{consultation.admin_notes}</p>
+                  <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-xl mb-3">
+                    <p className="text-blue-700 text-xs mb-1 flex items-center">
+                      <FileText className="w-3 h-3 mr-1" />
+                      Ваши заметки:
+                    </p>
+                    <p className="text-gray-700 text-sm">{consultation.admin_notes}</p>
                   </div>
                 )}
 
@@ -447,15 +574,17 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                     <>
                       <button
                         onClick={() => updateConsultationStatus(consultation.id, 'confirmed')}
-                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition"
+                        className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center"
                       >
-                        ✅ Подтвердить
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Подтвердить
                       </button>
                       <button
                         onClick={() => updateConsultationStatus(consultation.id, 'cancelled')}
-                        className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition"
+                        className="flex-1 bg-red-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-red-600 transition flex items-center justify-center"
                       >
-                        ❌ Отменить
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Отменить
                       </button>
                     </>
                   )}
@@ -463,21 +592,26 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                   {consultation.status === 'confirmed' && (
                     <button
                       onClick={() => openCompleteForm(consultation)}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition"
+                      className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
                     >
-                      ✓ Завершить
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
+                      Завершить
                     </button>
                   )}
 
                   {consultation.status === 'completed' && (
-                    <div className="text-green-400 text-sm font-bold py-2">
-                      ✓ Консультация завершена
-                    </div>
+                    <button
+                      onClick={() => openEditForm(consultation)}
+                      className="flex-1 bg-[#6B4EE6] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#5a3fd4] transition flex items-center justify-center"
+                    >
+                      <Edit3 className="w-4 h-4 mr-1" />
+                      Редактировать
+                    </button>
                   )}
 
                   {consultation.status === 'cancelled' && (
-                    <div className="text-red-400 text-sm font-bold py-2">
-                      ✗ Отменена
+                    <div className="flex-1 text-red-500 text-sm font-bold py-2 text-center">
+                      Отменена
                     </div>
                   )}
                 </div>

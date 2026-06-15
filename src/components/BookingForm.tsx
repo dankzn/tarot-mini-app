@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css';
 import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Clock, DollarSign, Sparkles, MessageSquare } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, DollarSign, Sparkles, MessageSquare, X } from 'lucide-react';
 
 interface BookingFormProps {
   user: any;
@@ -22,7 +22,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [notes, setNotes] = useState('');
   const [step, setStep] = useState(1);
 
-  // Состояния для бонусов
   const [useBonuses, setUseBonuses] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
 
@@ -43,17 +42,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     const startOfDayDate = startOfDay(selectedDate!);
     const now = new Date();
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('time_slots')
       .select('*')
       .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
       .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
       .eq('duration_minutes', duration);
-
-    if (error) {
-      console.error('Ошибка загрузки слотов:', error);
-      return;
-    }
 
     if (data) {
       const futureSlots = data.filter(slot => 
@@ -128,10 +122,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     <div className="min-h-screen bg-[#F8F5F2] p-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#385144]">Запись на консультацию</h2>
-        <button onClick={onCancel} className="text-gray-500 hover:text-[#385144]">✕</button>
+        <button onClick={onCancel} className="text-gray-500 hover:text-[#385144]">
+          <X className="w-6 h-6" />
+        </button>
       </div>
 
-      {/* Информация об услуге */}
       <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
         <div className="flex justify-between items-start mb-3">
           <h3 className="text-[#385144] font-bold text-lg flex-1">{service.title}</h3>
@@ -155,7 +150,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         )}
       </div>
 
-      {/* Шаг 1: Выбор даты */}
       {step === 1 && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h3 className="text-[#385144] font-bold mb-4 flex items-center">
@@ -173,12 +167,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               value={selectedDate}
               minDate={new Date()}
               locale="ru-RU"
+              className="custom-calendar"
             />
           </div>
         </div>
       )}
 
-      {/* Шаг 2: Выбор времени */}
       {step === 2 && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
@@ -201,7 +195,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   <button
                     key={slot.id}
                     onClick={() => handleTimeSelect(slotTime)}
-                    className="p-3 rounded-lg font-bold transition bg-[#6B4EE6] text-white hover:bg-[#5a3fd4]"
+                    className="p-3 rounded-lg font-bold transition bg-[#385144] text-white hover:bg-[#2d4238]"
                   >
                     {slotTime}
                   </button>
@@ -224,7 +218,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         </div>
       )}
 
-      {/* Шаг 3: Подтверждение и Бонусы */}
       {step === 3 && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -235,20 +228,19 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
             <div className="space-y-3 mb-4">
               <div className="flex items-center text-gray-700">
-                <CalendarIcon className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <CalendarIcon className="w-5 h-5 mr-3 text-[#385144]" />
                 <span>{selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}</span>
               </div>
               <div className="flex items-center text-gray-700">
-                <Clock className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <Clock className="w-5 h-5 mr-3 text-[#385144]" />
                 <span>{selectedTime}</span>
               </div>
               <div className="flex items-center text-gray-700">
-                <DollarSign className="w-5 h-5 mr-3 text-[#6B4EE6]" />
+                <DollarSign className="w-5 h-5 mr-3 text-[#385144]" />
                 <span className="font-bold">{finalPrice} ₽</span>
               </div>
             </div>
 
-            {/* Блок с бонусами */}
             {userBalance > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-3">
@@ -257,7 +249,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                     Использовать бонусы?
                   </span>
                   <div 
-                    className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-[#6B4EE6]' : 'bg-gray-300'}`}
+                    className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-[#385144]' : 'bg-gray-300'}`}
                     onClick={() => {
                       setUseBonuses(!useBonuses);
                       if (!useBonuses) setBonusAmount(0);
@@ -277,7 +269,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                       type="number"
                       min="0"
                       max={maxBonusUsable}
-                      className="w-full p-2 bg-white border border-[#385144]/30 rounded-lg text-[#385144] text-lg font-bold focus:outline-none focus:border-[#6B4EE6]"
+                      className="w-full p-2 bg-white border border-[#385144]/30 rounded-lg text-[#385144] text-lg font-bold focus:outline-none focus:border-[#385144]"
                       value={bonusAmount}
                       onChange={(e) => {
                         let val = Number(e.target.value);
@@ -303,7 +295,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             </label>
             <textarea
               rows={3}
-              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#6B4EE6]"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#385144]"
               placeholder="Расскажите кратко о вашем вопросе..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -315,7 +307,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex-1 bg-[#6B4EE6] text-white p-4 rounded-xl font-bold hover:bg-[#5a3fd4] transition disabled:opacity-50"
+              className="flex-1 bg-[#385144] text-white p-4 rounded-xl font-bold hover:bg-[#2d4238] transition disabled:opacity-50"
             >
               {loading ? 'Отправка...' : 'Подтвердить запись'}
             </button>

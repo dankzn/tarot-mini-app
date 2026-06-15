@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { format, addMinutes } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { CalendarDays, Clock, CheckCircle2, XCircle, Plus } from 'lucide-react';
 
 interface AdminSlotsManagerProps {
   admin: any;
@@ -90,7 +90,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
       
       setSelectedTimes([]);
       loadSlots();
-      alert(`Создано ${slots.length} окон!`);
+      alert(`✅ Создано ${slots.length} окон!`);
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
     } finally {
@@ -98,7 +98,6 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
     }
   };
 
-  // Генерируем все возможные временные слоты
   const allTimeSlots = [];
   for (let hour = 10; hour < 21; hour++) {
     for (let minute = 0; minute < 60; minute += 30) {
@@ -113,18 +112,24 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className="min-h-screen bg-[#F8F5F2] p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">📅 Управление окнами</h2>
-        <button onClick={onBack} className="text-purple-300">✕</button>
+        <h2 className="text-2xl font-bold text-[#385144] flex items-center">
+          <CalendarDays className="w-6 h-6 mr-2" />
+          Управление окнами
+        </h2>
+        <button onClick={onBack} className="text-gray-500 hover:text-[#385144]">✕</button>
       </div>
 
-      <div className="mb-6">
-        <label className="text-purple-200 text-sm mb-2 block">Длительность консультации (минуты):</label>
+      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
+        <label className="text-[#385144] font-bold text-sm mb-3 block flex items-center">
+          <Clock className="w-4 h-4 mr-2" />
+          Длительность консультации (минуты):
+        </label>
         <select
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
-          className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white"
+          className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
         >
           <option value={40}>40 минут</option>
           <option value={60}>60 минут (1 час)</option>
@@ -132,7 +137,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
         </select>
       </div>
 
-      <div className="flex justify-center mb-6">
+      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
         <Calendar
           onChange={(value: any) => {
             if (value instanceof Date) {
@@ -141,28 +146,29 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
           }}
           value={selectedDate}
           locale="ru-RU"
-          className="rounded-lg border-0 bg-white/5"
+          className="custom-calendar"
         />
       </div>
 
-      <div className="mb-4">
-        <div className="flex gap-2 mb-3">
+      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
+        <div className="flex gap-2 mb-4">
           <button
             onClick={selectAllTimes}
-            className="flex-1 bg-blue-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition"
+            className="flex-1 bg-[#385144] text-white p-3 rounded-xl text-sm font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
           >
+            <Plus className="w-4 h-4 mr-1" />
             Выбрать все
           </button>
           <button
             onClick={clearSelection}
-            className="flex-1 bg-gray-600 text-white p-2 rounded-lg text-sm font-bold hover:bg-gray-700 transition"
+            className="flex-1 bg-gray-200 text-gray-700 p-3 rounded-xl text-sm font-bold hover:bg-gray-300 transition"
           >
             Очистить
           </button>
         </div>
 
-        <p className="text-purple-200 text-sm mb-3">
-          Выбрано: {selectedTimes.length} окон
+        <p className="text-gray-600 text-sm mb-3 font-bold">
+          Выбрано: <span className="text-[#385144]">{selectedTimes.length}</span> окон
         </p>
 
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -180,12 +186,12 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
                 disabled={isBooked}
                 className={`p-3 rounded-lg font-bold transition ${
                   isBooked
-                    ? 'bg-red-900/50 text-red-300 cursor-not-allowed'
+                    ? 'bg-red-100 text-red-400 cursor-not-allowed'
                     : isSelected
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-[#385144] text-white'
                     : isAlreadyInDb
-                    ? 'bg-yellow-600/50 text-yellow-200'
-                    : 'bg-white/10 text-white hover:bg-white/20'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-[#F8F5F2] text-[#385144] hover:bg-gray-200'
                 }`}
               >
                 {time}
@@ -197,41 +203,53 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
         <button
           onClick={createSelectedSlots}
           disabled={loading || selectedTimes.length === 0}
-          className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold disabled:opacity-50"
+          className="w-full bg-[#385144] text-white p-4 rounded-xl font-bold disabled:opacity-50 hover:bg-[#2d4238] transition flex items-center justify-center"
         >
-          {loading ? 'Создание...' : `Создать ${selectedTimes.length || 'выбранные'} окна на ${format(selectedDate, 'd MMMM', { locale: ru })}`}
+          <CheckCircle2 className="w-5 h-5 mr-2" />
+          {loading ? 'Создание...' : `Создать ${selectedTimes.length || 'выбранные'} окна`}
         </button>
       </div>
 
-      <h3 className="text-white font-bold mb-3">Существующие окна:</h3>
-      <div className="space-y-2">
-        {existingSlots.map((slot) => (
-          <div 
-            key={slot.id} 
-            className={`p-3 rounded-lg flex justify-between items-center ${
-              slot.is_booked ? 'bg-red-900/30 border border-red-500/30' : 'bg-green-900/30 border border-green-500/30'
-            }`}
-          >
-            <div>
-              <p className="text-white font-bold">
-                {format(new Date(slot.start_time), 'HH:mm')} - {format(new Date(slot.end_time), 'HH:mm')}
-              </p>
-              <p className="text-gray-400 text-sm">{slot.duration_minutes} мин</p>
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="text-[#385144] font-bold mb-3 flex items-center">
+          <Clock className="w-5 h-5 mr-2" />
+          Существующие окна:
+        </h3>
+        <div className="space-y-2">
+          {existingSlots.map((slot) => (
+            <div 
+              key={slot.id} 
+              className={`p-3 rounded-xl flex justify-between items-center ${
+                slot.is_booked ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'
+              }`}
+            >
+              <div>
+                <p className="text-[#385144] font-bold">
+                  {format(new Date(slot.start_time), 'HH:mm')} - {format(new Date(slot.end_time), 'HH:mm')}
+                </p>
+                <p className="text-gray-500 text-xs">{slot.duration_minutes} мин</p>
+              </div>
+              {slot.is_booked ? (
+                <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center">
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Занято
+                </span>
+              ) : (
+                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Свободно
+                </span>
+              )}
             </div>
-            <span className={`px-3 py-1 rounded text-xs ${
-              slot.is_booked ? 'bg-red-500' : 'bg-green-500'
-            }`}>
-              {slot.is_booked ? 'Забронировано' : 'Свободно'}
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {existingSlots.length === 0 && (
-        <p className="text-gray-400 text-center py-4">
-          На этот день ещё нет окон. Выберите время выше и нажмите кнопку.
-        </p>
-      )}
+        {existingSlots.length === 0 && (
+          <p className="text-gray-500 text-center py-4">
+            На этот день ещё нет окон. Выберите время выше и нажмите кнопку.
+          </p>
+        )}
+      </div>
     </div>
   );
 };
