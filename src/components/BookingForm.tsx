@@ -70,7 +70,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       bookingDateTime.setHours(hours, minutes, 0, 0);
 
       // Создаём консультацию
-      const { data: consultation, error: consultError } = await supabase
+      const { error: consultError } = await supabase
         .from('consultations')
         .insert([
           {
@@ -81,9 +81,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             price: service.price,
             status: 'pending',
           }
-        ])
-        .select()
-        .single();
+        ]);
 
       if (consultError) throw consultError;
 
