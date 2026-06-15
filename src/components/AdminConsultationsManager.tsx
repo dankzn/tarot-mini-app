@@ -18,6 +18,11 @@ import {
   Sparkles,
   Crown
 } from 'lucide-react';
+import { 
+  notifyAdminNewBooking,
+  notifyClientBonusUpdate,
+  notifyClientStatusChange 
+} from '../lib/notifications';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -221,6 +226,30 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     console.log('✅ Проверка:', verifyUser);
 
     alert(`✅ Консультация завершена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${verifyUser?.bonus_balance} ₽\nСтатус: ${verifyUser?.status}`);
+    // После строки: console.log('✅ Проверка:', verifyUser);
+
+// Отправляем уведомления
+const clientTelegramId = selectedConsultation.users?.telegram_id;
+const oldStatus = selectedConsultation.users?.status;
+
+if (clientTelegramId) {
+  // Уведомление о бонусах
+  if (bonusEarned > 0) {
+    await notifyClientBonusUpdate(
+      clientTelegramId,
+      bonusEarned,
+      verifyUser?.bonus_balance || 0
+    );
+  }
+
+  // Уведомление о смене статуса
+  if (oldStatus !== newStatus) {
+    await notifyClientStatusChange(
+      clientTelegramId,
+      newStatus
+    );
+  }
+}
     
     setShowCompleteForm(false);
     setSelectedConsultation(null);

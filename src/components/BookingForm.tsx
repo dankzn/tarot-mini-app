@@ -6,6 +6,7 @@ import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
+import { notifyAdminNewBooking } from '../lib/notifications';
 
 interface BookingFormProps {
   user: any;
@@ -104,6 +105,24 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       }
 
       await loadAllSlots();
+
+      // Отправляем уведомление админу
+// Получаем ID админа из базы (нужно добавить запрос)
+const { data: adminData } = await supabase
+  .from('users')
+  .select('telegram_id')
+  .eq('role', 'admin')
+  .single();
+
+if (adminData?.telegram_id) {
+  await notifyAdminNewBooking(
+    adminData.telegram_id,
+    user.name || 'Клиент',
+    service.title,
+    format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
+    finalPrice
+  );
+}
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
