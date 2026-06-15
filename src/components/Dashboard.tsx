@@ -8,6 +8,7 @@ interface Service {
   title: string;
   description: string;
   price: number;
+  duration_minutes?: number;
 }
 
 interface DashboardProps {
@@ -19,6 +20,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showBooking, setShowBooking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedService, setSelectedService] = useState<any>(null);
 
   useEffect(() => {
     loadServices();
@@ -29,7 +31,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
       const { data, error } = await supabase
         .from('services')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('price', { ascending: true });
 
       if (error) {
         console.error('Ошибка загрузки услуг:', error);
@@ -55,15 +57,20 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const statusGradient = statusColors[user.status] || 'from-gray-500 to-gray-600';
 
   // Показываем форму записи
-  if (showBooking) {
+  if (showBooking && selectedService) {
     return (
       <BookingForm 
-        user={user} 
+        user={user}
+        service={selectedService}
         onSuccess={() => {
           setShowBooking(false);
+          setSelectedService(null);
           alert('Заявка отправлена! Я свяжусь с вами для подтверждения.');
         }}
-        onCancel={() => setShowBooking(false)}
+        onCancel={() => {
+          setShowBooking(false);
+          setSelectedService(null);
+        }}
       />
     );
   }
@@ -107,18 +114,10 @@ export const Dashboard = ({ user }: DashboardProps) => {
       {/* Основные действия */}
       <div className="grid grid-cols-1 gap-3 mb-6">
         <button 
-          onClick={() => setShowBooking(true)}
-          className="bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:from-purple-700 hover:to-purple-900 transition"
-        >
-          <span>📝 Записаться на консультацию</span>
-          <span>→</span>
-        </button>
-
-        <button 
           onClick={() => setShowHistory(true)}
           className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10"
         >
-          <span>📜 История консультаций</span>
+          <span> История консультаций</span>
           <span>→</span>
         </button>
 
@@ -141,15 +140,24 @@ export const Dashboard = ({ user }: DashboardProps) => {
             {services.map((service) => (
               <div 
                 key={service.id} 
-                className="bg-white/5 rounded-xl p-4 border border-white/10 hover:bg-white/10 transition"
+                className="bg-white/5 rounded-xl p-4 border border-white/10"
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-white font-bold">{service.title}</h4>
-                  <span className="text-yellow-400 font-bold">{service.price} ₽</span>
+                  <h4 className="text-white font-bold text-lg">{service.title}</h4>
+                  <span className="text-yellow-400 font-bold text-xl">{service.price} ₽</span>
                 </div>
                 {service.description && (
-                  <p className="text-purple-300 text-sm">{service.description}</p>
+                  <p className="text-purple-300 text-sm mb-4">{service.description}</p>
                 )}
+                <button
+                  onClick={() => {
+                    setSelectedService(service);
+                    setShowBooking(true);
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-3 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition"
+                >
+                  📝 Записаться
+                </button>
               </div>
             ))}
           </div>

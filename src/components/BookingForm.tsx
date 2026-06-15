@@ -1,55 +1,127 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+import './CalendarStyles.css';
+import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 interface BookingFormProps {
   user: any;
+  service: any;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export const BookingForm = ({ user, onSuccess, onCancel }: BookingFormProps) => {
-  const [services, setServices] = useState<any[]>([]);
+export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormProps) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    service_id: '',
-    scheduled_at: '',
-    notes: '',
-  });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [notes, setNotes] = useState('');
+  const [step, setStep] = useState(1); // 1 - выбор даты, 2 - выбор времени, 3 - подтверждение
+
+  const duration = service.duration_minutes || 60;
 
   useEffect(() => {
-    loadServices();
-  }, []);
+    if (selectedDate) {
+      loadAvailableSlots();
+    }
+  }, [selectedDate, service.id]);
 
-  const loadServices = async () => {
-    const { data } = await supabase
-      .from('services')
+  const loadAvailableSlots = async () => {
+    const startOfDayDate = startOfDay(selectedDate!);
+    const now = new Date();
+
+    const { data, error } = await supabase
+      .from('time_slots')
       .select('*')
-      .order('price');
-    
-    if (data) setServices(data);
+      .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
+      .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
+      .eq('is_booked', false)
+      .eq('duration_minutes', duration);
+
+    if (data) {
+      // Фильтруем слоты, которые уже прошли
+      const futureSlots = data.filter(slot => 
+        !isBefore(new Date(slot.start_time), now)
+      );
+      setAvailableSlots(futureSlots);
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const generateTimeSlots = () => {
+    const slots = [];
+    const startHour = 10; // с 10:00
+    const endHour = 21;   // до 21:00
+
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(timeString);
+      }
+    }
+    return slots;
+  };
+
+  // ИСПРАВЛЕНО: правильная типизация для react-calendar
+  const handleDateChange = (value: Date | Date[] | null) => {
+    if (value && !Array.isArray(value)) {
+      setSelectedDate(value);
+      setStep(2);
+    }
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
+    setStep(3);
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedDate || !selectedTime) return;
+    
     setLoading(true);
 
     try {
-      const selectedService = services.find(s => s.id === formData.service_id);
-      
-      const { error } = await supabase
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      const bookingDateTime = new Date(selectedDate);
+      bookingDateTime.setHours(hours, minutes, 0, 0);
+
+      const endTime = addMinutes(bookingDateTime, duration);
+
+      // Создаём запись о консультации
+      const { data: consultation, error: consultError } = await supabase
         .from('consultations')
         .insert([
           {
             user_id: user.id,
-            service_id: formData.service_id,
-            scheduled_at: formData.scheduled_at,
-            notes: formData.notes,
-            price: selectedService?.price || 0,
+            service_id: service.id,
+            scheduled_at: bookingDateTime.toISOString(),
+            notes: notes,
+            price: service.price,
             status: 'pending',
+          }
+        ])
+        .select()
+        .single();
+
+      if (consultError) throw consultError;
+
+      // Бронируем слот
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .insert([
+          {
+            start_time: bookingDateTime.toISOString(),
+            end_time: endTime.toISOString(),
+            duration_minutes: duration,
+            is_booked: true,
+            booked_by: user.id,
+            consultation_id: consultation.id,
           }
         ]);
 
-      if (error) throw error;
+      if (slotError) throw slotError;
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
@@ -61,6 +133,8 @@ export const BookingForm = ({ user, onSuccess, onCancel }: BookingFormProps) => 
     }
   };
 
+  const timeSlots = generateTimeSlots();
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1a0b2e] to-[#2d1b4e] p-4">
       <div className="flex items-center justify-between mb-6">
@@ -68,63 +142,138 @@ export const BookingForm = ({ user, onSuccess, onCancel }: BookingFormProps) => 
         <button onClick={onCancel} className="text-purple-300">✕</button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="text-purple-200 text-sm mb-1 block">Выберите услугу *</label>
-          <select
-            required
-            className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-            value={formData.service_id}
-            onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
-          >
-            <option value="" className="bg-purple-900">Выберите услугу...</option>
-            {services.map((service) => (
-              <option key={service.id} value={service.id} className="bg-purple-900">
-                {service.title} - {service.price} ₽
-              </option>
-            ))}
-          </select>
+      {/* Информация об услуге */}
+      <div className="bg-white/10 p-4 rounded-xl mb-6 border border-white/10">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-white font-bold text-lg">{service.title}</h3>
+          <span className="text-yellow-400 font-bold text-xl">{service.price} ₽</span>
         </div>
+        <p className="text-purple-300 text-sm">
+          Длительность: {duration} минут
+        </p>
+        {service.description && (
+          <p className="text-purple-300 text-sm mt-2">{service.description}</p>
+        )}
+      </div>
 
+      {/* Шаг 1: Выбор даты */}
+      {step === 1 && (
         <div>
-          <label className="text-purple-200 text-sm mb-1 block">Желаемая дата и время *</label>
-          <input
-            required
-            type="datetime-local"
-            className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-400"
-            value={formData.scheduled_at}
-            onChange={(e) => setFormData({ ...formData, scheduled_at: e.target.value })}
-          />
+          <h3 className="text-white font-bold mb-4">Выберите дату:</h3>
+          <div className="flex justify-center mb-4">
+            <Calendar
+              onChange={handleDateChange}
+              value={selectedDate}
+              minDate={new Date()}
+              locale="ru-RU"
+            />
+          </div>
         </div>
+      )}
 
+      {/* Шаг 2: Выбор времени */}
+      {step === 2 && (
         <div>
-          <label className="text-purple-200 text-sm mb-1 block">Комментарий</label>
-          <textarea
-            rows={4}
-            className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
-            placeholder="Расскажите кратко о вашем вопросе..."
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          />
-        </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-bold">
+              📅 {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
+            </h3>
+            <button 
+              onClick={() => setStep(1)}
+              className="text-purple-300 text-sm"
+            >
+              ← Назад
+            </button>
+          </div>
 
-        <div className="flex gap-3 pt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
-          >
-            Отмена
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition disabled:opacity-50"
-          >
-            {loading ? 'Отправка...' : 'Записаться'}
-          </button>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {timeSlots.map((time) => {
+              const isBooked = availableSlots.some(slot => {
+                const slotTime = format(new Date(slot.start_time), 'HH:mm');
+                return slotTime === time;
+              });
+
+              return (
+                <button
+                  key={time}
+                  onClick={() => handleTimeSelect(time)}
+                  disabled={isBooked}
+                  className={`p-3 rounded-lg font-bold transition ${
+                    isBooked
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  {time}
+                </button>
+              );
+            })}
+          </div>
+
+          {availableSlots.length === 0 && (
+            <p className="text-purple-300 text-center py-4">
+              На эту дату нет доступных окон. Выберите другую дату.
+            </p>
+          )}
         </div>
-      </form>
+      )}
+
+      {/* Шаг 3: Подтверждение */}
+      {step === 3 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-bold">Подтверждение</h3>
+            <button 
+              onClick={() => setStep(2)}
+              className="text-purple-300 text-sm"
+            >
+              ← Назад
+            </button>
+          </div>
+
+          <div className="bg-white/10 p-4 rounded-xl mb-4">
+            <p className="text-white mb-2">
+              📅 <span className="text-purple-300">Дата:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
+            </p>
+            <p className="text-white mb-2">
+              ⏰ <span className="text-purple-300">Время:</span> {selectedTime}
+            </p>
+            <p className="text-white mb-2">
+              ⏱ <span className="text-purple-300">Длительность:</span> {duration} мин
+            </p>
+            <p className="text-white">
+              💰 <span className="text-purple-300">Стоимость:</span> {service.price} ₽
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <label className="text-purple-200 text-sm mb-2 block">Комментарий (необязательно)</label>
+            <textarea
+              rows={3}
+              className="w-full p-3 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
+              placeholder="Расскажите кратко о вашем вопросе..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setStep(2)}
+              className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
+            >
+              Назад
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 bg-gradient-to-r from-purple-600 to-purple-800 text-white p-4 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition disabled:opacity-50"
+            >
+              {loading ? 'Отправка...' : 'Подтвердить запись'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
