@@ -24,7 +24,7 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Отменена',
 };
 
-export const AdminConsultationsManager = ({ admin, onBack }: AdminConsultationsManagerProps) => {
+export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
