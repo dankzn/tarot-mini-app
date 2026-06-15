@@ -20,7 +20,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showBooking, setShowBooking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   useEffect(() => {
     loadServices();
@@ -56,7 +56,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
   const statusGradient = statusColors[user.status] || 'from-gray-500 to-gray-600';
 
-  // Показываем форму записи
+  // Показываем форму записи ТОЛЬКО если selectedService не null
   if (showBooking && selectedService) {
     return (
       <BookingForm 
@@ -117,7 +117,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
           onClick={() => setShowHistory(true)}
           className="bg-white/10 text-white p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-white/20 transition border border-white/10"
         >
-          <span> История консультаций</span>
+          <span>📜 История консультаций</span>
           <span>→</span>
         </button>
 
@@ -151,8 +151,10 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 )}
                 <button
                   onClick={() => {
-                    setSelectedService(service);
-                    setShowBooking(true);
+                    if (service) {
+                      setSelectedService(service);
+                      setShowBooking(true);
+                    }
                   }}
                   className="w-full bg-gradient-to-r from-purple-600 to-purple-800 text-white p-3 rounded-lg font-bold hover:from-purple-700 hover:to-purple-900 transition"
                 >
