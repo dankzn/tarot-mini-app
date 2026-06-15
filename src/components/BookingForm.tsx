@@ -16,7 +16,7 @@ interface BookingFormProps {
 export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormProps) => {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
   const [step, setStep] = useState(1);
@@ -54,29 +54,29 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     }
   };
 
-  const handleSlotSelect = (slot: any) => {
-    setSelectedSlot(slot);
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
     setStep(3);
   };
 
   const handleSubmit = async () => {
-    // СТРОГАЯ ПРОВЕРКА: без слота — не записываем
-    if (!selectedSlot) {
-      alert('Ошибка: слот не выбран');
-      return;
-    }
+    if (!selectedDate || !selectedTime) return;
     
     setLoading(true);
 
     try {
-      // 1. Создаём консультацию
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      const bookingDateTime = new Date(selectedDate);
+      bookingDateTime.setHours(hours, minutes, 0, 0);
+
+      // Создаём консультацию
       const { data: consultation, error: consultError } = await supabase
         .from('consultations')
         .insert([
           {
             user_id: user.id,
             service_id: service.id,
-            scheduled_at: selectedSlot.start_time,
+            scheduled_at: bookingDateTime.toISOString(),
             notes: notes,
             price: service.price,
             status: 'pending',
@@ -87,18 +87,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       if (consultError) throw consultError;
 
-      // 2. Помечаем слот как забронированный
-      const { error: slotError } = await supabase
-        .from('time_slots')
-        .update({ 
-          is_booked: true,
-          booked_by: user.id,
-          consultation_id: consultation.id
-        })
-        .eq('id', selectedSlot.id);
-
-      if (slotError) throw slotError;
-
+      // Уведомление об успехе
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
     } catch (error: any) {
@@ -116,17 +105,21 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         <button onClick={onCancel} className="text-purple-300">✕</button>
       </div>
 
+      {/* Информация об услуге */}
       <div className="bg-white/10 p-4 rounded-xl mb-6 border border-white/10">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-white font-bold text-lg">{service.title}</h3>
           <span className="text-yellow-400 font-bold text-xl">{service.price} ₽</span>
         </div>
-        <p className="text-purple-300 text-sm">Длительность: {duration} минут</p>
+        <p className="text-purple-300 text-sm">
+          Длительность: {duration} минут
+        </p>
         {service.description && (
           <p className="text-purple-300 text-sm mt-2">{service.description}</p>
         )}
       </div>
 
+      {/* Шаг 1: Выбор даты */}
       {step === 1 && (
         <div>
           <h3 className="text-white font-bold mb-4">Выберите дату:</h3>
@@ -146,19 +139,28 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         </div>
       )}
 
+      {/* Шаг 2: Выбор времени */}
       {step === 2 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-bold">
               📅 {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
             </h3>
-            <button onClick={() => setStep(1)} className="text-purple-300 text-sm">← Назад</button>
+            <button 
+              onClick={() => setStep(1)}
+              className="text-purple-300 text-sm"
+            >
+              ← Назад
+            </button>
           </div>
 
           {availableSlots.length === 0 ? (
             <div className="text-center py-10">
               <div className="text-6xl mb-4">📭</div>
-              <p className="text-purple-300">На эту дату нет доступных окон.<br/>Выберите другую дату.</p>
+              <p className="text-purple-300">
+                На эту дату нет доступных окон.<br/>
+                Выберите другую дату.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 mb-4">
@@ -167,7 +169,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 return (
                   <button
                     key={slot.id}
-                    onClick={() => handleSlotSelect(slot)}
+                    onClick={() => handleTimeSelect(slotTime)}
                     className="p-3 rounded-lg font-bold transition bg-purple-600 text-white hover:bg-purple-700"
                   >
                     {slotTime}
@@ -179,18 +181,32 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         </div>
       )}
 
-      {step === 3 && selectedSlot && (
+      {/* Шаг 3: Подтверждение */}
+      {step === 3 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-white font-bold">Подтверждение</h3>
-            <button onClick={() => setStep(2)} className="text-purple-300 text-sm">← Назад</button>
+            <button 
+              onClick={() => setStep(2)}
+              className="text-purple-300 text-sm"
+            >
+              ← Назад
+            </button>
           </div>
 
           <div className="bg-white/10 p-4 rounded-xl mb-4">
-            <p className="text-white mb-2">📅 <span className="text-purple-300">Дата:</span> {format(new Date(selectedSlot.start_time), 'd MMMM yyyy', { locale: ru })}</p>
-            <p className="text-white mb-2">⏰ <span className="text-purple-300">Время:</span> {format(new Date(selectedSlot.start_time), 'HH:mm')}</p>
-            <p className="text-white mb-2"> <span className="text-purple-300">Длительность:</span> {selectedSlot.duration_minutes} мин</p>
-            <p className="text-white">💰 <span className="text-purple-300">Стоимость:</span> {service.price} ₽</p>
+            <p className="text-white mb-2">
+              📅 <span className="text-purple-300">Дата:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
+            </p>
+            <p className="text-white mb-2">
+              ⏰ <span className="text-purple-300">Время:</span> {selectedTime}
+            </p>
+            <p className="text-white mb-2">
+              ⏱ <span className="text-purple-300">Длительность:</span> {duration} мин
+            </p>
+            <p className="text-white">
+              💰 <span className="text-purple-300">Стоимость:</span> {service.price} ₽
+            </p>
           </div>
 
           <div className="mb-6">
@@ -205,7 +221,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition">Назад</button>
+            <button
+              onClick={() => setStep(2)}
+              className="flex-1 bg-white/10 text-white p-4 rounded-lg font-bold hover:bg-white/20 transition"
+            >
+              Назад
+            </button>
             <button
               onClick={handleSubmit}
               disabled={loading}
