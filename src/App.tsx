@@ -67,8 +67,10 @@ export const App = () => {
         {/* Веб-портал для админа */}
         <Route path="/admin-web" element={<AdminWebLogin />} />
         <Route path="/admin-web/dashboard" element={<AdminWebDashboard />} />
+        <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
+        <Route path="/admin-web/slots" element={<AdminWebSlots />} />
         
-        {/* Telegram Mini App */}
+        {/* Telegram Mini App - все остальные маршруты */}
         <Route path="/*" element={
           loading ? (
             <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
@@ -90,8 +92,6 @@ export const App = () => {
           )
         } />
       </Routes>
-      <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
-      <Route path="/admin-web/slots" element={<AdminWebSlots />} />
     </BrowserRouter>
   );
 };
