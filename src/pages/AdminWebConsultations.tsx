@@ -11,7 +11,6 @@ import {
   Calendar, 
   User, 
   DollarSign,
-  Filter,
   Search,
   MessageSquare,
   FileText,
