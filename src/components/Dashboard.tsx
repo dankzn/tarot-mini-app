@@ -14,7 +14,7 @@ import {
   X,
   ChevronRight,
 } from 'lucide-react';
-import { formatBonusExpiry, getBonusDuration } from '../lib/bonusLogic';
+import { formatBonusExpiry} from '../lib/bonusLogic';
 import { isBirthdaySoon, getBirthdayBonus } from '../lib/bonusLogic';
 
 interface Service {

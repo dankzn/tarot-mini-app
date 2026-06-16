@@ -91,8 +91,7 @@ export const isBirthdayBonusExpired = (birthDate: string | null, bonusCreatedAt:
 // Расчёт бонусов за консультацию
 export const calculateBonus = (
   status: string,
-  price: number,
-  consultationDate: Date
+  price: number
 ): number => {
   const percent = getBonusPercent(status);
   return Math.floor(price * (percent / 100));
