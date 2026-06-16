@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { SplashScreen } from './components/SplashScreen';
 import { RegistrationForm } from './components/RegistrationForm';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
+import { AdminWebLogin } from './pages/AdminWebLogin';
+import { AdminWebDashboard } from './pages/AdminWebDashboard';
 
 export const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -30,7 +33,6 @@ export const App = () => {
         return;
       }
 
-      // Ищем пользователя в базе
       const { data: existingUser } = await supabase
         .from('users')
         .select('*')
@@ -40,7 +42,6 @@ export const App = () => {
       if (existingUser) {
         setUser(existingUser);
       } else {
-        // Новый пользователь - показываем регистрацию
         setUser({ needsRegistration: true, telegramUser: tgUser });
       }
     } catch (error) {
@@ -58,37 +59,37 @@ export const App = () => {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
-        <div className="text-[#385144]">Загрузка...</div>
-      </div>
-    );
-  }
-
-  if (user?.needsRegistration) {
-    return (
-      <RegistrationForm 
-        telegramUser={user.telegramUser}
-        onComplete={handleRegistrationComplete}
-      />
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
-        <div className="text-[#385144]">Ошибка загрузки пользователя</div>
-      </div>
-    );
-  }
-
-  // Если админ - показываем админку
-  if (user.role === 'admin') {
-    return <AdminDashboard currentUser={user} />;
-  }
-
-  // Иначе - клиентский дашборд
-  return <Dashboard user={user} />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Веб-портал для админа */}
+        <Route path="/admin-web" element={<AdminWebLogin />} />
+        <Route path="/admin-web/dashboard" element={<AdminWebDashboard />} />
+        
+        {/* Telegram Mini App */}
+        <Route path="/*" element={
+          loading ? (
+            <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
+              <div className="text-[#385144]">Загрузка...</div>
+            </div>
+          ) : user?.needsRegistration ? (
+            <RegistrationForm 
+              telegramUser={user.telegramUser}
+              onComplete={handleRegistrationComplete}
+            />
+          ) : !user ? (
+            <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
+              <div className="text-[#385144]">Ошибка загрузки пользователя</div>
+            </div>
+          ) : user.role === 'admin' ? (
+            <AdminDashboard currentUser={user} />
+          ) : (
+            <Dashboard user={user} />
+          )
+        } />
+      </Routes>
+    </BrowserRouter>
+  );
 };
+
 export default App;
