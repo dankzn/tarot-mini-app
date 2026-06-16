@@ -8,6 +8,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { AdminWebLogin } from './pages/AdminWebLogin';
 import { AdminWebDashboard } from './pages/AdminWebDashboard';
 import { AdminWebConsultations } from './pages/AdminWebConsultations';
+import { AdminWebSlots } from './pages/AdminWebSlots';
 
 export const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -90,6 +91,7 @@ export const App = () => {
         } />
       </Routes>
       <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
+      <Route path="/admin-web/slots" element={<AdminWebSlots />} />
     </BrowserRouter>
   );
 };

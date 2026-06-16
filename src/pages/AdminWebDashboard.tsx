@@ -158,11 +158,14 @@ export const AdminWebDashboard = () => {
             <p className="text-gray-500 text-sm">Подтверждение и отмена записей</p>
             </button>
 
-          <button className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left">
+          <button 
+            onClick={() => navigate('/admin-web/slots')}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            >
             <CalendarDays className="w-8 h-8 text-[#6B4EE6] mb-3" />
             <h3 className="text-[#385144] font-bold text-lg mb-1">Управление окнами</h3>
             <p className="text-gray-500 text-sm">Создание слотов для записи</p>
-          </button>
+            </button>
 
           <button className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left">
             <Send className="w-8 h-8 text-[#6B4EE6] mb-3" />
