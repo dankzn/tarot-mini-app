@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingForm } from './BookingForm';
 import { ConsultationHistory } from './ConsultationHistory';
+import { PrivilegeCards } from './PrivilegeCards';
 import { 
   Crown, 
   Sparkles, 
@@ -11,7 +12,7 @@ import {
   MapPin,
   Clock,
   X,
-  Info,
+  ChevronRight,
 } from 'lucide-react';
 
 interface Service {
@@ -32,32 +33,16 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [showBooking, setShowBooking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedService, setSelectedService] = useState<any>(null);
-  const [showStatusInfo, setShowStatusInfo] = useState(false);
   const [showBonusInfo, setShowBonusInfo] = useState(false);
+  const [showPrivileges, setShowPrivileges] = useState(false);
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
+  const [totalConsultations, setTotalConsultations] = useState(0);
 
   useEffect(() => {
     loadServices();
     loadBonusHistory();
+    loadTotalConsultations();
   }, []);
-
-  // Принудительная перезагрузка данных при монтировании
-useEffect(() => {
-  const reloadUserData = async () => {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    
-    if (userData) {
-      // Обновляем user объект с новыми данными
-      window.location.href = window.location.href;
-    }
-  };
-  
-  reloadUserData();
-}, []);
 
   const loadServices = async () => {
     try {
@@ -89,6 +74,16 @@ useEffect(() => {
     }
   };
 
+  const loadTotalConsultations = async () => {
+    const { count } = await supabase
+      .from('consultations')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'completed');
+
+    setTotalConsultations(count || 0);
+  };
+
   const statusColors: Record<string, string> = {
     'Первое знакомство': 'bg-gray-200 text-gray-700',
     'Basic': 'bg-blue-100 text-blue-700',
@@ -97,19 +92,6 @@ useEffect(() => {
     'Platinum': 'bg-purple-100 text-purple-700',
     'Личное ведение': 'bg-[#6B4EE6]/10 text-[#6B4EE6]',
   };
-
-  const statusInfo = [
-  { name: 'Первое знакомство', desc: 'Начальный уровень', count: '0 консультаций' },
-  { name: 'Basic', desc: 'Базовый уровень', count: '1-2 консультации' },
-  { name: 'Silver', desc: 'Средний уровень', count: '3-5 консультаций' },
-  { name: 'Gold', desc: 'Продвинутый уровень', count: '6-10 консультаций' },
-  { name: 'Platinum', desc: 'Высокий уровень', count: '11-20 консультаций' },
-  { 
-    name: 'Личное ведение', 
-    desc: 'При заказе услуги "Личный таролог" - статус на 30 дней', 
-    count: 'Особый статус' 
-  },
-];
 
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
@@ -134,48 +116,6 @@ useEffect(() => {
 
   if (showHistory) {
     return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
-  }
-
-  // Модальное окно информации о статусах
-  if (showStatusInfo) {
-    return (
-      <div className="min-h-screen bg-[#F8F5F2] p-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-[#385144] flex items-center">
-            <Crown className="w-6 h-6 mr-2" />
-            Программа лояльности
-          </h2>
-          <button onClick={() => setShowStatusInfo(false)} className="text-gray-500 hover:text-[#385144]">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {statusInfo.map((status) => (
-            <div 
-              key={status.name}
-              className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${
-                currentStatus === status.name ? 'border-[#385144]' : 'border-gray-100'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className={`font-bold text-lg ${currentStatus === status.name ? 'text-[#385144]' : 'text-gray-700'}`}>
-                    {status.name}
-                  </h3>
-                  <p className="text-gray-500 text-sm">{status.desc}</p>
-                </div>
-                <span className="text-gray-400 text-sm font-bold">{status.count}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 bg-[#385144] text-white rounded-2xl p-4">
-          <p className="text-sm">💡 Чем выше статус, тем больше преимуществ и специальных предложений!</p>
-        </div>
-      </div>
-    );
   }
 
   // Модальное окно истории бонусов
@@ -237,6 +177,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#F8F5F2] p-4 pb-20">
+      {/* Карточка пользователя */}
       <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
@@ -254,9 +195,9 @@ useEffect(() => {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Кликабельная плашка статуса */}
+          {/* Кликабельная плашка статуса - открывает PrivilegeCards */}
           <button 
-            onClick={() => setShowStatusInfo(true)}
+            onClick={() => setShowPrivileges(true)}
             className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
           >
             <div className="flex items-center justify-between mb-1">
@@ -264,7 +205,7 @@ useEffect(() => {
                 <Crown className="w-4 h-4 mr-1 text-[#D4AF37]" />
                 <span className="text-gray-500 text-xs">Статус</span>
               </div>
-              <Info className="w-3 h-3 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400" />
             </div>
             <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold ${statusColor}`}>
               {currentStatus}
@@ -281,7 +222,7 @@ useEffect(() => {
                 <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
                 <span className="text-gray-500 text-xs">Бонусы</span>
               </div>
-              <Info className="w-3 h-3 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400" />
             </div>
             <span className="text-[#D4AF37] font-bold text-lg">
               {user.bonus_balance || 0} ₽
@@ -290,6 +231,7 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* Кнопки навигации */}
       <div className="grid grid-cols-1 gap-3 mb-6">
         <button 
           onClick={() => setShowHistory(true)}
@@ -299,7 +241,7 @@ useEffect(() => {
             <ScrollText className="w-5 h-5 mr-3 text-[#6B4EE6]" />
             <span>История консультаций</span>
           </div>
-          <span className="text-gray-400">→</span>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
         </button>
 
         <button className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm">
@@ -307,10 +249,11 @@ useEffect(() => {
             <Gift className="w-5 h-5 mr-3 text-[#6B4EE6]" />
             <span>Пригласить друга</span>
           </div>
-          <span className="text-gray-400">→</span>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
         </button>
       </div>
 
+      {/* Список услуг */}
       <div>
         <h3 className="text-[#385144] font-bold mb-3 flex items-center">
           <CalendarCheck className="w-5 h-5 mr-2" />
@@ -368,6 +311,15 @@ useEffect(() => {
           </div>
         )}
       </div>
+
+      {/* Модальное окно PrivilegeCards */}
+      {showPrivileges && (
+        <PrivilegeCards 
+          currentStatus={currentStatus}
+          totalConsultations={totalConsultations}
+          onClose={() => setShowPrivileges(false)}
+        />
+      )}
     </div>
   );
 };
