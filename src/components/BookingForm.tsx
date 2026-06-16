@@ -117,6 +117,7 @@ const { data: adminData } = await supabase
 if (adminData?.telegram_id) {
   await notifyAdminNewBooking(
     adminData.telegram_id,
+    user.username || null, // ← ВОТ ЭТО
     user.name || 'Клиент',
     service.title,
     format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),

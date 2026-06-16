@@ -24,6 +24,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         .insert([
           {
             telegram_id: telegramUser.id,
+            username: telegramUser.username || null, // ← ВОТ ЭТО
             name: name,
             city: city,
             phone: phone,

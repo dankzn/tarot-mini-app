@@ -41,17 +41,20 @@ export const sendTelegramNotification = async (
 export const notifyAdminNewBooking = async (
   adminTelegramId: string,
   clientName: string,
+  clientUsername: string | null,
   serviceName: string,
   dateTime: string,
   price: number
 ) => {
+  const usernameText = clientUsername ? ` (@${clientUsername})` : '';
+  
   const message = `
 🔔 <b>Новая запись!</b>
 
- <b>Клиент:</b> ${clientName}
+👤 <b>Клиент:</b> ${clientName}${usernameText}
 📋 <b>Услуга:</b> ${serviceName}
 📅 <b>Дата:</b> ${dateTime}
- <b>Сумма:</b> ${price} ₽
+💰 <b>Сумма:</b> ${price} ₽
 
 ⏳ Статус: Ожидает подтверждения
   `.trim();
