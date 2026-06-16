@@ -95,3 +95,31 @@ export const notifyClientStatusChange = async (
 
   await sendTelegramNotification(clientTelegramId, message);
 };
+
+// Массовая рассылка
+export const sendBulkNotification = async (
+  telegramIds: string[],
+  message: string
+) => {
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: [] as string[],
+  };
+
+  // Отправляем с задержкой чтобы не забанили (50 мс между сообщениями)
+  for (const chatId of telegramIds) {
+    try {
+      await sendTelegramNotification(chatId, message);
+      results.success++;
+      
+      // Задержка 50мс между сообщениями
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } catch (error) {
+      results.failed++;
+      results.errors.push(`Ошибка для ${chatId}: ${error}`);
+    }
+  }
+
+  return results;
+};

@@ -10,6 +10,7 @@ import { AdminWebDashboard } from './pages/AdminWebDashboard';
 import { AdminWebConsultations } from './pages/AdminWebConsultations';
 import { AdminWebSlots } from './pages/AdminWebSlots';
 import { AdminWebUsers } from './pages/AdminWebUsers';
+import { AdminWebMailings } from './pages/AdminWebMailings';
 
 export const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -71,6 +72,7 @@ export const App = () => {
         <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
         <Route path="/admin-web/slots" element={<AdminWebSlots />} />
         <Route path="/admin-web/users" element={<AdminWebUsers />} />
+        <Route path="/admin-web/mailings" element={<AdminWebMailings />} />
         
         {/* Telegram Mini App - все остальные маршруты */}
         <Route path="/*" element={
