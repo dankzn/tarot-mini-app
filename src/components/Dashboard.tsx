@@ -11,7 +11,6 @@ import {
   CalendarCheck,
   MapPin,
   Clock,
-  X,
   ChevronRight,
 } from 'lucide-react';
 import { formatBonusExpiry} from '../lib/bonusLogic';
