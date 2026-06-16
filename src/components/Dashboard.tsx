@@ -14,6 +14,8 @@ import {
   X,
   ChevronRight,
 } from 'lucide-react';
+import { formatBonusExpiry, getBonusDuration } from '../lib/bonusLogic';
+import { isBirthdaySoon, getBirthdayBonus } from '../lib/bonusLogic';
 
 interface Service {
   id: string;
@@ -43,6 +45,53 @@ export const Dashboard = ({ user }: DashboardProps) => {
     loadBonusHistory();
     loadTotalConsultations();
   }, []);
+
+// После существующих useEffect добавь:
+useEffect(() => {
+  const checkBirthday = async () => {
+    if (!user.birth_date) return;
+    
+    if (isBirthdaySoon(user.birth_date)) {
+      const birthdayBonus = getBirthdayBonus(user.status);
+      
+      if (birthdayBonus > 0) {
+        // Проверяем, не начисляли ли уже в этом году
+        const { data: existingBonus } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('type', 'birthday_bonus')
+          .gte('created_at', new Date(new Date().getFullYear(), 0, 1).toISOString())
+          .single();
+
+        if (!existingBonus) {
+          // Начисляем бонус
+          const newBalance = (user.bonus_balance || 0) + birthdayBonus;
+          
+          await supabase
+            .from('users')
+            .update({ bonus_balance: newBalance })
+            .eq('id', user.id);
+
+          await supabase
+            .from('transactions')
+            .insert([
+              {
+                user_id: user.id,
+                type: 'birthday_bonus',
+                amount: birthdayBonus,
+                description: `Бонус на День Рождения (${getBirthdayBonus(user.status)} ₽)`,
+              }
+            ]);
+
+          alert(`🎉 С Днём Рождения!\n\nВам начислено ${birthdayBonus} ₽ бонусов!\n\nБонусы действительны 2 дня.`);
+        }
+      }
+    }
+  };
+
+  checkBirthday();
+}, [user.id, user.birth_date, user.status]);
 
   const loadServices = async () => {
     try {
@@ -127,8 +176,23 @@ export const Dashboard = ({ user }: DashboardProps) => {
             <Sparkles className="w-6 h-6 mr-2" />
             История бонусов
           </h2>
-          <button onClick={() => setShowBonusInfo(false)} className="text-gray-500 hover:text-[#385144]">
-            <X className="w-6 h-6" />
+          <button 
+            onClick={() => setShowBonusInfo(true)}
+            className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center">
+                <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
+                <span className="text-gray-500 text-xs">Бонусы</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+            </div>
+            <span className="text-[#D4AF37] font-bold text-lg">
+              {user.bonus_balance || 0} ₽
+            </span>
+            <p className="text-gray-400 text-xs mt-1">
+              Действуют до {formatBonusExpiry(user.last_bonus_date || user.created_at, user.status)}
+            </p>
           </button>
         </div>
 

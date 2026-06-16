@@ -22,6 +22,7 @@ import {
   notifyClientBonusUpdate,
   notifyClientStatusChange 
 } from '../lib/notifications';
+import { getBonusPercent, shouldApplyReducedBonus } from '../lib/bonusLogic';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -168,7 +169,13 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const finalPrice = completeData.new_price;
-    const bonusEarned = Math.floor(finalPrice * 0.05); // 5%
+    const bonusPercent = shouldApplyReducedBonus(
+          selectedConsultation.users?.status,
+          new Date(),
+          selectedConsultation.users?.status_updated_at ? new Date(selectedConsultation.users.status_updated_at) : null
+        ) ? 3 : getBonusPercent(selectedConsultation.users?.status);
+
+const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
     
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
