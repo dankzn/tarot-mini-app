@@ -22,7 +22,7 @@ import {
   notifyClientBonusUpdate,
   notifyClientStatusChange 
 } from '../lib/notifications';
-import { getBonusPercent, shouldApplyReducedBonus } from '../lib/bonusLogic';
+import { getBonusPercent } from '../lib/bonusLogic';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -141,7 +141,6 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   if (!selectedConsultation) return;
 
   try {
-    // Проверяем, является ли услуга "Личное ведение"
     const isPersonalTarologist = selectedConsultation.services?.title?.toLowerCase().includes('личный таролог') || 
                                   selectedConsultation.services?.title?.toLowerCase().includes('личное ведение');
     
@@ -149,14 +148,12 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     let personalTarologistUntil = null;
     
     if (isPersonalTarologist) {
-      // Устанавливаем статус "Личное ведение" на 30 дней
       newStatus = 'Личное ведение';
       const untilDate = new Date();
       untilDate.setDate(untilDate.getDate() + 30);
       personalTarologistUntil = untilDate.toISOString();
       console.log('🎯 Устанавливаю статус "Личное ведение" до:', personalTarologistUntil);
     } else {
-      // Обычный расчёт статуса по количеству консультаций
       const completedConsultations = consultations.filter(c => 
         c.user_id === selectedConsultation.user_id && 
         c.status === 'completed' &&
@@ -169,13 +166,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const finalPrice = completeData.new_price;
-    const bonusPercent = shouldApplyReducedBonus(
-          selectedConsultation.users?.status,
-          new Date(),
-          selectedConsultation.users?.status_updated_at ? new Date(selectedConsultation.users.status_updated_at) : null
-        ) ? 3 : getBonusPercent(selectedConsultation.users?.status);
-
-const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
+    
+    // Используем НОВЫЙ статус для расчёта бонусов
+    const bonusPercent = getBonusPercent(newStatus);
+    const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
     
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
@@ -185,7 +179,6 @@ const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
     console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
     console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
 
-    // 1. Обновляем консультацию
     const { error: consultError } = await supabase
       .from('consultations')
       .update({
@@ -202,7 +195,6 @@ const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
       throw consultError;
     }
 
-    // 2. Обновляем пользователя с явным указанием всех полей
     const updateData: any = {
       status: newStatus,
       bonus_balance: newBonusBalance,
@@ -222,7 +214,6 @@ const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
       throw userError;
     }
 
-    // 3. Проверяем что обновили
     const { data: verifyUser } = await supabase
       .from('users')
       .select('status, bonus_balance, personal_tarologist_until')
@@ -232,36 +223,31 @@ const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
     console.log('✅ Проверка:', verifyUser);
 
     alert(`✅ Консультация завершена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${verifyUser?.bonus_balance} ₽\nСтатус: ${verifyUser?.status}`);
-    // После строки: console.log('✅ Проверка:', verifyUser);
 
-// Отправляем уведомления
-const clientTelegramId = selectedConsultation.users?.telegram_id;
-const oldStatus = selectedConsultation.users?.status;
+    const clientTelegramId = selectedConsultation.users?.telegram_id;
+    const oldStatus = selectedConsultation.users?.status;
 
-if (clientTelegramId) {
-  // Уведомление о бонусах
-  if (bonusEarned > 0) {
-    await notifyClientBonusUpdate(
-      clientTelegramId,
-      bonusEarned,
-      verifyUser?.bonus_balance || 0
-    );
-  }
+    if (clientTelegramId) {
+      if (bonusEarned > 0) {
+        await notifyClientBonusUpdate(
+          clientTelegramId,
+          bonusEarned,
+          verifyUser?.bonus_balance || 0
+        );
+      }
 
-  // Уведомление о смене статуса
-  if (oldStatus !== newStatus) {
-    await notifyClientStatusChange(
-      clientTelegramId,
-      newStatus
-    );
-  }
-}
+      if (oldStatus !== newStatus) {
+        await notifyClientStatusChange(
+          clientTelegramId,
+          newStatus
+        );
+      }
+    }
     
     setShowCompleteForm(false);
     setSelectedConsultation(null);
     await loadConsultations();
     
-    // 4. Перезагрузка
     setTimeout(() => {
       window.location.href = window.location.href + '?t=' + Date.now();
     }, 1000);
@@ -305,12 +291,25 @@ if (clientTelegramId) {
 
   // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
-    const bonusPercent = shouldApplyReducedBonus(
-            selectedConsultation.users?.status,
-            new Date(),
-            selectedConsultation.users?.status_updated_at ? new Date(selectedConsultation.users.status_updated_at) : null
-          ) ? 3 : getBonusPercent(selectedConsultation.users?.status);
+    // Предварительно вычисляем новый статус
+    const isPersonalTarologist = selectedConsultation.services?.title?.toLowerCase().includes('личный таролог') || 
+                                  selectedConsultation.services?.title?.toLowerCase().includes('личное ведение');
 
+    let previewNewStatus = '';
+    if (isPersonalTarologist) {
+      previewNewStatus = 'Личное ведение';
+    } else {
+      const completedConsultations = consultations.filter(c => 
+        c.user_id === selectedConsultation.user_id && 
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id
+      );
+      const totalCompleted = completedConsultations.length + 1;
+      previewNewStatus = calculateClientStatus(totalCompleted);
+    }
+
+    // Используем новый статус для расчёта бонусов
+    const bonusPercent = getBonusPercent(previewNewStatus);
     const bonusEarned = Math.floor(completeData.new_price * (bonusPercent / 100));
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const bonusUsed = selectedConsultation.bonus_used || 0;
@@ -413,7 +412,7 @@ if (clientTelegramId) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Новый статус:</span>
-                <span className="text-[#6B4EE6] font-bold">{calculateClientStatus(consultations.filter(c => c.user_id === selectedConsultation.user_id && c.status === 'completed').length + 1)}</span>
+                <span className="text-[#6B4EE6] font-bold">{previewNewStatus}</span>
               </div>
             </div>
           </div>
