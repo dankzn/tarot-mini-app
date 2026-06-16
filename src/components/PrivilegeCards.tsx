@@ -4,13 +4,12 @@ import {
   ChevronRight, 
   Sparkles, 
   Gift, 
-  Clock, 
+  Clock,
   Crown,
   Star,
   Zap,
-  Heart,
   Trophy,
-  Unlock
+  X
 } from 'lucide-react';
 
 interface PrivilegeLevel {
@@ -129,32 +128,11 @@ const PRIVILEGE_LEVELS: PrivilegeLevel[] = [
       'При неоплаченной консультации за 30 дней — 1 бесплатная консультация за период 6 месяцев'
     ],
     description: 'Элитный статус для самых преданных клиентов'
-  },
-  {
-    id: 'personal',
-    name: 'Личное ведение',
-    icon: Heart,
-    color: 'text-[#D4AF37]',
-    bgColor: 'bg-[#D4AF37]/10',
-    consultations: '4 консультации в месяц',
-    bonusPercent: 'Индивидуально',
-    bonusDuration: '—',
-    birthdayBonus: 'Индивидуально',
-    additionalBenefits: [
-      'Личное ведение',
-      '4 консультации в месяц (30 дней)',
-      'Разбор событий предстоящей недели',
-      'Доступность для клиента в практически любое время',
-      'Личное общение с клиентом',
-      'Дополнительный 1 запрос в неделю по ситуации недели'
-    ],
-    description: 'Персональное сопровождение и поддержка'
   }
 ];
 
 export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: PrivilegeCardsProps) => {
   const [currentIndex, setCurrentIndex] = useState(() => {
-    // Находим индекс текущего статуса
     const statusIndex = PRIVILEGE_LEVELS.findIndex(level => level.name === currentStatus);
     return statusIndex >= 0 ? statusIndex : 0;
   });
@@ -182,22 +160,22 @@ export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: P
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        {/* Шапка */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center rounded-t-3xl">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col">
+        {/* Шапка — фиксированная */}
+        <div className="flex-none border-b border-gray-200 p-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-[#385144]">Уровни привилегий</h2>
           {onClose && (
             <button 
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-gray-400 hover:text-gray-600 transition p-2"
             >
-              <span className="text-2xl">×</span>
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>
 
-        {/* Индикаторы */}
-        <div className="flex justify-center gap-2 p-4">
+        {/* Индикаторы — фиксированные */}
+        <div className="flex-none flex justify-center gap-2 p-4 border-b border-gray-100">
           {PRIVILEGE_LEVELS.map((_, index) => {
             const isActive = index === currentIndex;
             const isCurrentStatus = index === currentStatusIndex;
@@ -218,8 +196,9 @@ export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: P
           })}
         </div>
 
-        {/* Карточка */}
-        <div className="p-6">
+        {/* Контент с прокруткой */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Карточка */}
           <div className={`rounded-2xl p-6 mb-6 transition-all ${
             currentIndex === currentStatusIndex 
               ? `${currentLevel.bgColor} border-2 border-[#385144] shadow-lg` 
@@ -250,8 +229,7 @@ export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: P
 
             {currentIndex === currentStatusIndex && (
               <div className="flex items-center justify-center gap-1 mb-4">
-                <Unlock className="w-4 h-4 text-green-600" />
-                <span className="text-green-600 text-sm font-bold">Ваш текущий уровень</span>
+                <span className="text-green-600 text-sm font-bold">✓ Ваш текущий уровень</span>
               </div>
             )}
 
@@ -341,46 +319,9 @@ export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: P
             </div>
           </div>
 
-          {/* Кнопки действий */}
-          {currentIndex === currentStatusIndex && (
-            <div className="space-y-3">
-              <button className="w-full bg-[#385144] text-white py-3 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center gap-2">
-                <Crown className="w-5 h-5" />
-                Докупить уровень
-              </button>
-              <button className="w-full bg-[#F8F5F2] text-[#385144] border-2 border-[#385144] py-3 rounded-xl font-bold hover:bg-[#385144] hover:text-white transition flex items-center justify-center gap-2">
-                <Heart className="w-5 h-5" />
-                Сохранить уровень
-              </button>
-            </div>
-          )}
-
-          {/* Навигация */}
-          <div className="flex justify-between items-center mt-6">
-            <button
-              onClick={handlePrev}
-              disabled={currentIndex === 0}
-              className="p-3 rounded-xl bg-[#F8F5F2] text-[#385144] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#385144] hover:text-white transition"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-
-            <span className="text-gray-500 text-sm">
-              {currentIndex + 1} из {PRIVILEGE_LEVELS.length}
-            </span>
-
-            <button
-              onClick={handleNext}
-              disabled={currentIndex === PRIVILEGE_LEVELS.length - 1}
-              className="p-3 rounded-xl bg-[#F8F5F2] text-[#385144] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#385144] hover:text-white transition"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-
           {/* Прогресс до следующего уровня */}
           {currentIndex < PRIVILEGE_LEVELS.length - 1 && currentIndex === currentStatusIndex && (
-            <div className="mt-6 bg-[#F8F5F2] p-4 rounded-xl">
+            <div className="bg-[#F8F5F2] p-4 rounded-xl mb-4">
               <p className="text-gray-600 text-sm text-center mb-2">
                 До следующего уровня:
               </p>
@@ -402,6 +343,29 @@ export const PrivilegeCards = ({ currentStatus, totalConsultations, onClose }: P
               </div>
             </div>
           )}
+        </div>
+
+        {/* Навигация — фиксированная внизу */}
+        <div className="flex-none border-t border-gray-200 p-4 flex justify-between items-center">
+          <button
+            onClick={handlePrev}
+            disabled={currentIndex === 0}
+            className="p-3 rounded-xl bg-[#F8F5F2] text-[#385144] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#385144] hover:text-white transition"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+
+          <span className="text-gray-500 text-sm">
+            {currentIndex + 1} из {PRIVILEGE_LEVELS.length}
+          </span>
+
+          <button
+            onClick={handleNext}
+            disabled={currentIndex === PRIVILEGE_LEVELS.length - 1}
+            className="p-3 rounded-xl bg-[#F8F5F2] text-[#385144] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#385144] hover:text-white transition"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
         </div>
       </div>
     </div>
