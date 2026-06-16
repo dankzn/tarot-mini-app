@@ -172,6 +172,15 @@ export const AdminWebDashboard = () => {
             <h3 className="text-[#385144] font-bold text-lg mb-1">Рассылка акций</h3>
             <p className="text-gray-500 text-sm">Отправка уведомлений клиентам</p>
           </button>
+
+          <button 
+            onClick={() => navigate('/admin-web/users')}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            >
+            <Users className="w-8 h-8 text-[#6B4EE6] mb-3" />
+            <h3 className="text-[#385144] font-bold text-lg mb-1">Список клиентов</h3>
+            <p className="text-gray-500 text-sm">Просмотр и управление клиентами</p>
+            </button>
         </div>
 
         {/* Последние записи */}

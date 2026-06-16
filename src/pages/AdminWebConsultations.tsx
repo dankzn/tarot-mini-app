@@ -143,7 +143,15 @@ export const AdminWebConsultations = () => {
         .eq('id', selectedConsultation.user_id);
 
       alert(`✅ Консультация завершена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${newBonusBalance} ₽\nСтатус: ${newStatus}`);
-      
+      // После успешного обновления консультации
+        if (selectedConsultation.users?.telegram_id) {
+        const { notifyClientBonusUpdate } = await import('../lib/notifications');
+        await notifyClientBonusUpdate(
+            selectedConsultation.users.telegram_id,
+            bonusEarned,
+            newBonusBalance
+        );
+        }
       setShowCompleteForm(false);
       setSelectedConsultation(null);
       await loadConsultations();
