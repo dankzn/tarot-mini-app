@@ -7,6 +7,7 @@ import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AdminWebLogin } from './pages/AdminWebLogin';
 import { AdminWebDashboard } from './pages/AdminWebDashboard';
+import { AdminWebConsultations } from './pages/AdminWebConsultations';
 
 export const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -88,6 +89,7 @@ export const App = () => {
           )
         } />
       </Routes>
+      <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
     </BrowserRouter>
   );
 };
