@@ -305,7 +305,13 @@ if (clientTelegramId) {
 
   // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
-    const bonusEarned = Math.floor(completeData.new_price * 0.05);
+    const bonusPercent = shouldApplyReducedBonus(
+            selectedConsultation.users?.status,
+            new Date(),
+            selectedConsultation.users?.status_updated_at ? new Date(selectedConsultation.users.status_updated_at) : null
+          ) ? 3 : getBonusPercent(selectedConsultation.users?.status);
+
+    const bonusEarned = Math.floor(completeData.new_price * (bonusPercent / 100));
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
@@ -376,7 +382,7 @@ if (clientTelegramId) {
                 <span className="text-[#385144] font-bold">{completeData.new_price} ₽</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Кэшбэк (10% от оплаты):</span>
+                <span className="text-gray-600">Кэшбэк ({bonusPercent}% от оплаты):</span>
                 <span className="text-green-600 font-bold">+{bonusEarned} ₽</span>
               </div>
               <div className="h-px bg-gray-200 my-2" />
