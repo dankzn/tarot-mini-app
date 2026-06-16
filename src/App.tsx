@@ -91,3 +91,4 @@ export const App = () => {
   // Иначе - клиентский дашборд
   return <Dashboard user={user} />;
 };
+export default App
