@@ -5,11 +5,19 @@ from telebot import types
 BOT_TOKEN = os.getenv("8844983125:AAEQaH2P8PqG4VnB8iibHyWlaG_an940hPA")
 WEB_APP_URL = os.getenv("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel.app")
 
+# Дебаг - выводим что получили
+print(f"🔍 BOT_TOKEN: {'Есть' if BOT_TOKEN else 'НЕТ!'}")
+print(f"🔍 WEB_APP_URL: {WEB_APP_URL}")
+print(f"🔍 Все переменные: {os.environ.keys()}")
+
+if not BOT_TOKEN:
+    print("❌ ОШИБКА: BOT_TOKEN не найден!")
+    exit(1)
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # Получаем аргументы команды
     args = message.text.split()
     ref_code = None
     
@@ -17,10 +25,8 @@ def send_welcome(message):
         ref_code = args[1].replace('ref_', '')
         print(f"🎯 Реферальная ссылка: ref_{ref_code}")
     
-    # Формируем URL
     web_app_url = f"{WEB_APP_URL}/?ref={ref_code}" if ref_code else WEB_APP_URL
     
-    # Создаем клавиатуру с Web App
     markup = types.InlineKeyboardMarkup()
     btn = types.InlineKeyboardButton("✨ Открыть приложение", url=web_app_url)
     markup.add(btn)
