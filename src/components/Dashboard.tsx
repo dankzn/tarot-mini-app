@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { BookingForm } from './BookingForm';
 import { ConsultationHistory } from './ConsultationHistory';
 import { PrivilegeCards } from './PrivilegeCards';
+import { InfoMenu } from './InfoMenu';
+import { ReferralProgram } from './ReferralProgram';
 import { 
   Crown, 
   Sparkles, 
@@ -12,9 +14,9 @@ import {
   MapPin,
   Clock,
   ChevronRight,
+  Menu,
+  Camera
 } from 'lucide-react';
-import { formatBonusExpiry} from '../lib/bonusLogic';
-import { isBirthdaySoon, getBirthdayBonus } from '../lib/bonusLogic';
 
 interface Service {
   id: string;
@@ -36,61 +38,18 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [selectedService, setSelectedService] = useState<any>(null);
   const [showBonusInfo, setShowBonusInfo] = useState(false);
   const [showPrivileges, setShowPrivileges] = useState(false);
+  const [showInfoMenu, setShowInfoMenu] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [totalConsultations, setTotalConsultations] = useState(0);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadServices();
     loadBonusHistory();
     loadTotalConsultations();
+    loadProfilePhoto();
   }, []);
-
-// После существующих useEffect добавь:
-useEffect(() => {
-  const checkBirthday = async () => {
-    if (!user.birth_date) return;
-    
-    if (isBirthdaySoon(user.birth_date)) {
-      const birthdayBonus = getBirthdayBonus(user.status);
-      
-      if (birthdayBonus > 0) {
-        // Проверяем, не начисляли ли уже в этом году
-        const { data: existingBonus } = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('type', 'birthday_bonus')
-          .gte('created_at', new Date(new Date().getFullYear(), 0, 1).toISOString())
-          .single();
-
-        if (!existingBonus) {
-          // Начисляем бонус
-          const newBalance = (user.bonus_balance || 0) + birthdayBonus;
-          
-          await supabase
-            .from('users')
-            .update({ bonus_balance: newBalance })
-            .eq('id', user.id);
-
-          await supabase
-            .from('transactions')
-            .insert([
-              {
-                user_id: user.id,
-                type: 'birthday_bonus',
-                amount: birthdayBonus,
-                description: `Бонус на День Рождения (${getBirthdayBonus(user.status)} ₽)`,
-              }
-            ]);
-
-          alert(`🎉 С Днём Рождения!\n\nВам начислено ${birthdayBonus} ₽ бонусов!\n\nБонусы действительны 2 дня.`);
-        }
-      }
-    }
-  };
-
-  checkBirthday();
-}, [user.id, user.birth_date, user.status]);
 
   const loadServices = async () => {
     try {
@@ -132,6 +91,45 @@ useEffect(() => {
     setTotalConsultations(count || 0);
   };
 
+  const loadProfilePhoto = () => {
+    // Сначала проверяем Telegram avatar
+    const tg = window.Telegram?.WebApp;
+    if (tg?.initDataUnsafe?.user?.photo_url) {
+      setProfilePhoto(tg.initDataUnsafe.user.photo_url);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-photos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-photos')
+        .getPublicUrl(filePath);
+
+      await supabase
+        .from('users')
+        .update({ profile_photo: publicUrl })
+        .eq('id', user.id);
+
+      setProfilePhoto(publicUrl);
+      alert('✅ Фото профиля обновлено!');
+    } catch (error: any) {
+      alert('Ошибка загрузки фото: ' + error.message);
+    }
+  };
+
   const statusColors: Record<string, string> = {
     'Первое знакомство': 'bg-gray-200 text-gray-700',
     'Basic': 'bg-blue-100 text-blue-700',
@@ -166,7 +164,6 @@ useEffect(() => {
     return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
   }
 
-  // Модальное окно истории бонусов
   if (showBonusInfo) {
     return (
       <div className="min-h-screen bg-[#F8F5F2] p-4">
@@ -175,23 +172,8 @@ useEffect(() => {
             <Sparkles className="w-6 h-6 mr-2" />
             История бонусов
           </h2>
-          <button 
-            onClick={() => setShowBonusInfo(true)}
-            className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center">
-                <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
-                <span className="text-gray-500 text-xs">Бонусы</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-            </div>
-            <span className="text-[#D4AF37] font-bold text-lg">
-              {user.bonus_balance || 0} ₽
-            </span>
-            <p className="text-gray-400 text-xs mt-1">
-              Действуют до {formatBonusExpiry(user.last_bonus_date || user.created_at, user.status)}
-            </p>
+          <button onClick={() => setShowBonusInfo(false)} className="text-gray-500 hover:text-[#385144]">
+            <span className="text-2xl">×</span>
           </button>
         </div>
 
@@ -240,25 +222,53 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#F8F5F2] p-4 pb-20">
+      {/* Шапка с бургер-меню */}
+      <div className="flex justify-between items-center mb-4">
+        <button
+          onClick={() => setShowInfoMenu(true)}
+          className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-[#385144] transition"
+        >
+          <Menu className="w-5 h-5 text-[#385144]" />
+        </button>
+        
+        <h1 className="text-[#385144] font-bold text-lg">Tarot by Danil</h1>
+      </div>
+
       {/* Карточка пользователя */}
       <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-14 h-14 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white font-bold text-xl">
-              {user.name?.charAt(0) || 'U'}
-            </div>
-            <div>
-              <h2 className="text-[#385144] font-bold text-lg">{user.name || 'Пользователь'}</h2>
-              <div className="flex items-center text-gray-500 text-sm">
-                <MapPin className="w-3 h-3 mr-1" />
-                {user.city || 'Город не указан'}
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="relative">
+            {profilePhoto ? (
+              <img 
+                src={profilePhoto} 
+                alt="Profile" 
+                className="w-14 h-14 rounded-full object-cover border-2 border-[#385144]"
+              />
+            ) : (
+              <div className="w-14 h-14 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white font-bold text-xl">
+                {user.name?.charAt(0) || 'U'}
               </div>
+            )}
+            <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#385144] rounded-full flex items-center justify-center cursor-pointer border-2 border-white">
+              <Camera className="w-3 h-3 text-white" />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
+            </label>
+          </div>
+          <div className="flex-1">
+            <h2 className="text-[#385144] font-bold text-lg">{user.name || 'Пользователь'}</h2>
+            <div className="flex items-center text-gray-500 text-sm">
+              <MapPin className="w-3 h-3 mr-1" />
+              {user.city || 'Город не указан'}
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Кликабельная плашка статуса - открывает PrivilegeCards */}
           <button 
             onClick={() => setShowPrivileges(true)}
             className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
@@ -275,7 +285,6 @@ useEffect(() => {
             </span>
           </button>
 
-          {/* Кликабельная плашка бонусов */}
           <button 
             onClick={() => setShowBonusInfo(true)}
             className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
@@ -307,7 +316,10 @@ useEffect(() => {
           <ChevronRight className="w-5 h-5 text-gray-400" />
         </button>
 
-        <button className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm">
+        <button 
+          onClick={() => setShowReferral(true)}
+          className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm"
+        >
           <div className="flex items-center">
             <Gift className="w-5 h-5 mr-3 text-[#6B4EE6]" />
             <span>Пригласить друга</span>
@@ -375,7 +387,7 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Модальное окно PrivilegeCards */}
+      {/* Модальные окна */}
       {showPrivileges && (
         <PrivilegeCards 
           currentStatus={currentStatus}
@@ -383,6 +395,19 @@ useEffect(() => {
           onClose={() => setShowPrivileges(false)}
         />
       )}
+
+      {showInfoMenu && (
+        <InfoMenu onClose={() => setShowInfoMenu(false)} />
+      )}
+
+      {showReferral && (
+        <ReferralProgram 
+          user={user}
+          onClose={() => setShowReferral(false)}
+        />
+      )}
     </div>
   );
 };
+
+export default Dashboard;
