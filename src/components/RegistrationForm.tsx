@@ -36,25 +36,42 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       
       console.log('📊 Telegram initData:', initData);
       console.log('📊 start_param:', startParam);
-      console.log('📊 typeof start_param:', typeof startParam);
+      console.log('📊 window.location.search:', window.location.search);
       
+      // Проверяем start_param из Telegram
+      let refCode: string | null = null;
       let debug = `start_param: "${startParam}"\n`;
       debug += `typeof: ${typeof startParam}\n`;
       debug += `telegramUser.id: ${telegramUser?.id}\n`;
       
-      if (startParam) {
-        if (String(startParam).startsWith('ref_')) {
-          const code = String(startParam).replace('ref_', '');
-          setReferralCode(code);
-          debug += `✅ Реферальный код найден: ${code}\n`;
-          console.log('✅ Реферальный код:', code);
+      if (startParam && String(startParam).startsWith('ref_')) {
+        refCode = String(startParam).replace('ref_', '');
+        debug += `✅ Реферальный код из start_param: ${refCode}\n`;
+        console.log('✅ Реферальный код из start_param:', refCode);
+      }
+      
+      // Если нет в start_param, проверяем URL
+      if (!refCode) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRef = urlParams.get('ref');
+        
+        if (urlRef) {
+          refCode = urlRef;
+          debug += `✅ Реферальный код из URL: ${refCode}\n`;
+          console.log('✅ Реферальный код из URL:', refCode);
         } else {
-          debug += `⚠️ start_param не начинается с ref_: ${startParam}\n`;
-          console.log('⚠️ Неверный формат start_param:', startParam);
+          debug += `❌ ref в URL не найден\n`;
         }
+      }
+      
+      // Если нашли код - сохраняем
+      if (refCode) {
+        setReferralCode(refCode);
+        debug += `✅ Итоговый реферальный код: ${refCode}\n`;
+        console.log('✅ Итоговый реферальный код:', refCode);
       } else {
-        debug += '❌ start_param отсутствует\n';
-        console.log('❌ start_param не передан');
+        debug += `❌ Реферальный код не найден\n`;
+        console.log('❌ Реферальный код не найден');
       }
       
       setDebugInfo(debug);
