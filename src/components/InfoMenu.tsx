@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, User, Shield, FileText, Heart, Scale, AlertTriangle, Menu } from 'lucide-react';
+import { X, Heart, Shield, Scale, AlertTriangle, Menu } from 'lucide-react';
 
 interface InfoMenuProps {
   onClose: () => void;
