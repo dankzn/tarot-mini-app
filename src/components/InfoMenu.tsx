@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, User, Shield, FileText, Heart, Scale, AlertTriangle } from 'lucide-react';
+import { X, User, Shield, FileText, Heart, Scale, AlertTriangle, Menu } from 'lucide-react';
 
 interface InfoMenuProps {
   onClose: () => void;
@@ -9,63 +9,70 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
   const [activeTab, setActiveTab] = useState<'about' | 'privacy' | 'terms'>('about');
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 z-[60]">
+      {/* Затемнение фона */}
+      <div 
+        className="absolute inset-0 bg-black/50 animate-fade-in"
+        onClick={onClose}
+      />
+      
+      {/* Выезжающее меню слева */}
+      <div className="absolute left-0 top-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl animate-slide-right flex flex-col">
         {/* Шапка */}
-        <div className="flex-none border-b border-gray-200 p-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-[#385144]">Информация</h2>
+        <div className="flex-none border-b border-gray-200 p-4 flex justify-between items-center bg-[#385144]">
+          <div className="flex items-center gap-2">
+            <Menu className="w-5 h-5 text-white" />
+            <h2 className="text-lg font-bold text-white">Информация</h2>
+          </div>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition p-2"
+            className="text-white/80 hover:text-white transition p-2"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Вкладки */}
-        <div className="flex-none border-b border-gray-200">
-          <div className="flex">
+        {/* Вкладки - горизонтальный скролл */}
+        <div className="flex-none border-b border-gray-200 bg-white overflow-x-auto">
+          <div className="flex min-w-max">
             <button
               onClick={() => setActiveTab('about')}
-              className={`flex-1 py-3 px-2 text-xs font-bold transition ${
+              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
                 activeTab === 'about' 
                   ? 'text-[#385144] border-b-2 border-[#385144]' 
                   : 'text-gray-500'
               }`}
             >
-              <User className="w-4 h-4 inline mr-1" />
               Обо мне
             </button>
             <button
               onClick={() => setActiveTab('privacy')}
-              className={`flex-1 py-3 px-2 text-xs font-bold transition ${
+              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
                 activeTab === 'privacy' 
                   ? 'text-[#385144] border-b-2 border-[#385144]' 
                   : 'text-gray-500'
               }`}
             >
-              <Shield className="w-4 h-4 inline mr-1" />
               Конфиденциальность
             </button>
             <button
               onClick={() => setActiveTab('terms')}
-              className={`flex-1 py-3 px-2 text-xs font-bold transition ${
+              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
                 activeTab === 'terms' 
                   ? 'text-[#385144] border-b-2 border-[#385144]' 
                   : 'text-gray-500'
               }`}
             >
-              <FileText className="w-4 h-4 inline mr-1" />
               Условия
             </button>
           </div>
         </div>
 
-        {/* Контент */}
-        <div className="flex-1 overflow-y-auto p-5">
+        {/* Контент с прокруткой */}
+        <div className="flex-1 overflow-y-auto p-5 bg-[#F8F5F2]">
           {activeTab === 'about' && (
             <div className="space-y-4">
-              <div className="bg-[#F8F5F2] p-4 rounded-xl">
+              <div className="bg-white p-4 rounded-xl shadow-sm">
                 <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
                   <Heart className="w-5 h-5 mr-2" />
                   Обо мне
@@ -88,7 +95,7 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
 
               <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-xl">
                 <p className="text-blue-800 text-sm">
-                  💫 <strong>Важно:</strong> Таро — это инструмент для самопознания 
+                   <strong>Важно:</strong> Таро — это инструмент для самопознания 
                   и получения guidance, а не окончательный приговор. Вы всегда 
                   свободны в выборе своего пути.
                 </p>
@@ -98,10 +105,10 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
 
           {activeTab === 'privacy' && (
             <div className="space-y-4">
-              <div className="bg-[#F8F5F2] p-4 rounded-xl">
+              <div className="bg-white p-4 rounded-xl shadow-sm">
                 <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
                   <Shield className="w-5 h-5 mr-2" />
-                  Конфиденциальность и защита данных
+                  Конфиденциальность
                 </h3>
                 
                 <div className="space-y-3 text-gray-700 text-sm leading-relaxed">
@@ -148,14 +155,14 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
 
           {activeTab === 'terms' && (
             <div className="space-y-4">
-              <div className="bg-[#F8F5F2] p-4 rounded-xl">
+              <div className="bg-white p-4 rounded-xl shadow-sm">
                 <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
                   <Scale className="w-5 h-5 mr-2" />
                   Условия оказания услуг
                 </h3>
                 
                 <div className="space-y-3 text-gray-700 text-sm leading-relaxed">
-                  <div className="bg-white p-3 rounded-lg">
+                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
                     <p className="font-bold text-[#385144] mb-1">1. Оплата услуг</p>
                     <p>
                       Оплата консультаций производится заранее. Средства, внесённые в качестве 
@@ -163,7 +170,7 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
                     </p>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg">
+                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
                     <p className="font-bold text-[#385144] mb-1">2. Природа таро-консультаций</p>
                     <p>
                       Таро — это инструмент для самопознания и получения guidance. Карты Таро 
@@ -172,7 +179,7 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
                     </p>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg">
+                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
                     <p className="font-bold text-[#385144] mb-1">3. Отмена и перенос</p>
                     <p>
                       Перенос или отмена консультации возможны не позднее чем за 24 часа 
@@ -180,7 +187,7 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
                     </p>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg">
+                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
                     <p className="font-bold text-[#385144] mb-1">4. Ответственность</p>
                     <p>
                       Я не несу ответственности за ваши решения и действия, предпринятые 

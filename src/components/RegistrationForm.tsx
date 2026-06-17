@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, MapPin, Phone, Calendar, Save } from 'lucide-react';
 
@@ -13,31 +13,70 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Парсим start_param из Telegram
+    const tg = window.Telegram?.WebApp;
+    const startParam = tg?.initDataUnsafe?.start_param;
+    
+    if (startParam && startParam.startsWith('ref_')) {
+      const code = startParam.replace('ref_', '');
+      setReferralCode(code);
+      console.log('🎯 Найден реферальный код:', code);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const insertData: any = {
+        telegram_id: telegramUser.id,
+        username: telegramUser.username || null,
+        name: name,
+        city: city,
+        phone: phone,
+        birth_date: birthDate || null,
+        status: 'Первое знакомство',
+        bonus_balance: 0,
+        role: 'client',
+      };
+
+      // Добавляем реферала если есть
+      if (referralCode) {
+        insertData.referred_by = parseInt(referralCode);
+        console.log('📊 Регистрация с рефералом:', referralCode);
+      }
+
       const { data: user, error } = await supabase
         .from('users')
-        .insert([
-          {
-            telegram_id: telegramUser.id,
-            username: telegramUser.username || null,
-            name: name,
-            city: city,
-            phone: phone,
-            birth_date: birthDate || null,
-            status: 'Первое знакомство',
-            bonus_balance: 0,
-            role: 'client',
-          },
-        ])
+        .insert([insertData])
         .select()
         .single();
 
       if (error) throw error;
+
+      // Если есть реферал - начисляем бонус рефереру
+      if (referralCode && user) {
+        const { data: referrer } = await supabase
+          .from('users')
+          .select('id, bonus_balance')
+          .eq('telegram_id', parseInt(referralCode))
+          .single();
+
+        if (referrer) {
+          const newBalance = (referrer.bonus_balance || 0) + 100; // 100₽ бонус за реферала
+          
+          await supabase
+            .from('users')
+            .update({ bonus_balance: newBalance })
+            .eq('id', referrer.id);
+
+          console.log('✅ Бонус начислен рефереру:', newBalance);
+        }
+      }
 
       await onComplete(user);
     } catch (error: any) {
@@ -56,6 +95,12 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           </div>
           <h1 className="text-2xl font-bold text-[#385144] mb-2">Добро пожаловать!</h1>
           <p className="text-gray-600">Заполните данные для регистрации</p>
+          
+          {referralCode && (
+            <div className="mt-3 bg-green-100 border border-green-300 text-green-800 px-4 py-2 rounded-lg text-sm">
+               Вас пригласил друг! Вы получите бонус на первую консультацию
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
