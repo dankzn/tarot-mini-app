@@ -2,17 +2,12 @@ import os
 import telebot
 from telebot import types
 
-BOT_TOKEN = os.getenv("8844983125:AAEQaH2P8PqG4VnB8iibHyWlaG_an940hPA")
-WEB_APP_URL = os.getenv("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel.app")
+# Прямой доступ через os.environ
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel.app")
 
-# Дебаг - выводим что получили
-print(f"🔍 BOT_TOKEN: {'Есть' if BOT_TOKEN else 'НЕТ!'}")
-print(f"🔍 WEB_APP_URL: {WEB_APP_URL}")
-print(f"🔍 Все переменные: {os.environ.keys()}")
-
-if not BOT_TOKEN:
-    print("❌ ОШИБКА: BOT_TOKEN не найден!")
-    exit(1)
+print(f"✅ BOT_TOKEN: {BOT_TOKEN[:20]}...")
+print(f"✅ WEB_APP_URL: {WEB_APP_URL}")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
