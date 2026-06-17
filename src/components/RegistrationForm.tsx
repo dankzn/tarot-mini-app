@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, MapPin, Phone, Save } from 'lucide-react';
+import { User, MapPin, Phone, Calendar, Save } from 'lucide-react';
 
 interface RegistrationFormProps {
   telegramUser: any;
@@ -11,6 +11,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
             name: name,
             city: city,
             phone: phone,
+            birth_date: birthDate || null,
             status: 'Первое знакомство',
             bonus_balance: 0,
             role: 'client',
@@ -85,6 +87,22 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               value={city}
               onChange={(e) => setCity(e.target.value)}
             />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <Calendar className="w-4 h-4 mr-2" />
+              День рождения
+            </label>
+            <input
+              type="date"
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+            />
+            <p className="text-gray-500 text-xs mt-1">
+              Укажите для получения бонуса на День Рождения
+            </p>
           </div>
 
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
