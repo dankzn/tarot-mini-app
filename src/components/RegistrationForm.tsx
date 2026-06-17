@@ -12,17 +12,18 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'other'>('other');
+  const [gender, setGender] = useState<'male' | 'female' | 'other'>('female');
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     try {
-      const tg = window.Telegram?.WebApp;
+      const tg = (window as any).Telegram?.WebApp;
       
       if (!tg) {
-        console.error('Telegram WebApp не найден');
+        console.error('❌ Telegram WebApp не найден');
         setInitError('Telegram WebApp не инициализирован');
         return;
       }
@@ -31,22 +32,35 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       tg.expand();
 
       const initData = tg.initDataUnsafe;
-      console.log('📊 Telegram initData:', initData);
+      const startParam = initData?.start_param;
       
-      if (initData?.start_param) {
-        console.log('🎯 Найден start_param:', initData.start_param);
-        
-        if (initData.start_param.startsWith('ref_')) {
-          const code = initData.start_param.replace('ref_', '');
+      console.log('📊 Telegram initData:', initData);
+      console.log('📊 start_param:', startParam);
+      console.log('📊 typeof start_param:', typeof startParam);
+      
+      let debug = `start_param: "${startParam}"\n`;
+      debug += `typeof: ${typeof startParam}\n`;
+      debug += `telegramUser.id: ${telegramUser?.id}\n`;
+      
+      if (startParam) {
+        if (String(startParam).startsWith('ref_')) {
+          const code = String(startParam).replace('ref_', '');
           setReferralCode(code);
+          debug += `✅ Реферальный код найден: ${code}\n`;
           console.log('✅ Реферальный код:', code);
+        } else {
+          debug += `⚠️ start_param не начинается с ref_: ${startParam}\n`;
+          console.log('⚠️ Неверный формат start_param:', startParam);
         }
       } else {
-        console.log('ℹ️ start_param не найден');
+        debug += '❌ start_param отсутствует\n';
+        console.log('❌ start_param не передан');
       }
+      
+      setDebugInfo(debug);
 
       if (!telegramUser) {
-        console.error('Telegram user data не передан');
+        console.error('❌ Telegram user data не передан');
         setInitError('Данные пользователя не получены');
       }
     } catch (error) {
@@ -74,11 +88,18 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       };
 
       if (referralCode) {
-        insertData.referred_by = parseInt(referralCode);
-        console.log('📊 Регистрация с рефералом:', referralCode);
+        const refId = parseInt(referralCode, 10);
+        if (!isNaN(refId)) {
+          insertData.referred_by = refId;
+          console.log('📊 Регистрация с рефералом, referred_by =', refId);
+        } else {
+          console.log('⚠️ Неверный формат реферального кода:', referralCode);
+        }
+      } else {
+        console.log('⚠️ Реферальный код отсутствует, referred_by не установлен');
       }
 
-      console.log('📝 Регистрация пользователя:', insertData);
+      console.log('📝 Данные для вставки:', JSON.stringify(insertData, null, 2));
 
       const { data: user, error } = await supabase
         .from('users')
@@ -92,12 +113,16 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       }
 
       console.log('✅ Пользователь создан:', user);
+      console.log('✅ referred_by в БД:', user.referred_by);
 
+      // Начисляем бонус рефереру
       if (referralCode && user) {
+        const refId = parseInt(referralCode, 10);
+        
         const { data: referrer, error: referrerError } = await supabase
           .from('users')
           .select('id, bonus_balance, telegram_id')
-          .eq('telegram_id', parseInt(referralCode))
+          .eq('telegram_id', refId)
           .single();
 
         if (referrerError) {
@@ -111,10 +136,12 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
             .eq('id', referrer.id);
 
           if (updateError) {
-            console.error('❌ Ошибка обновления баланса реферера:', updateError);
+            console.error('❌ Ошибка обновления баланса:', updateError);
           } else {
             console.log('✅ Бонус начислен рефереру:', newBalance);
           }
+        } else {
+          console.log('⚠️ Реферер не найден в БД по telegram_id:', refId);
         }
       }
 
@@ -134,9 +161,12 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           <div className="text-red-500 mb-4 text-4xl">⚠️</div>
           <h2 className="text-xl font-bold text-[#385144] mb-2">Ошибка</h2>
           <p className="text-gray-600 mb-4">{initError}</p>
-          <p className="text-sm text-gray-500">
-            Попробуйте закрыть приложение и открыть заново
-          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-[#385144] text-white px-4 py-2 rounded-lg"
+          >
+            Обновить
+          </button>
         </div>
       </div>
     );
@@ -144,8 +174,8 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
 
   return (
     <div className="min-h-screen bg-[#F8F5F2] p-4">
-      <div className="max-w-md mx-auto pt-10">
-        <div className="text-center mb-8">
+      <div className="max-w-md mx-auto pt-6">
+        <div className="text-center mb-6">
           <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white text-3xl font-bold">
             {telegramUser?.first_name?.charAt(0) || 'U'}
           </div>
@@ -157,6 +187,12 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               ✨ Вас пригласил друг! Вы получите бонус на первую консультацию
             </div>
           )}
+        </div>
+
+        {/* Debug панель - УДАЛИТЬ ПОСЛЕ ТЕСТА */}
+        <div className="bg-yellow-50 border border-yellow-300 p-3 rounded-lg mb-4 text-xs font-mono whitespace-pre-wrap">
+          <strong>DEBUG:</strong>
+          {debugInfo}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -186,8 +222,8 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               value={gender}
               onChange={(e) => setGender(e.target.value as 'male' | 'female' | 'other')}
             >
-              <option value="male">Мужской</option>
               <option value="female">Женский</option>
+              <option value="male">Мужской</option>
               <option value="other">Не указывать</option>
             </select>
           </div>
