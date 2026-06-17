@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, MapPin, Phone, Mail, Save } from 'lucide-react';
+import { User, MapPin, Phone, Save } from 'lucide-react';
 
 interface RegistrationFormProps {
   telegramUser: any;
@@ -11,7 +11,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,11 +23,10 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         .insert([
           {
             telegram_id: telegramUser.id,
-            username: telegramUser.username || null, // ← ВОТ ЭТО
+            username: telegramUser.username || null,
             name: name,
             city: city,
             phone: phone,
-            email: email,
             status: 'Первое знакомство',
             bonus_balance: 0,
             role: 'client',
@@ -100,20 +98,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               placeholder="+7 (999) 999-99-99"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
-              <Mail className="w-4 h-4 mr-2" />
-              Email
-            </label>
-            <input
-              type="email"
-              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
-              placeholder="example@mail.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
