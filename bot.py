@@ -1,8 +1,9 @@
 import os
+import time
 import telebot
 from telebot import types
+from telebot.apihelper import ApiTelegramException
 
-# Прямой доступ через os.environ
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel.app")
 
@@ -40,4 +41,19 @@ def send_welcome(message):
         )
 
 print("🤖 Бот запущен...")
-bot.infinity_polling()
+
+# Запуск с обработкой конфликта
+try:
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+except ApiTelegramException as e:
+    if "Conflict" in str(e) or "409" in str(e):
+        print("❌ КОНФЛИКТ: Где-то уже работает другой бот с этим токеном!")
+        print("💡 Проверь:")
+        print("   1. Локальный процесс: ps aux | grep bot.py")
+        print("   2. Railway.app")
+        print("   3. PythonAnywhere")
+        print("   4. Другой Render сервис")
+        time.sleep(60)  # Ждём минуту чтобы логи сохранились
+        exit(1)
+    else:
+        raise
