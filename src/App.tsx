@@ -11,6 +11,9 @@ import { AdminWebConsultations } from './pages/AdminWebConsultations';
 import { AdminWebSlots } from './pages/AdminWebSlots';
 import { AdminWebUsers } from './pages/AdminWebUsers';
 import { AdminWebMailings } from './pages/AdminWebMailings';
+import { AdminWebServices } from './pages/AdminWebServices';
+import { AdminWebAnalytics } from './pages/AdminWebAnalytics';
+import { AdminWebClients } from './pages/AdminWebClients';
 
 export const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -73,6 +76,9 @@ export const App = () => {
         <Route path="/admin-web/slots" element={<AdminWebSlots />} />
         <Route path="/admin-web/users" element={<AdminWebUsers />} />
         <Route path="/admin-web/mailings" element={<AdminWebMailings />} />
+        <Route path="/admin-web/services" element={<AdminWebServices />} />
+        <Route path="/admin-web/analytics" element={<AdminWebAnalytics />} />
+        <Route path="/admin-web/clients" element={<AdminWebClients />} />
         
         {/* Telegram Mini App - все остальные маршруты */}
         <Route path="/*" element={
