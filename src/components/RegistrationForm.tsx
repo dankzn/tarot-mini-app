@@ -32,21 +32,36 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         tg.expand();
 
         const initData = tg.initDataUnsafe;
-        const startParam = initData?.start_param;
+        const telegramId = initData?.user?.id || telegramUser?.id;
         
-        console.log('📊 Telegram initData:', initData);
-        console.log('📊 start_param:', startParam);
-        console.log('📊 window.location.search:', window.location.search);
+        console.log('📊 Telegram ID:', telegramId);
         
-        // Проверяем start_param из Telegram
+        if (!telegramId) {
+          console.error('❌ Telegram ID не получен');
+          setInitError('Не удалось получить ID пользователя');
+          return;
+        }
+
         let refCode: string | null = null;
 
-        if (startParam && String(startParam).startsWith('ref_')) {
-          refCode = String(startParam).replace('ref_', '');
-          console.log('✅ Реферальный код из start_param:', refCode);
-        }
+        // 1. Проверяем pending_referrals в базе
+        console.log('🔍 Проверяем pending_referrals для telegram_id:', telegramId);
         
-        // Если нет в start_param, проверяем URL
+        const { data: pendingReferral, error } = await supabase
+          .from('pending_referrals')
+          .select('referrer_telegram_id')
+          .eq('telegram_id', telegramId)
+          .eq('used', false)
+          .single();
+
+        if (error) {
+          console.log('⚠️ Pending referral не найден:', error.message);
+        } else if (pendingReferral) {
+          refCode = pendingReferral.referrer_telegram_id.toString();
+          console.log('✅ Реферальный код из pending_referrals:', refCode);
+        }
+
+        // 2. Проверяем URL параметры (?ref=XXX)
         if (!refCode) {
           const urlParams = new URLSearchParams(window.location.search);
           const urlRef = urlParams.get('ref');
@@ -56,38 +71,14 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
             console.log('✅ Реферальный код из URL:', refCode);
           }
         }
-
-        // Если нет в URL, проверяем pending_referrals в базе
-        if (!refCode && telegramUser?.id) {
-          console.log('🔍 Проверяем pending_referrals для telegram_id:', telegramUser.id);
-          
-          const { data: pendingReferral, error } = await supabase
-            .from('pending_referrals')
-            .select('referrer_telegram_id')
-            .eq('telegram_id', telegramUser.id)
-            .eq('used', false)
-            .single();
-
-          if (error) {
-            console.log('⚠️ Pending referral не найден или ошибка:', error.message);
-          } else if (pendingReferral) {
-            refCode = pendingReferral.referrer_telegram_id.toString();
-            console.log('✅ Реферальный код из pending_referrals:', refCode);
-          }
-        }
         
-        // Если нашли код - сохраняем
+        // Сохраняем найденный код
         if (refCode) {
           setReferralCode(refCode);
-          console.log('✅ Итоговый реферальный код:', refCode);
         } else {
-          console.log('❌ Реферальный код не найден');
+          console.log('ℹ️ Реферальный код отсутствует');
         }
 
-        if (!telegramUser) {
-          console.error('❌ Telegram user data не передан');
-          setInitError('Данные пользователя не получены');
-        }
       } catch (error) {
         console.error('❌ Ошибка инициализации:', error);
         setInitError('Ошибка инициализации приложения');
@@ -120,14 +111,10 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         if (!isNaN(refId)) {
           insertData.referred_by = refId;
           console.log('📊 Регистрация с рефералом, referred_by =', refId);
-        } else {
-          console.log('⚠️ Неверный формат реферального кода:', referralCode);
         }
-      } else {
-        console.log('⚠️ Реферальный код отсутствует, referred_by не установлен');
       }
 
-      console.log('📝 Данные для вставки:', JSON.stringify(insertData, null, 2));
+      console.log('📝 Данные для вставки:', insertData);
 
       const { data: user, error } = await supabase
         .from('users')
@@ -141,7 +128,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       }
 
       console.log('✅ Пользователь создан:', user);
-      console.log('✅ referred_by в БД:', user.referred_by);
 
       // Помечаем pending referral как использованный
       if (referralCode && telegramUser?.id) {
@@ -183,8 +169,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           } else {
             console.log('✅ Бонус начислен рефереру:', newBalance);
           }
-        } else {
-          console.log('⚠️ Реферер не найден в БД по telegram_id:', refId);
         }
       }
 
@@ -227,12 +211,13 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           
           {referralCode && (
             <div className="mt-3 bg-green-100 border border-green-300 text-green-800 px-4 py-2 rounded-lg text-sm">
-              ✨ Вас пригласил друг! Вы получите бонус на первую консультацию
+              ✨ Вас пригласил друг! Вы получите бонус
             </div>
           )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ... поля формы как были ... */}
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
               <User className="w-4 h-4 mr-2" />
@@ -291,9 +276,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
             />
-            <p className="text-gray-500 text-xs mt-1">
-              Укажите для получения бонуса на День Рождения
-            </p>
           </div>
 
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">

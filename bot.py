@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
@@ -8,50 +9,86 @@ from telebot.apihelper import ApiTelegramException
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel.app")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 print(f"✅ BOT_TOKEN: {BOT_TOKEN[:20]}...")
 print(f"✅ WEB_APP_URL: {WEB_APP_URL}")
+print(f"✅ SUPABASE_URL: {SUPABASE_URL[:30] if SUPABASE_URL else 'NOT SET'}...")
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
+
+def save_pending_referral(telegram_id: int, referrer_id: int):
+    """Сохраняем pending referral в базу"""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("❌ SUPABASE_URL или SUPABASE_KEY не заданы!")
+        return False
+    
+    try:
+        # Проверяем есть уже или нет
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/pending_referrals?telegram_id=eq.{telegram_id}&used=eq.false",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        )
+        
+        existing = response.json()
+        
+        if existing:
+            print(f"⚠️ Pending referral уже существует для {telegram_id}")
+            return True
+        
+        # Создаём новый
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/pending_referrals",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+            },
+            json={
+                "telegram_id": telegram_id,
+                "referrer_telegram_id": referrer_id
+            }
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Pending referral сохранён: {telegram_id} → {referrer_id}")
+            return True
+        else:
+            print(f"❌ Ошибка сохранения: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return False
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     args = message.text.split()
-    ref_code = None
     
     if len(args) > 1 and args[1].startswith('ref_'):
         ref_code = args[1].replace('ref_', '')
         print(f"🎯 Реферальная ссылка: ref_{ref_code}")
-    
-    # Формируем URL с реферальным кодом
-    web_app_url = f"{WEB_APP_URL}/?ref={ref_code}" if ref_code else WEB_APP_URL
-    
-    # ВАЖНО: В pyTelegramBotAPI используем правильный синтаксис
-    # Создаём ReplyKeyboardMarkup с WebApp
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    
-    # Создаём кнопку с WebApp — ПРАВИЛЬНЫЙ СИНТАКСИС
-    webapp_btn = types.KeyboardButton(text="✨ Открыть приложение")
-    webapp_btn.web_app = types.WebAppInfo(url=web_app_url)
-    
-    markup.add(webapp_btn)
-    
-    if ref_code:
+        
+        # Сохраняем pending referral
+        save_pending_referral(message.from_user.id, ref_code)
+        
         bot.send_message(
             message.chat.id,
             "🎉 Вас пригласил друг!\n\n"
-            "Нажмите кнопку ниже чтобы зарегистрироваться и получить бонус:",
-            reply_markup=markup
+            "Нажмите кнопку **Menu** ⬇️ слева (рядом с полем ввода) чтобы открыть приложение:",
+            parse_mode='Markdown'
         )
     else:
         bot.send_message(
             message.chat.id,
             "Добро пожаловать в Tarot by Danil! 🔮\n\n"
-            "Нажмите кнопку ниже чтобы начать:",
-            reply_markup=markup
+            "Нажмите кнопку **Menu** ⬇️ слева (рядом с полем ввода) чтобы открыть приложение:",
+            parse_mode='Markdown'
         )
 
-# Простой HTTP сервер для Render
+# HTTP сервер для Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -77,7 +114,7 @@ try:
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
 except ApiTelegramException as e:
     if "Conflict" in str(e) or "409" in str(e):
-        print("❌ КОНФЛИКТ: Где-то уже работает другой бот с этим токеном!")
+        print("❌ КОНФЛИКТ: Где-то уже работает другой бот!")
         time.sleep(60)
         exit(1)
     else:
