@@ -16,7 +16,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
     try {
@@ -73,8 +72,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         debug += `❌ Реферальный код не найден\n`;
         console.log('❌ Реферальный код не найден');
       }
-      
-      setDebugInfo(debug);
 
       if (!telegramUser) {
         console.error('❌ Telegram user data не передан');
@@ -204,12 +201,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               ✨ Вас пригласил друг! Вы получите бонус на первую консультацию
             </div>
           )}
-        </div>
-
-        {/* Debug панель - УДАЛИТЬ ПОСЛЕ ТЕСТА */}
-        <div className="bg-yellow-50 border border-yellow-300 p-3 rounded-lg mb-4 text-xs font-mono whitespace-pre-wrap">
-          <strong>DEBUG:</strong>
-          {debugInfo}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
