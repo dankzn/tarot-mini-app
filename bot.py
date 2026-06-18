@@ -23,10 +23,16 @@ def send_welcome(message):
         ref_code = args[1].replace('ref_', '')
         print(f"🎯 Реферальная ссылка: ref_{ref_code}")
     
+    # Формируем URL с реферальным кодом
     web_app_url = f"{WEB_APP_URL}/?ref={ref_code}" if ref_code else WEB_APP_URL
     
-    markup = types.InlineKeyboardMarkup()
-    btn = types.InlineKeyboardButton("✨ Открыть приложение", url=web_app_url)
+    # ВАЖНО: используем WebAppInfo вместо обычной URL кнопки!
+    # Это открывает Mini App внутри Telegram, а не в браузере
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    btn = types.KeyboardButton(
+        text="✨ Открыть приложение",
+        web_app=types.WebAppInfo(url=web_app_url)
+    )
     markup.add(btn)
     
     if ref_code:
@@ -42,7 +48,7 @@ def send_welcome(message):
             reply_markup=markup
         )
 
-# Простой HTTP сервер для Render (чтобы не было ошибки "No open ports")
+# Простой HTTP сервер для Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -51,7 +57,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'Bot is running!')
     
     def log_message(self, format, *args):
-        pass  # Отключаем логи HTTP запросов
+        pass
 
 def run_health_server():
     port = int(os.environ.get("PORT", 10000))
@@ -61,21 +67,14 @@ def run_health_server():
 
 print("🤖 Бот запущен...")
 
-# Запускаем health check сервер в отдельном потоке
 health_thread = threading.Thread(target=run_health_server, daemon=True)
 health_thread.start()
 
-# Запускаем бота
 try:
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
 except ApiTelegramException as e:
     if "Conflict" in str(e) or "409" in str(e):
         print("❌ КОНФЛИКТ: Где-то уже работает другой бот с этим токеном!")
-        print("💡 Проверь:")
-        print("   1. Локальный процесс: ps aux | grep bot.py")
-        print("   2. Railway.app")
-        print("   3. PythonAnywhere")
-        print("   4. Другой Render сервис")
         time.sleep(60)
         exit(1)
     else:
