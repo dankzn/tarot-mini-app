@@ -44,7 +44,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
 
         let refCode: string | null = null;
 
-        // 1. Проверяем pending_referrals в базе
+        // 1. Проверяем pending_referrals
         console.log('🔍 Проверяем pending_referrals для telegram_id:', telegramId);
         
         const { data: pendingReferral, error } = await supabase
@@ -61,7 +61,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           console.log('✅ Реферальный код из pending_referrals:', refCode);
         }
 
-        // 2. Проверяем URL параметры (?ref=XXX)
+        // 2. Проверяем URL параметры
         if (!refCode) {
           const urlParams = new URLSearchParams(window.location.search);
           const urlRef = urlParams.get('ref');
@@ -72,7 +72,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           }
         }
         
-        // Сохраняем найденный код
         if (refCode) {
           setReferralCode(refCode);
           console.log('✅ Установлен реферальный код:', refCode);
@@ -94,30 +93,6 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
     setLoading(true);
 
     try {
-      // Находим UUID реферера по telegram_id
-      let referrerUUID = null;
-      
-      if (referralCode) {
-        const refTelegramId = parseInt(referralCode, 10);
-        
-        if (!isNaN(refTelegramId)) {
-          console.log('🔍 Ищем реферера по telegram_id:', refTelegramId);
-          
-          const { data: referrer, error: referrerError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('telegram_id', refTelegramId)
-            .single();
-          
-          if (referrerError) {
-            console.error('❌ Реферер не найден:', referrerError);
-          } else if (referrer) {
-            referrerUUID = referrer.id;
-            console.log('✅ Реферер найден:', referrerUUID);
-          }
-        }
-      }
-
       const insertData: any = {
         telegram_id: telegramUser.id,
         username: telegramUser.username || null,
@@ -131,10 +106,13 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         role: 'client',
       };
 
-      // Добавляем referred_by только если нашли реферера
-      if (referrerUUID) {
-        insertData.referred_by = referrerUUID;
-        console.log('📊 Регистрация с рефералом, referred_by =', referrerUUID);
+      // Сохраняем telegram_id реферера (число)
+      if (referralCode) {
+        const refId = parseInt(referralCode, 10);
+        if (!isNaN(refId)) {
+          insertData.referred_by = refId;
+          console.log('📊 Регистрация с рефералом, referred_by =', refId);
+        }
       }
 
       console.log('📝 Данные для вставки:', insertData);
@@ -154,42 +132,32 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
 
       // Помечаем pending referral как использованный
       if (referralCode && telegramUser?.id) {
-        const { error: updateError } = await supabase
+        await supabase
           .from('pending_referrals')
           .update({ used: true })
           .eq('telegram_id', telegramUser.id)
           .eq('used', false);
-
-        if (updateError) {
-          console.error('⚠️ Ошибка обновления pending_referrals:', updateError);
-        } else {
-          console.log('✅ Pending referral помечен как использованный');
-        }
       }
 
       // Начисляем бонус рефереру
-      if (referrerUUID) {
-        const { data: referrerData, error: referrerError } = await supabase
+      if (referralCode) {
+        const refId = parseInt(referralCode, 10);
+        
+        const { data: referrer, error: referrerError } = await supabase
           .from('users')
-          .select('bonus_balance')
-          .eq('id', referrerUUID)
+          .select('id, bonus_balance')
+          .eq('telegram_id', refId)
           .single();
 
-        if (referrerError) {
-          console.error('❌ Ошибка получения баланса реферера:', referrerError);
-        } else if (referrerData) {
-          const newBalance = (referrerData.bonus_balance || 0) + 100;
+        if (!referrerError && referrer) {
+          const newBalance = (referrer.bonus_balance || 0) + 100;
           
-          const { error: updateError } = await supabase
+          await supabase
             .from('users')
             .update({ bonus_balance: newBalance })
-            .eq('id', referrerUUID);
+            .eq('id', referrer.id);
 
-          if (updateError) {
-            console.error('❌ Ошибка обновления баланса:', updateError);
-          } else {
-            console.log('✅ Бонус начислен рефереру:', newBalance);
-          }
+          console.log('✅ Бонус начислен рефереру:', newBalance);
         }
       }
 

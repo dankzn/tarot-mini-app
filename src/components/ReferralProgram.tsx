@@ -14,7 +14,7 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
 
   useEffect(() => {
     // Формируем реферальную ссылку
-    const botUsername = 'danil_tarot_bot'; // Замени на реальный username бота
+    const botUsername = 'danil_tarot_bot';
     const link = `https://t.me/${botUsername}?start=ref_${user.telegram_id}`;
     setReferralLink(link);
 
@@ -23,11 +23,20 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
   }, [user.telegram_id]);
 
   const loadReferralCount = async () => {
-    const { count } = await supabase
+    console.log('🔍 Загрузка рефералов для telegram_id:', user.telegram_id);
+    
+    // Ищем по telegram_id (число)
+    const { count, error } = await supabase
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('referred_by', user.telegram_id);
 
+    if (error) {
+      console.error('❌ Ошибка загрузки рефералов:', error);
+      return;
+    }
+
+    console.log('✅ Найдено рефералов:', count);
     setReferralCount(count || 0);
   };
 
@@ -38,7 +47,6 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
   };
 
   const shareLink = () => {
-    // Используем window.open вместо несуществующего openTelegramLink
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('Приглашаю тебя на консультацию к тарологу Даниилу! ✨')}`;
     window.open(shareUrl, '_blank');
   };
