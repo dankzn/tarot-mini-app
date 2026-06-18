@@ -1,5 +1,7 @@
 import os
 import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
 from telebot.apihelper import ApiTelegramException
@@ -40,9 +42,30 @@ def send_welcome(message):
             reply_markup=markup
         )
 
+# Простой HTTP сервер для Render (чтобы не было ошибки "No open ports")
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b'Bot is running!')
+    
+    def log_message(self, format, *args):
+        pass  # Отключаем логи HTTP запросов
+
+def run_health_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    print(f"🏥 Health check server running on port {port}")
+    server.serve_forever()
+
 print("🤖 Бот запущен...")
 
-# Запуск с обработкой конфликта
+# Запускаем health check сервер в отдельном потоке
+health_thread = threading.Thread(target=run_health_server, daemon=True)
+health_thread.start()
+
+# Запускаем бота
 try:
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
 except ApiTelegramException as e:
@@ -53,7 +76,7 @@ except ApiTelegramException as e:
         print("   2. Railway.app")
         print("   3. PythonAnywhere")
         print("   4. Другой Render сервис")
-        time.sleep(60)  # Ждём минуту чтобы логи сохранились
+        time.sleep(60)
         exit(1)
     else:
         raise
