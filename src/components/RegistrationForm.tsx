@@ -18,69 +18,83 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const tg = (window as any).Telegram?.WebApp;
-      
-      if (!tg) {
-        console.error('❌ Telegram WebApp не найден');
-        setInitError('Telegram WebApp не инициализирован');
-        return;
-      }
-
-      tg.ready();
-      tg.expand();
-
-      const initData = tg.initDataUnsafe;
-      const startParam = initData?.start_param;
-      
-      console.log('📊 Telegram initData:', initData);
-      console.log('📊 start_param:', startParam);
-      console.log('📊 window.location.search:', window.location.search);
-      
-      // Проверяем start_param из Telegram
-      let refCode: string | null = null;
-      let debug = `start_param: "${startParam}"\n`;
-      debug += `typeof: ${typeof startParam}\n`;
-      debug += `telegramUser.id: ${telegramUser?.id}\n`;
-      
-      if (startParam && String(startParam).startsWith('ref_')) {
-        refCode = String(startParam).replace('ref_', '');
-        debug += `✅ Реферальный код из start_param: ${refCode}\n`;
-        console.log('✅ Реферальный код из start_param:', refCode);
-      }
-      
-      // Если нет в start_param, проверяем URL
-      if (!refCode) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlRef = urlParams.get('ref');
+    const initReferral = async () => {
+      try {
+        const tg = (window as any).Telegram?.WebApp;
         
-        if (urlRef) {
-          refCode = urlRef;
-          debug += `✅ Реферальный код из URL: ${refCode}\n`;
-          console.log('✅ Реферальный код из URL:', refCode);
-        } else {
-          debug += `❌ ref в URL не найден\n`;
+        if (!tg) {
+          console.error('❌ Telegram WebApp не найден');
+          setInitError('Telegram WebApp не инициализирован');
+          return;
         }
-      }
-      
-      // Если нашли код - сохраняем
-      if (refCode) {
-        setReferralCode(refCode);
-        debug += `✅ Итоговый реферальный код: ${refCode}\n`;
-        console.log('✅ Итоговый реферальный код:', refCode);
-      } else {
-        debug += `❌ Реферальный код не найден\n`;
-        console.log('❌ Реферальный код не найден');
-      }
 
-      if (!telegramUser) {
-        console.error('❌ Telegram user data не передан');
-        setInitError('Данные пользователя не получены');
+        tg.ready();
+        tg.expand();
+
+        const initData = tg.initDataUnsafe;
+        const startParam = initData?.start_param;
+        
+        console.log('📊 Telegram initData:', initData);
+        console.log('📊 start_param:', startParam);
+        console.log('📊 window.location.search:', window.location.search);
+        
+        // Проверяем start_param из Telegram
+        let refCode: string | null = null;
+
+        if (startParam && String(startParam).startsWith('ref_')) {
+          refCode = String(startParam).replace('ref_', '');
+          console.log('✅ Реферальный код из start_param:', refCode);
+        }
+        
+        // Если нет в start_param, проверяем URL
+        if (!refCode) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlRef = urlParams.get('ref');
+          
+          if (urlRef) {
+            refCode = urlRef;
+            console.log('✅ Реферальный код из URL:', refCode);
+          }
+        }
+
+        // Если нет в URL, проверяем pending_referrals в базе
+        if (!refCode && telegramUser?.id) {
+          console.log('🔍 Проверяем pending_referrals для telegram_id:', telegramUser.id);
+          
+          const { data: pendingReferral, error } = await supabase
+            .from('pending_referrals')
+            .select('referrer_telegram_id')
+            .eq('telegram_id', telegramUser.id)
+            .eq('used', false)
+            .single();
+
+          if (error) {
+            console.log('⚠️ Pending referral не найден или ошибка:', error.message);
+          } else if (pendingReferral) {
+            refCode = pendingReferral.referrer_telegram_id.toString();
+            console.log('✅ Реферальный код из pending_referrals:', refCode);
+          }
+        }
+        
+        // Если нашли код - сохраняем
+        if (refCode) {
+          setReferralCode(refCode);
+          console.log('✅ Итоговый реферальный код:', refCode);
+        } else {
+          console.log('❌ Реферальный код не найден');
+        }
+
+        if (!telegramUser) {
+          console.error('❌ Telegram user data не передан');
+          setInitError('Данные пользователя не получены');
+        }
+      } catch (error) {
+        console.error('❌ Ошибка инициализации:', error);
+        setInitError('Ошибка инициализации приложения');
       }
-    } catch (error) {
-      console.error('❌ Ошибка инициализации:', error);
-      setInitError('Ошибка инициализации приложения');
-    }
+    };
+
+    initReferral();
   }, [telegramUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,6 +142,21 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
 
       console.log('✅ Пользователь создан:', user);
       console.log('✅ referred_by в БД:', user.referred_by);
+
+      // Помечаем pending referral как использованный
+      if (referralCode && telegramUser?.id) {
+        const { error: updateError } = await supabase
+          .from('pending_referrals')
+          .update({ used: true })
+          .eq('telegram_id', telegramUser.id)
+          .eq('used', false);
+
+        if (updateError) {
+          console.error('⚠️ Ошибка обновления pending_referrals:', updateError);
+        } else {
+          console.log('✅ Pending referral помечен как использованный');
+        }
+      }
 
       // Начисляем бонус рефереру
       if (referralCode && user) {
