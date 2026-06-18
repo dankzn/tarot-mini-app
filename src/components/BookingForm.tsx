@@ -34,26 +34,77 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
 
   useEffect(() => {
+    console.log('🔍 BookingForm загружен');
+    console.log('📊 Service:', service);
+    console.log('📊 Duration:', duration);
+    
+    // Загружаем все слоты при старте (для проверки что они есть)
+    loadAllSlotsForDebug();
+  }, []);
+
+  useEffect(() => {
     if (selectedDate) {
+      console.log('📅 Выбрана дата:', selectedDate);
       loadAllSlots();
     }
   }, [selectedDate, service.id]);
 
+  const loadAllSlotsForDebug = async () => {
+    console.log('🔍 Загружаем все слоты для отладки...');
+    
+    const { data, error } = await supabase
+      .from('time_slots')
+      .select('*')
+      .order('start_time', { ascending: true })
+      .limit(20);
+
+    if (error) {
+      console.error('❌ Ошибка загрузки слотов:', error);
+      return;
+    }
+
+    console.log('✅ Все слоты в базе:', data);
+    console.log('📊 Количество слотов:', data?.length || 0);
+    
+    if (data && data.length > 0) {
+      console.log('📊 Длительности слотов:', [...new Set(data.map(s => s.duration_minutes))]);
+      console.log('📊 Длительность услуги:', duration);
+    }
+  };
+
   const loadAllSlots = async () => {
+    console.log('🔍 Загрузка слотов для даты:', selectedDate);
+    console.log('🔍 Длительность услуги:', duration);
+    
     const startOfDayDate = startOfDay(selectedDate!);
     const now = new Date();
 
-    const { data } = await supabase
+    // Загружаем слоты БЕЗ фильтра по duration (чтобы увидеть все)
+    const { data: allSlotsData, error } = await supabase
       .from('time_slots')
       .select('*')
       .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
       .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
-      .eq('duration_minutes', duration);
+      .order('start_time', { ascending: true });
 
-    if (data) {
-      const futureSlots = data.filter(slot => 
+    if (error) {
+      console.error('❌ Ошибка загрузки слотов:', error);
+      return;
+    }
+
+    console.log('📊 Все слоты на эту дату:', allSlotsData);
+    console.log('📊 Количество:', allSlotsData?.length || 0);
+
+    if (allSlotsData) {
+      // Фильтруем по длительности услуги
+      const matchingSlots = allSlotsData.filter(slot => slot.duration_minutes === duration);
+      console.log('📊 Слоты с длительностью', duration, ':', matchingSlots);
+
+      const futureSlots = matchingSlots.filter(slot => 
         !isBefore(new Date(slot.start_time), now)
       );
+      console.log('📊 Будущие слоты:', futureSlots);
+      
       setAllSlots(futureSlots);
     }
   };
@@ -107,23 +158,22 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       await loadAllSlots();
 
       // Отправляем уведомление админу
-// Получаем ID админа из базы (нужно добавить запрос)
-const { data: adminData } = await supabase
-  .from('users')
-  .select('telegram_id')
-  .eq('role', 'admin')
-  .single();
+      const { data: adminData } = await supabase
+        .from('users')
+        .select('telegram_id')
+        .eq('role', 'admin')
+        .single();
 
-if (adminData?.telegram_id) {
-  await notifyAdminNewBooking(
-    adminData.telegram_id,
-    user.username || null, // ← ВОТ ЭТО
-    user.name || 'Клиент',
-    service.title,
-    format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
-    finalPrice
-  );
-}
+      if (adminData?.telegram_id) {
+        await notifyAdminNewBooking(
+          adminData.telegram_id,
+          user.username || null,
+          user.name || 'Клиент',
+          service.title,
+          format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
+          finalPrice
+        );
+      }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
       onSuccess();
@@ -203,9 +253,10 @@ if (adminData?.telegram_id) {
             <button onClick={() => setStep(1)} className="text-gray-500 text-sm hover:text-[#385144]">← Назад</button>
           </div>
 
-          {allSlots.length === 0 ? (
+          {freeSlots.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-gray-500">На эту дату нет доступных окон</p>
+              <p className="text-gray-400 text-sm mt-2">Выберите другую дату</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
