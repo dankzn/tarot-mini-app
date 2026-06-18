@@ -44,45 +44,79 @@ export const ServicesManager = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('📝 Сохранение услуги:', editingId ? 'UPDATE' : 'INSERT');
+    console.log('Данные формы:', formData);
+    
     if (editingId) {
-      const { error } = await supabase
+      const updateData = {
+        title: formData.title,
+        description: formData.description,
+        price: formData.price,
+        duration_minutes: formData.duration_minutes,
+      };
+      
+      console.log('Обновляем услугу ID:', editingId);
+      console.log('Данные для обновления:', updateData);
+      
+      const { data, error } = await supabase
         .from('services')
-        .update(formData)
-        .eq('id', editingId);
+        .update(updateData)
+        .eq('id', editingId)
+        .select();
       
       if (error) {
-        console.error('Ошибка обновления услуги:', error);
+        console.error('❌ Ошибка обновления услуги:', error);
         alert('Ошибка при обновлении: ' + error.message);
         return;
       }
+      
+      console.log('✅ Услуга обновлена:', data);
     } else {
-      const { error } = await supabase
+      const insertData = {
+        title: formData.title,
+        description: formData.description,
+        price: formData.price,
+        duration_minutes: formData.duration_minutes,
+      };
+      
+      console.log('Создаем новую услугу:', insertData);
+      
+      const { data, error } = await supabase
         .from('services')
-        .insert([formData]);
+        .insert([insertData])
+        .select();
       
       if (error) {
-        console.error('Ошибка создания услуги:', error);
+        console.error('❌ Ошибка создания услуги:', error);
         alert('Ошибка при создании: ' + error.message);
         return;
       }
+      
+      console.log('✅ Услуга создана:', data);
     }
     
     setShowForm(false);
     setEditingId(null);
     setFormData({ title: '', description: '', price: 0, duration_minutes: 60 });
-    loadServices();
+    await loadServices();
+    console.log('🔄 Список услуг обновлен');
   };
 
   const handleEdit = (service: Service) => {
+    console.log('✏️ Редактирование услуги:', service);
+    
     setEditingId(service.id);
     setFormData({
-      title: service.title,
+      title: service.title || '',
       description: service.description || '',
-      price: service.price,
+      price: service.price || 0,
       duration_minutes: service.duration_minutes || 60,
     });
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
   };
 
   const handleDelete = async (id: string) => {
