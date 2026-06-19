@@ -21,12 +21,23 @@ export const AdminWebSlots = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [slotsCount, setSlotsCount] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
     checkAuth();
     loadSlots();
   }, []);
+
+  // Пересчитываем количество слотов при изменении полей
+  useEffect(() => {
+    if (selectedDate && startTime && endTime) {
+      const count = calculateSlotsCount();
+      setSlotsCount(count);
+    } else {
+      setSlotsCount(0);
+    }
+  }, [selectedDate, startTime, endTime]);
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -48,6 +59,18 @@ export const AdminWebSlots = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateSlotsCount = () => {
+    if (!selectedDate || !startTime || !endTime) return 0;
+    
+    const start = parse(`${selectedDate} ${startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+    const end = parse(`${selectedDate} ${endTime}`, 'yyyy-MM-dd HH:mm', new Date());
+    
+    if (start >= end) return 0;
+    
+    const diffMinutes = (end.getTime() - start.getTime()) / 60000;
+    return Math.ceil(diffMinutes / 30);
   };
 
   const generateSlots = () => {
@@ -208,10 +231,10 @@ export const AdminWebSlots = () => {
                 <div className="bg-[#F8F5F2] p-4 rounded-xl border border-[#385144]/20">
                   <p className="text-[#385144] font-bold mb-2">Будет создано слотов:</p>
                   <p className="text-3xl font-bold text-[#385144]">
-                    {generateSlots()?.length || 0}
+                    {slotsCount}
                   </p>
                   <p className="text-gray-500 text-sm mt-1">
-                    Общее время: {((generateSlots()?.length || 0) * 30 / 60).toFixed(1)} часов
+                    Общее время: {((slotsCount * 30) / 60).toFixed(1)} часов
                   </p>
                 </div>
               )}
