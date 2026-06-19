@@ -21,7 +21,6 @@ export const AdminWebSlots = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [duration, setDuration] = useState(60);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -54,7 +53,7 @@ export const AdminWebSlots = () => {
   const generateSlots = () => {
     if (!selectedDate || !startTime || !endTime) {
       setError('Заполните все поля');
-      return;
+      return [];
     }
 
     setError('');
@@ -63,19 +62,20 @@ export const AdminWebSlots = () => {
 
     if (start >= end) {
       setError('Время начала должно быть раньше времени окончания');
-      return;
+      return [];
     }
 
     const newSlots = [];
     let current = start;
 
+    // Все окна по 30 минут
     while (current < end) {
       newSlots.push({
         start_time: format(current, "yyyy-MM-dd'T'HH:mm:ss"),
-        duration_minutes: duration,
+        duration_minutes: 30,
         is_booked: false,
       });
-      current = addMinutes(current, duration);
+      current = addMinutes(current, 30); // Шаг 30 минут
     }
 
     return newSlots;
@@ -92,7 +92,7 @@ export const AdminWebSlots = () => {
 
       if (error) throw error;
 
-      alert(`✅ Создано ${newSlots.length} слотов!`);
+      alert(`✅ Создано ${newSlots.length} слотов по 30 минут!`);
       setShowCreateForm(false);
       setSelectedDate('');
       setStartTime('');
@@ -154,6 +154,10 @@ export const AdminWebSlots = () => {
               </div>
             )}
 
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-xl mb-4 text-sm">
+              ℹ️ Все слоты создаются по 30 минут. Система автоматически объединит нужное количество окон под длительность услуги.
+            </div>
+
             <div className="space-y-4">
               <div>
                 <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
@@ -195,20 +199,9 @@ export const AdminWebSlots = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="text-[#385144] font-bold text-sm mb-2 block">
-                  Длительность (минуты)
-                </label>
-                <select
-                  className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                >
-                  <option value={30}>30 минут</option>
-                  <option value={60}>60 минут</option>
-                  <option value={90}>90 минут</option>
-                  <option value={120}>120 минут</option>
-                </select>
+              <div className="bg-[#F8F5F2] p-4 rounded-xl border border-[#385144]/20">
+                <p className="text-[#385144] font-bold mb-2">Длительность каждого слота:</p>
+                <p className="text-2xl font-bold text-[#385144]">30 минут</p>
               </div>
 
               {selectedDate && startTime && endTime && (
@@ -216,6 +209,9 @@ export const AdminWebSlots = () => {
                   <p className="text-[#385144] font-bold mb-2">Будет создано слотов:</p>
                   <p className="text-3xl font-bold text-[#385144]">
                     {generateSlots()?.length || 0}
+                  </p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Общее время: {((generateSlots()?.length || 0) * 30 / 60).toFixed(1)} часов
                   </p>
                 </div>
               )}
@@ -280,7 +276,7 @@ export const AdminWebSlots = () => {
                   <Calendar className="w-5 h-5 mr-2" />
                   {format(new Date(date), 'd MMMM yyyy', { locale: ru })}
                   <span className="ml-2 text-gray-500 text-sm font-normal">
-                    ({dateSlots.length} слотов)
+                    ({dateSlots.length} слотов × 30 мин)
                   </span>
                 </h3>
 
@@ -309,7 +305,7 @@ export const AdminWebSlots = () => {
                       </div>
                       <div className="flex items-center text-xs">
                         <Clock className="w-3 h-3 mr-1 text-gray-400" />
-                        <span className="text-gray-500">{slot.duration_minutes} мин</span>
+                        <span className="text-gray-500">30 мин</span>
                       </div>
                       {slot.is_booked && (
                         <div className="mt-2 text-xs text-gray-500 flex items-center">
