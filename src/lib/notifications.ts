@@ -123,3 +123,4 @@ export const sendBulkNotification = async (
 
   return results;
 };
+
