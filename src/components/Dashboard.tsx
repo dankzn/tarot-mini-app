@@ -113,10 +113,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
       .select('id, scheduled_at, status, price, bonus_used, services(title, duration_minutes)')
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed', 'in_progress'])
-      .gte('scheduled_at', new Date().toISOString())
       .order('scheduled_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
     if (error) {
       console.error('Ошибка загрузки ближайшей консультации:', error);
@@ -124,7 +122,14 @@ export const Dashboard = ({ user }: DashboardProps) => {
       return;
     }
 
-    setUpcomingConsultation(data);
+    const now = Date.now();
+    const activeConsultations = data || [];
+    const nextConsultation = activeConsultations.find((consultation) => (
+      consultation.scheduled_at && new Date(consultation.scheduled_at).getTime() >= now
+    ));
+    const latestActiveConsultation = activeConsultations[activeConsultations.length - 1] || null;
+
+    setUpcomingConsultation(nextConsultation || latestActiveConsultation);
   };
 
   const loadProfilePhoto = () => {
@@ -348,7 +353,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
               <p className="text-white/70 text-xs font-bold uppercase mb-1">
-                Ближайшая консультация
+                Активная запись
               </p>
               <h3 className="font-bold text-lg leading-tight">
                 {upcomingConsultation.services?.title || 'Консультация'}
@@ -401,7 +406,14 @@ export const Dashboard = ({ user }: DashboardProps) => {
         >
           <div className="flex items-center">
             <ScrollText className="w-5 h-5 mr-3 text-[#6B4EE6]" />
-            <span>История консультаций</span>
+            <div>
+              <span>История консультаций</span>
+              {upcomingConsultation && (
+                <p className="text-gray-500 text-xs font-normal mt-0.5">
+                  Все записи и рекомендации
+                </p>
+              )}
+            </div>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-400" />
         </button>
