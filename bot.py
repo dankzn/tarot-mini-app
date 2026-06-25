@@ -4,7 +4,6 @@ import threading
 import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
-from telebot import types
 from telebot.apihelper import ApiTelegramException
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -12,7 +11,7 @@ WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://tarot-mini-app-ruddy.vercel
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-print(f"✅ BOT_TOKEN: {BOT_TOKEN[:20]}...")
+print("✅ BOT_TOKEN: SET")
 print(f"✅ WEB_APP_URL: {WEB_APP_URL}")
 print(f"✅ SUPABASE_URL: {SUPABASE_URL[:30] if SUPABASE_URL else 'NOT SET'}...")
 
@@ -70,9 +69,14 @@ def send_welcome(message):
     if len(args) > 1 and args[1].startswith('ref_'):
         ref_code = args[1].replace('ref_', '')
         print(f"🎯 Реферальная ссылка: ref_{ref_code}")
+
+        try:
+            referrer_id = int(ref_code)
+        except ValueError:
+            referrer_id = None
         
-        # Сохраняем pending referral
-        save_pending_referral(message.from_user.id, ref_code)
+        if referrer_id and referrer_id != message.from_user.id:
+            save_pending_referral(message.from_user.id, referrer_id)
         
         bot.send_message(
             message.chat.id,

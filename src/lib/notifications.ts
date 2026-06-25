@@ -1,37 +1,35 @@
 
-// Отправка уведомления через Telegram Bot API
+const escapeHtml = (value: string | number | null | undefined): string => {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+// Отправка уведомления через защищенный API endpoint
 export const sendTelegramNotification = async (
-  chatId: string,
+  chatId: string | number,
   message: string
 ) => {
   try {
-    // Получаем токен бота из переменных окружения
-    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-    
-    if (!botToken) {
-      console.error('❌ Telegram Bot Token не найден');
-      return;
-    }
-
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    
-    const response = await fetch(url, {
+    const response = await fetch('/api/telegram/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML',
+        chatId,
+        message,
+        parseMode: 'HTML',
       }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to send notification');
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to send notification');
     }
-
-    console.log('✅ Уведомление отправлено');
   } catch (error) {
     console.error('❌ Ошибка отправки уведомления:', error);
   }
@@ -46,14 +44,14 @@ export const notifyAdminNewBooking = async (
   dateTime: string,
   price: number
 ) => {
-  const usernameText = clientUsername ? ` (@${clientUsername})` : '';
+  const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
   
   const message = `
 🔔 <b>Новая запись!</b>
 
-👤 <b>Клиент:</b> ${clientName}${usernameText}
-📋 <b>Услуга:</b> ${serviceName}
-📅 <b>Дата:</b> ${dateTime}
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}${usernameText}
+📋 <b>Услуга:</b> ${escapeHtml(serviceName)}
+📅 <b>Дата:</b> ${escapeHtml(dateTime)}
 💰 <b>Сумма:</b> ${price} ₽
 
 ⏳ Статус: Ожидает подтверждения
@@ -64,7 +62,7 @@ export const notifyAdminNewBooking = async (
 
 // Уведомление клиенту об изменении баланса
 export const notifyClientBonusUpdate = async (
-  clientTelegramId: string,
+  clientTelegramId: string | number,
   bonusAmount: number,
   newBalance: number
 ) => {
@@ -82,13 +80,13 @@ export const notifyClientBonusUpdate = async (
 
 // Уведомление клиенту об изменении статуса
 export const notifyClientStatusChange = async (
-  clientTelegramId: string,
+  clientTelegramId: string | number,
   newStatus: string
 ) => {
   const message = `
 👑 <b>Ваш статус обновлён!</b>
 
-🎉 Новый статус: <b>${newStatus}</b>
+🎉 Новый статус: <b>${escapeHtml(newStatus)}</b>
 
 Поздравляем! Вы получаете дополнительные преимущества.
   `.trim();
@@ -123,4 +121,3 @@ export const sendBulkNotification = async (
 
   return results;
 };
-

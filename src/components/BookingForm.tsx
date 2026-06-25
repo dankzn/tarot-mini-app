@@ -167,8 +167,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       if (adminData?.telegram_id) {
         await notifyAdminNewBooking(
           adminData.telegram_id,
-          user.username || null,
           user.name || 'Клиент',
+          user.username || null,
           service.title,
           format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
           finalPrice
