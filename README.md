@@ -28,7 +28,7 @@ cp .env.example .env
 - `TELEGRAM_BOT_TOKEN` или `BOT_TOKEN` для `/api/telegram/send`
 - `BOT_TOKEN`, `WEB_APP_URL`, `SUPABASE_URL`, `SUPABASE_KEY` для Python-бота
 
-Никогда не добавляйте bot token в переменные с префиксом `VITE_`: такие значения попадают в браузерный bundle.
+`/api/telegram/send` временно поддерживает старую переменную `VITE_TELEGRAM_BOT_TOKEN`, если она уже настроена на Vercel. Для новых деплоев используйте `TELEGRAM_BOT_TOKEN`: переменные с префиксом `VITE_` не должны содержать секреты.
 
 ## Скрипты
 

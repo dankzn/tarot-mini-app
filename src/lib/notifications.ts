@@ -8,11 +8,16 @@ const escapeHtml = (value: string | number | null | undefined): string => {
     .replace(/'/g, '&#39;');
 };
 
+interface NotificationResult {
+  ok: boolean;
+  error?: string;
+}
+
 // Отправка уведомления через защищенный API endpoint
 export const sendTelegramNotification = async (
   chatId: string | number,
   message: string
-) => {
+): Promise<NotificationResult> => {
   try {
     const response = await fetch('/api/telegram/send', {
       method: 'POST',
@@ -30,8 +35,12 @@ export const sendTelegramNotification = async (
       const payload = await response.json().catch(() => null);
       throw new Error(payload?.error || 'Failed to send notification');
     }
+
+    return { ok: true };
   } catch (error) {
-    console.error('❌ Ошибка отправки уведомления:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown notification error';
+    console.error('❌ Ошибка отправки уведомления:', errorMessage);
+    return { ok: false, error: errorMessage };
   }
 };
 
@@ -57,7 +66,7 @@ export const notifyAdminNewBooking = async (
 ⏳ Статус: Ожидает подтверждения
   `.trim();
 
-  await sendTelegramNotification(adminTelegramId, message);
+  return sendTelegramNotification(adminTelegramId, message);
 };
 
 // Уведомление клиенту об изменении баланса
@@ -75,7 +84,7 @@ export const notifyClientBonusUpdate = async (
 Спасибо за консультацию!
   `.trim();
 
-  await sendTelegramNotification(clientTelegramId, message);
+  return sendTelegramNotification(clientTelegramId, message);
 };
 
 // Уведомление клиенту об изменении статуса
@@ -91,7 +100,7 @@ export const notifyClientStatusChange = async (
 Поздравляем! Вы получаете дополнительные преимущества.
   `.trim();
 
-  await sendTelegramNotification(clientTelegramId, message);
+  return sendTelegramNotification(clientTelegramId, message);
 };
 
 // Массовая рассылка
@@ -107,16 +116,17 @@ export const sendBulkNotification = async (
 
   // Отправляем с задержкой чтобы не забанили (50 мс между сообщениями)
   for (const chatId of telegramIds) {
-    try {
-      await sendTelegramNotification(chatId, message);
+    const result = await sendTelegramNotification(chatId, message);
+
+    if (result.ok) {
       results.success++;
-      
-      // Задержка 50мс между сообщениями
-      await new Promise(resolve => setTimeout(resolve, 50));
-    } catch (error) {
+    } else {
       results.failed++;
-      results.errors.push(`Ошибка для ${chatId}: ${error}`);
+      results.errors.push(`Ошибка для ${chatId}: ${result.error}`);
     }
+
+    // Задержка 50мс между сообщениями
+    await new Promise(resolve => setTimeout(resolve, 50));
   }
 
   return results;

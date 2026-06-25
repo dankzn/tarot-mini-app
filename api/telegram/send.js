@@ -1,6 +1,10 @@
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
-const getBotToken = () => process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+const getBotToken = () => (
+  process.env.TELEGRAM_BOT_TOKEN ||
+  process.env.BOT_TOKEN ||
+  process.env.VITE_TELEGRAM_BOT_TOKEN
+);
 
 const parseBody = (body) => {
   if (!body || typeof body !== 'string') {
