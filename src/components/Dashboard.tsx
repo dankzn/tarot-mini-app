@@ -5,6 +5,8 @@ import { ConsultationHistory } from './ConsultationHistory';
 import { PrivilegeCards } from './PrivilegeCards';
 import { InfoMenu } from './InfoMenu';
 import { ReferralProgram } from './ReferralProgram';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { 
   Crown, 
   Sparkles, 
@@ -30,6 +32,18 @@ interface DashboardProps {
   user: any;
 }
 
+const consultationStatusLabels: Record<string, string> = {
+  pending: 'Ожидает подтверждения',
+  confirmed: 'Подтверждена',
+  in_progress: 'В процессе',
+};
+
+const consultationStatusColors: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  confirmed: 'bg-blue-100 text-blue-800',
+  in_progress: 'bg-purple-100 text-purple-800',
+};
+
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,11 +57,13 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [upcomingConsultation, setUpcomingConsultation] = useState<any>(null);
 
   useEffect(() => {
     loadServices();
     loadBonusHistory();
     loadTotalConsultations();
+    loadUpcomingConsultation();
     loadProfilePhoto();
   }, []);
 
@@ -89,6 +105,26 @@ export const Dashboard = ({ user }: DashboardProps) => {
       .eq('status', 'completed');
 
     setTotalConsultations(count || 0);
+  };
+
+  const loadUpcomingConsultation = async () => {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, scheduled_at, status, price, bonus_used, services(title, duration_minutes)')
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed', 'in_progress'])
+      .gte('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Ошибка загрузки ближайшей консультации:', error);
+      setUpcomingConsultation(null);
+      return;
+    }
+
+    setUpcomingConsultation(data);
   };
 
   const loadProfilePhoto = () => {
@@ -150,6 +186,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
         onSuccess={() => {
           setShowBooking(false);
           setSelectedService(null);
+          loadUpcomingConsultation();
           alert('✅ Заявка отправлена! Я свяжусь с вами для подтверждения.');
         }}
         onCancel={() => {
@@ -302,6 +339,59 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </button>
         </div>
       </div>
+
+      {upcomingConsultation && (
+        <button
+          onClick={() => setShowHistory(true)}
+          className="w-full bg-[#385144] text-white rounded-2xl p-5 mb-4 shadow-sm text-left hover:bg-[#2d4238] transition"
+        >
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <p className="text-white/70 text-xs font-bold uppercase mb-1">
+                Ближайшая консультация
+              </p>
+              <h3 className="font-bold text-lg leading-tight">
+                {upcomingConsultation.services?.title || 'Консультация'}
+              </h3>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
+              consultationStatusColors[upcomingConsultation.status] || 'bg-white/15 text-white'
+            }`}>
+              {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/10 rounded-xl p-3">
+              <div className="flex items-center text-white/70 text-xs mb-1">
+                <CalendarCheck className="w-3 h-3 mr-1" />
+                Дата
+              </div>
+              <p className="font-bold text-sm">
+                {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
+              </p>
+            </div>
+            <div className="bg-white/10 rounded-xl p-3">
+              <div className="flex items-center text-white/70 text-xs mb-1">
+                <Clock className="w-3 h-3 mr-1" />
+                Время
+              </div>
+              <p className="font-bold text-sm">
+                {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/15">
+            <span className="text-white/70 text-sm">
+              {upcomingConsultation.bonus_used > 0
+                ? `С учетом бонусов: ${upcomingConsultation.bonus_used} ₽`
+                : 'Без списания бонусов'}
+            </span>
+            <span className="font-bold text-lg">{upcomingConsultation.price} ₽</span>
+          </div>
+        </button>
+      )}
 
       {/* Кнопки навигации */}
       <div className="grid grid-cols-1 gap-3 mb-6">
