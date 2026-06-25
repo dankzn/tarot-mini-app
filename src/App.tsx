@@ -50,11 +50,17 @@ export const App = () => {
         return;
       }
 
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('telegram_id', tgUser.id)
-        .single();
+        .maybeSingle();
+
+      if (userError) {
+        console.error('Ошибка поиска пользователя:', userError);
+        setUser(null);
+        return;
+      }
 
       if (existingUser) {
         setUser(existingUser);
