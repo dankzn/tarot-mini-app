@@ -15,11 +15,76 @@ interface BookingFormProps {
   onCancel: () => void;
 }
 
+interface TimeSlot {
+  id: string;
+  start_time: string;
+  duration_minutes: number;
+  is_booked: boolean;
+}
+
+interface SlotOption {
+  id: string;
+  time: string;
+  slotIds: string[];
+}
+
+const buildSlotOptions = (slots: TimeSlot[], duration: number): SlotOption[] => {
+  const optionsByTime = new Map<string, SlotOption>();
+  const sortedSlots = [...slots].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
+
+  sortedSlots
+    .filter(slot => !slot.is_booked && slot.duration_minutes === duration)
+    .forEach(slot => {
+      const time = format(new Date(slot.start_time), 'HH:mm');
+      optionsByTime.set(time, {
+        id: slot.id,
+        time,
+        slotIds: [slot.id],
+      });
+    });
+
+  if (duration % 30 !== 0) {
+    return Array.from(optionsByTime.values());
+  }
+
+  const slotsNeeded = duration / 30;
+  const freeThirtyMinuteSlots = sortedSlots.filter(
+    slot => !slot.is_booked && slot.duration_minutes === 30
+  );
+  const slotsByStartTime = new Map(
+    freeThirtyMinuteSlots.map(slot => [new Date(slot.start_time).getTime(), slot])
+  );
+
+  freeThirtyMinuteSlots.forEach(slot => {
+    const start = new Date(slot.start_time);
+    const chain = Array.from({ length: slotsNeeded }, (_, index) => {
+      const expectedStart = addMinutes(start, index * 30).getTime();
+      return slotsByStartTime.get(expectedStart);
+    });
+
+    if (chain.every(Boolean)) {
+      const time = format(start, 'HH:mm');
+      if (!optionsByTime.has(time)) {
+        optionsByTime.set(time, {
+          id: slot.id,
+          time,
+          slotIds: chain.map(chainSlot => chainSlot!.id),
+        });
+      }
+    }
+  });
+
+  return Array.from(optionsByTime.values()).sort((a, b) => a.time.localeCompare(b.time));
+};
+
 export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormProps) => {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [allSlots, setAllSlots] = useState<any[]>([]);
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
+  const [allSlots, setAllSlots] = useState<TimeSlot[]>([]);
   const [notes, setNotes] = useState('');
   const [step, setStep] = useState(1);
 
@@ -34,55 +99,18 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
 
   useEffect(() => {
-    console.log('🔍 BookingForm загружен');
-    console.log('📊 Service:', service);
-    console.log('📊 Duration:', duration);
-    
-    // Загружаем все слоты при старте (для проверки что они есть)
-    loadAllSlotsForDebug();
-  }, []);
-
-  useEffect(() => {
     if (selectedDate) {
-      console.log('📅 Выбрана дата:', selectedDate);
       loadAllSlots();
     }
   }, [selectedDate, service.id]);
 
-  const loadAllSlotsForDebug = async () => {
-    console.log('🔍 Загружаем все слоты для отладки...');
-    
-    const { data, error } = await supabase
-      .from('time_slots')
-      .select('*')
-      .order('start_time', { ascending: true })
-      .limit(20);
-
-    if (error) {
-      console.error('❌ Ошибка загрузки слотов:', error);
-      return;
-    }
-
-    console.log('✅ Все слоты в базе:', data);
-    console.log('📊 Количество слотов:', data?.length || 0);
-    
-    if (data && data.length > 0) {
-      console.log('📊 Длительности слотов:', [...new Set(data.map(s => s.duration_minutes))]);
-      console.log('📊 Длительность услуги:', duration);
-    }
-  };
-
   const loadAllSlots = async () => {
-    console.log('🔍 Загрузка слотов для даты:', selectedDate);
-    console.log('🔍 Длительность услуги:', duration);
-    
     const startOfDayDate = startOfDay(selectedDate!);
     const now = new Date();
 
-    // Загружаем слоты БЕЗ фильтра по duration (чтобы увидеть все)
     const { data: allSlotsData, error } = await supabase
       .from('time_slots')
-      .select('*')
+      .select('id, start_time, duration_minutes, is_booked')
       .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
       .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
       .order('start_time', { ascending: true });
@@ -92,30 +120,23 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       return;
     }
 
-    console.log('📊 Все слоты на эту дату:', allSlotsData);
-    console.log('📊 Количество:', allSlotsData?.length || 0);
-
     if (allSlotsData) {
-      // Фильтруем по длительности услуги
-      const matchingSlots = allSlotsData.filter(slot => slot.duration_minutes === duration);
-      console.log('📊 Слоты с длительностью', duration, ':', matchingSlots);
-
-      const futureSlots = matchingSlots.filter(slot => 
+      const futureSlots = allSlotsData.filter(slot =>
         !isBefore(new Date(slot.start_time), now)
       );
-      console.log('📊 Будущие слоты:', futureSlots);
       
       setAllSlots(futureSlots);
     }
   };
 
-  const handleTimeSelect = (time: string) => {
-    setSelectedTime(time);
+  const handleTimeSelect = (slotOption: SlotOption) => {
+    setSelectedTime(slotOption.time);
+    setSelectedSlotIds(slotOption.slotIds);
     setStep(3);
   };
 
   const handleSubmit = async () => {
-    if (!selectedDate || !selectedTime) return;
+    if (!selectedDate || !selectedTime || selectedSlotIds.length === 0) return;
     
     setLoading(true);
 
@@ -123,6 +144,23 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const [hours, minutes] = selectedTime.split(':').map(Number);
       const bookingDateTime = new Date(selectedDate);
       bookingDateTime.setHours(hours, minutes, 0, 0);
+
+      const { data: bookedSlotsData, error: slotError } = await supabase
+        .from('time_slots')
+        .update({
+          is_booked: true,
+          booked_by: user.id,
+        })
+        .in('id', selectedSlotIds)
+        .eq('is_booked', false)
+        .select('id');
+
+      if (slotError) throw slotError;
+
+      if (!bookedSlotsData || bookedSlotsData.length !== selectedSlotIds.length) {
+        await loadAllSlots();
+        throw new Error('Это окно только что заняли. Выберите другое время.');
+      }
 
       const { error: consultError } = await supabase
         .from('consultations')
@@ -138,24 +176,17 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           }
         ]);
 
-      if (consultError) throw consultError;
-
-      const slot = allSlots.find(s => {
-        const slotTime = format(new Date(s.start_time), 'HH:mm');
-        return slotTime === selectedTime && !s.is_booked;
-      });
-
-      if (slot) {
+      if (consultError) {
         await supabase
           .from('time_slots')
-          .update({ 
-            is_booked: true,
-            booked_by: user.id,
+          .update({
+            is_booked: false,
+            booked_by: null,
           })
-          .eq('id', slot.id);
-      }
+          .in('id', selectedSlotIds);
 
-      await loadAllSlots();
+        throw consultError;
+      }
 
       // Отправляем уведомление админу
       const { data: adminData } = await supabase
@@ -185,7 +216,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     }
   };
 
-  const freeSlots = allSlots.filter(slot => !slot.is_booked);
+  const availableSlotOptions = buildSlotOptions(allSlots, duration);
   const bookedSlots = allSlots.filter(slot => slot.is_booked);
 
   return (
@@ -231,6 +262,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               onChange={(value: any) => {
                 if (value instanceof Date) {
                   setSelectedDate(value);
+                  setSelectedTime(null);
+                  setSelectedSlotIds([]);
                   setStep(2);
                 }
               }}
@@ -253,25 +286,22 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             <button onClick={() => setStep(1)} className="text-gray-500 text-sm hover:text-[#385144]">← Назад</button>
           </div>
 
-          {freeSlots.length === 0 ? (
+          {availableSlotOptions.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-gray-500">На эту дату нет доступных окон</p>
               <p className="text-gray-400 text-sm mt-2">Выберите другую дату</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {freeSlots.map((slot) => {
-                const slotTime = format(new Date(slot.start_time), 'HH:mm');
-                return (
-                  <button
-                    key={slot.id}
-                    onClick={() => handleTimeSelect(slotTime)}
-                    className="p-3 rounded-lg font-bold transition bg-[#385144] text-white hover:bg-[#2d4238]"
-                  >
-                    {slotTime}
-                  </button>
-                );
-              })}
+              {availableSlotOptions.map((slotOption) => (
+                <button
+                  key={slotOption.id}
+                  onClick={() => handleTimeSelect(slotOption)}
+                  className="p-3 rounded-lg font-bold transition bg-[#385144] text-white hover:bg-[#2d4238]"
+                >
+                  {slotOption.time}
+                </button>
+              ))}
               {bookedSlots.map((slot) => {
                 const slotTime = format(new Date(slot.start_time), 'HH:mm');
                 return (
