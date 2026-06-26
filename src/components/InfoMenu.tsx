@@ -1,221 +1,195 @@
 import { useState } from 'react';
-import { X, Heart, Shield, Scale, AlertTriangle, Menu } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Heart, LockKeyhole, Scale, ShieldCheck, Sparkles, X } from 'lucide-react';
 
 interface InfoMenuProps {
   onClose: () => void;
 }
 
+type InfoSection = 'about' | 'privacy' | 'terms';
+
+const tabs: Array<{ id: InfoSection; title: string; subtitle: string }> = [
+  { id: 'about', title: 'Обо мне', subtitle: 'подход и ценности' },
+  { id: 'privacy', title: 'Приватность', subtitle: 'что остаётся между нами' },
+  { id: 'terms', title: 'Условия', subtitle: 'как проходят консультации' },
+];
+
 export const InfoMenu = ({ onClose }: InfoMenuProps) => {
-  const [activeTab, setActiveTab] = useState<'about' | 'privacy' | 'terms'>('about');
+  const [activeSection, setActiveSection] = useState<InfoSection>('about');
 
   return (
     <div className="fixed inset-0 z-[60]">
-      {/* Затемнение фона */}
-      <div 
-        className="absolute inset-0 bg-black/50 animate-fade-in"
+      <button
+        aria-label="Закрыть информацию"
+        className="absolute inset-0 bg-[#111]/45 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      
-      {/* Выезжающее меню слева */}
-      <div className="absolute left-0 top-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl animate-slide-right flex flex-col">
-        {/* Шапка */}
-        <div className="flex-none border-b border-gray-200 p-4 flex justify-between items-center bg-[#385144]">
-          <div className="flex items-center gap-2">
-            <Menu className="w-5 h-5 text-white" />
-            <h2 className="text-lg font-bold text-white">Информация</h2>
-          </div>
-          <button 
-            onClick={onClose}
-            className="text-white/80 hover:text-white transition p-2"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Вкладки - горизонтальный скролл */}
-        <div className="flex-none border-b border-gray-200 bg-white overflow-x-auto">
-          <div className="flex min-w-max">
+      <div className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[92vh] max-w-xl flex-col overflow-hidden rounded-t-[2rem] bg-[#F8F3EC] shadow-[0_-20px_60px_rgba(17,17,17,0.24)] animate-slide-up">
+        <div className="relative overflow-hidden bg-[#385144] px-5 pb-5 pt-4 text-white">
+          <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-white/55">
+                information space
+              </p>
+              <h2 className="text-2xl font-black">Информация</h2>
+              <p className="mt-1 text-sm font-medium text-white/70">
+                Коротко, спокойно и без лишней юридической простыни.
+              </p>
+            </div>
             <button
-              onClick={() => setActiveTab('about')}
-              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
-                activeTab === 'about' 
-                  ? 'text-[#385144] border-b-2 border-[#385144]' 
-                  : 'text-gray-500'
-              }`}
+              onClick={onClose}
+              className="rounded-2xl bg-white/10 p-3 text-white/75 transition hover:bg-white/15 hover:text-white"
             >
-              Обо мне
-            </button>
-            <button
-              onClick={() => setActiveTab('privacy')}
-              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
-                activeTab === 'privacy' 
-                  ? 'text-[#385144] border-b-2 border-[#385144]' 
-                  : 'text-gray-500'
-              }`}
-            >
-              Конфиденциальность
-            </button>
-            <button
-              onClick={() => setActiveTab('terms')}
-              className={`flex-1 py-3 px-4 text-sm font-bold transition whitespace-nowrap ${
-                activeTab === 'terms' 
-                  ? 'text-[#385144] border-b-2 border-[#385144]' 
-                  : 'text-gray-500'
-              }`}
-            >
-              Условия
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        {/* Контент с прокруткой */}
-        <div className="flex-1 overflow-y-auto p-5 bg-[#F8F5F2]">
-          {activeTab === 'about' && (
-            <div className="space-y-4">
-              <div className="bg-white p-4 rounded-xl shadow-sm">
-                <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
-                  <Heart className="w-5 h-5 mr-2" />
-                  Обо мне
-                </h3>
-                <p className="text-gray-700 leading-relaxed mb-3">
-                  Привет! Меня зовут Данил, и я профессиональный таролог со стажем более 3х лет. 
-                  Моя миссия — помочь вам найти ответы на важные жизненные вопросы, 
-                  разобраться в себе и своей ситуации.
-                </p>
-                <p className="text-gray-700 leading-relaxed mb-3">
-                  Я подхожу к каждой консультации индивидуально, с вниманием и пониманием 
-                  к вашей ситуации. Моя цель — не просто дать предсказание, а помочь 
-                  вам найти свой путь и обрести гармонию.
-                </p>
-                <p className="text-gray-700 leading-relaxed">
-                  Я отношусь к каждому клиенту с уважением и заботой. Всё, чем вы 
-                  делитесь со мной, остаётся между нами
-                </p>
-                <p className="text-gray-700 leading-relaxed">
-                  В моей работе нет деления на пол человека, никогда не будет осуждения за что-то.
-                  <strong>В консультациях нет места дискриминации по гендерному, расовому, половому признаку, сексуальной ориентации и иным признакам</strong>
-                </p>
-                <p className="text-gray-700 leading-relaxed">
-                  Я - тот уголочек, где можно быть собой, таким какой или какая ты есть
+        <div className="flex-none border-b border-[#E8DED2] bg-white/70 px-4 py-3">
+          <div className="grid grid-cols-3 gap-2">
+            {tabs.map((tab) => {
+              const isActive = activeSection === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveSection(tab.id)}
+                  className={`rounded-2xl px-3 py-3 text-left transition ${
+                    isActive
+                      ? 'bg-[#385144] text-white shadow-[0_10px_24px_rgba(56,81,68,0.18)]'
+                      : 'bg-white text-[#6C756C]'
+                  }`}
+                >
+                  <span className="block text-sm font-black leading-tight">{tab.title}</span>
+                  <span className={`mt-0.5 block text-[10px] font-bold uppercase tracking-[0.12em] ${
+                    isActive ? 'text-white/55' : 'text-[#8FA092]'
+                  }`}>
+                    {tab.subtitle}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-5">
+          {activeSection === 'about' && (
+            <div className="space-y-3">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/85 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF1EA] text-[#385144]">
+                    <Heart className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-[#385144]">Данил, таролог</h3>
+                    <p className="text-sm font-semibold text-[#8A5A3F]">3+ года практики</p>
+                  </div>
+                </div>
+                <p className="text-[15px] leading-relaxed text-[#4B5563]">
+                  Я помогаю бережно разобраться в ситуации, увидеть возможные сценарии и найти точку опоры.
+                  Консультация — это не приговор, а честный разговор с вниманием к вашему состоянию.
                 </p>
               </div>
 
-              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-xl">
-                <p className="text-blue-800 text-sm">
-                   <strong>Важно:</strong> Таро — это инструмент для самопознания 
-                  и получения guidance, а не окончательный приговор. Вы всегда 
-                  свободны в выборе своего пути.
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['Без осуждения', 'Можно говорить прямо и быть собой.'],
+                  ['Индивидуально', 'Формат подстраивается под ваш запрос.'],
+                  ['Конфиденциально', 'Личное остаётся между нами.'],
+                  ['С опорой', 'Фокус на ясности, а не на страхе.'],
+                ].map(([title, text]) => (
+                  <div key={title} className="rounded-[1.35rem] bg-white/80 p-4 shadow-sm">
+                    <Sparkles className="mb-3 h-4 w-4 text-[#B8795C]" />
+                    <p className="font-black text-[#385144]">{title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-[#6C756C]">{text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-[1.5rem] border border-[#B8795C]/20 bg-[#FFF1E8] p-4">
+                <p className="text-sm leading-relaxed text-[#6B4D3E]">
+                  В консультациях нет места дискриминации по гендерному, расовому, половому признаку,
+                  сексуальной ориентации и другим личным особенностям.
                 </p>
               </div>
             </div>
           )}
 
-          {activeTab === 'privacy' && (
-            <div className="space-y-4">
-              <div className="bg-white p-4 rounded-xl shadow-sm">
-                <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
-                  <Shield className="w-5 h-5 mr-2" />
-                  Конфиденциальность
-                </h3>
-                
-                <div className="space-y-3 text-gray-700 text-sm leading-relaxed">
-                  <p>
-                    <strong>1. Конфиденциальность</strong><br/>
-                    Вся информация, полученная в ходе консультаций, строго конфиденциальна. 
-                    Я гарантирую полную сохранность ваших персональных данных и информации, 
-                    которой вы делитесь во время консультаций
-                  </p>
-
-                  <p>
-                    <strong>2. Юридическая ответственность</strong><br/>
-                    Как оператор персональных данных, я несу полную ответственность за 
-                    нераспространение и защиту вашей информации в соответствии с:
-                  </p>
-
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Федеральным законом РФ № 152-ФЗ «О персональных данных»</li>
-                    <li>Уголовным кодексом РФ (ст. 137, 272, 273, 274)</li>
-                    <li>Кодексом об административных правонарушениях РФ</li>
-                    <li>Гаагской конвенцией по вопросам международного частного права</li>
-                    <li>Уголовным законодательством Королевства Испания</li>
-                    <li>Общим регламентом по защите данных (GDPR) ЕС</li>
-                  </ul>
-
-                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r-xl mt-3">
-                    <p className="text-yellow-800 text-xs">
-                      <strong>⚠️ Нарушение конфиденциальности влечёт:</strong><br/>
-                      • Уголовную ответственность (штрафы до 300 000 ₽ или лишение свободы до 4 лет)<br/>
-                      • Административную ответственность (штрафы до 75 000 ₽)<br/>
-                      • Гражданско-правовую ответственность (возмещение морального вреда)
-                      • Уголовную ответственность по Уголовному Кодексу Королевства Испания
-                      • Административную ответственность, согласно Гаагской Конвеции Прав Человека
-                    </p>
+          {activeSection === 'privacy' && (
+            <div className="space-y-3">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/85 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF1EA] text-[#385144]">
+                    <ShieldCheck className="h-5 w-5" />
                   </div>
-
-                  <p>
-                    <strong>3. Хранение данных</strong><br/>
-                    Ваши данные хранятся на защищённых серверах с применением современных 
-                    методов шифрования. Доступ к данным имею только я.
-                  </p>
+                  <div>
+                    <h3 className="text-xl font-black text-[#385144]">Конфиденциальность</h3>
+                    <p className="text-sm font-semibold text-[#8A5A3F]">личные темы не выносятся наружу</p>
+                  </div>
                 </div>
+                <p className="text-[15px] leading-relaxed text-[#4B5563]">
+                  Всё, чем вы делитесь во время консультации, остаётся между нами.
+                  Данные используются только для записи, связи и истории консультаций.
+                </p>
+              </div>
+
+              {[
+                ['Что хранится', 'Имя, Telegram ID, город, история записей и бонусный баланс.'],
+                ['Кто видит', 'Доступ к клиентской информации есть только у администратора сервиса.'],
+                ['Зачем это нужно', 'Чтобы записывать на консультации, начислять бонусы и не терять историю.'],
+              ].map(([title, text]) => (
+                <div key={title} className="flex items-start gap-3 rounded-[1.35rem] bg-white/80 p-4 shadow-sm">
+                  <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[#385144]" />
+                  <div>
+                    <p className="font-black text-[#385144]">{title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-[#6C756C]">{text}</p>
+                  </div>
+                </div>
+              ))}
+
+              <div className="rounded-[1.5rem] border border-[#E7D8C9] bg-[#FFF9F0] p-4 text-sm leading-relaxed text-[#6B4D3E]">
+                Персональные данные защищаются в рамках действующего законодательства о персональных данных.
+                Подробные юридические формулировки можно запросить отдельно перед консультацией.
               </div>
             </div>
           )}
 
-          {activeTab === 'terms' && (
-            <div className="space-y-4">
-              <div className="bg-white p-4 rounded-xl shadow-sm">
-                <h3 className="text-[#385144] font-bold text-lg mb-3 flex items-center">
-                  <Scale className="w-5 h-5 mr-2" />
-                  Условия оказания услуг
-                </h3>
-                
-                <div className="space-y-3 text-gray-700 text-sm leading-relaxed">
-                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
-                    <p className="font-bold text-[#385144] mb-1">1. Оплата услуг</p>
-                    <p>
-                      Оплата консультаций производится после завершения консультации в размере 60%, где 40% вносятся как предоплата. Средства, внесённые в качестве 
-                      оплаты и предоплаты, <strong>не подлежат возврату</strong> после подтверждения записи.
-                    </p>
+          {activeSection === 'terms' && (
+            <div className="space-y-3">
+              {[
+                ['Оплата', '40% вносится как предоплата, оставшаяся часть — после консультации.'],
+                ['Перенос', 'Перенос возможен не позднее чем за 24 часа до назначенного времени.'],
+                ['Природа таро', 'Таро показывает вероятности и помогает увидеть варианты, но не отменяет вашу свободу выбора.'],
+                ['Ответственность', 'Решения после консультации клиент принимает самостоятельно.'],
+              ].map(([title, text], index) => (
+                <div key={title} className="rounded-[1.45rem] border border-white/80 bg-white/85 p-4 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#EAF1EA] text-sm font-black text-[#385144]">
+                        0{index + 1}
+                      </div>
+                      <p className="font-black text-[#385144]">{title}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-[#8FA092]" />
                   </div>
-
-                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
-                    <p className="font-bold text-[#385144] mb-1">2. Природа таро-консультаций</p>
-                    <p>
-                      Таро — это инструмент для самопознания и получения guidance. Карты Таро 
-                      <strong> не дают 100% вероятности</strong> именно такого развития событий. 
-                      Будущее многовариантно и зависит от ваших действий и решений.
-                    </p>
-                  </div>
-
-                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
-                    <p className="font-bold text-[#385144] mb-1">3. Отмена и перенос</p>
-                    <p>
-                      Перенос или отмена консультации возможны не позднее чем за 24 часа 
-                      до назначенного времени. При отмене менее чем за 24 часа предоплата и/или оплата не возвращается.
-                    </p>
-                  </div>
-
-                  <div className="bg-[#F8F5F2] p-3 rounded-lg">
-                    <p className="font-bold text-[#385144] mb-1">4. Ответственность</p>
-                    <p>
-                      Я не несу ответственности за ваши решения и действия, предпринятые 
-                      на основе консультации. Вы самостоятельно принимаете решения и несёте 
-                      за них ответственность.
-                    </p>
-                  </div>
-
-                  <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-r-xl mt-3">
-                    <p className="text-red-800 text-xs flex items-start">
-                      <AlertTriangle className="w-4 h-4 mr-1 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Важно:</strong> Таро не заменяет профессиональную медицинскую, 
-                        юридическую или психологическую помощь. В серьёзных вопросах здоровья, 
-                        права обращайтесь к профильным специалистам
-                      </span>
-                    </p>
-                  </div>
+                  <p className="text-sm leading-relaxed text-[#6C756C]">{text}</p>
                 </div>
+              ))}
+
+              <div className="rounded-[1.5rem] border border-[#B8795C]/25 bg-[#FFF1E8] p-4">
+                <p className="flex items-start text-sm leading-relaxed text-[#6B4D3E]">
+                  <AlertTriangle className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+                  Таро не заменяет медицинскую, юридическую или психологическую помощь.
+                  В профильных вопросах лучше обращаться к соответствующим специалистам.
+                </p>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-[#385144]/15 bg-[#EAF1EA] p-4">
+                <p className="flex items-start text-sm leading-relaxed text-[#385144]">
+                  <Scale className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
+                  Запись означает согласие с условиями оказания услуги, правилами переноса и политикой приватности.
+                </p>
               </div>
             </div>
           )}
