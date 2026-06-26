@@ -151,6 +151,25 @@ export const notifyAdminNewBooking = async (
     : { ok: true };
 };
 
+export const notifyClientBookingCreated = async (
+  clientTelegramId: string | number,
+  serviceName: string,
+  dateTime: string,
+  price: number
+) => {
+  const message = `
+✅ <b>Заявка на консультацию принята</b>
+
+📋 <b>Услуга:</b> ${escapeHtml(serviceName)}
+📅 <b>Дата:</b> ${escapeHtml(dateTime)}
+💰 <b>Сумма:</b> ${price} ₽
+
+Я получил вашу запись и скоро подтвержу её.
+  `.trim();
+
+  return sendTelegramNotification(clientTelegramId, message);
+};
+
 // Уведомление клиенту об изменении баланса
 export const notifyClientBonusUpdate = async (
   clientTelegramId: string | number,

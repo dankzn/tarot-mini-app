@@ -6,7 +6,7 @@ import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
-import { notifyAdminNewBooking } from '../lib/notifications';
+import { notifyAdminNewBooking, notifyClientBookingCreated } from '../lib/notifications';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 
 interface BookingFormProps {
@@ -217,6 +217,19 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       if (!notificationResult.ok) {
         console.error('❌ Уведомление админу не отправлено:', notificationResult.error);
+      }
+
+      if (user.telegram_id) {
+        const clientNotificationResult = await notifyClientBookingCreated(
+          user.telegram_id,
+          service.title,
+          format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
+          finalPrice
+        );
+
+        if (!clientNotificationResult.ok) {
+          console.error('❌ Уведомление клиенту не отправлено:', clientNotificationResult.error);
+        }
       }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
