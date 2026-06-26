@@ -93,16 +93,19 @@ export const AdminWebDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F5F2]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] text-[#2F463B]">
       {/* Шапка */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className="border-b border-white/70 bg-white/75 shadow-[0_12px_35px_rgba(56,81,68,0.08)] backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-[#385144]">Админ-панель</h1>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+              tarot operations
+            </p>
+            <h1 className="text-3xl font-black text-[#385144]">Админ-панель</h1>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center text-gray-600 hover:text-red-600 transition"
+            className="flex items-center rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-bold text-[#5E675D] transition hover:border-red-200 hover:text-red-600"
           >
             <LogOut className="w-5 h-5 mr-2" />
             Выйти
@@ -113,47 +116,47 @@ export const AdminWebDashboard = () => {
       {/* Основной контент */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Статистика */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
             <div className="flex items-center mb-3">
-              <Users className="w-6 h-6 text-[#6B4EE6] mr-3" />
+              <Users className="w-6 h-6 text-[#B8795C] mr-3" />
               <span className="text-gray-500 text-sm">Всего клиентов</span>
             </div>
-            <p className="text-3xl font-bold text-[#385144]">{stats.totalUsers}</p>
+            <p className="text-3xl font-black text-[#385144]">{stats.totalUsers}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
             <div className="flex items-center mb-3">
-              <CalendarCheck className="w-6 h-6 text-[#6B4EE6] mr-3" />
+              <CalendarCheck className="w-6 h-6 text-[#B8795C] mr-3" />
               <span className="text-gray-500 text-sm">Всего записей</span>
             </div>
-            <p className="text-3xl font-bold text-[#385144]">{stats.totalConsultations}</p>
+            <p className="text-3xl font-black text-[#385144]">{stats.totalConsultations}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
             <div className="flex items-center mb-3">
               <Clock className="w-6 h-6 text-yellow-600 mr-3" />
               <span className="text-gray-500 text-sm">Ожидают</span>
             </div>
-            <p className="text-3xl font-bold text-yellow-600">{stats.pendingConsultations}</p>
+            <p className="text-3xl font-black text-yellow-700">{stats.pendingConsultations}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="rounded-[1.5rem] border border-white/80 bg-[#385144] p-5 text-white shadow-[0_18px_44px_rgba(56,81,68,0.18)]">
             <div className="flex items-center mb-3">
-              <DollarSign className="w-6 h-6 text-[#D4AF37] mr-3" />
-              <span className="text-gray-500 text-sm">Общий доход</span>
+              <DollarSign className="w-6 h-6 text-[#F4E7C8] mr-3" />
+              <span className="text-white/70 text-sm">Общий доход</span>
             </div>
-            <p className="text-3xl font-bold text-[#D4AF37]">{stats.totalRevenue.toLocaleString()} ₽</p>
+            <p className="text-3xl font-black">{stats.totalRevenue.toLocaleString()} ₽</p>
           </div>
         </div>
         {/* Новые карточки */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-  <a
-    href="/admin-web/services"
-    className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition"
-  >
-    <div className="flex items-center mb-3">
-      <div className="w-12 h-12 bg-[#6B4EE6] rounded-xl flex items-center justify-center mr-4">
+	<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+	  <a
+	    href="/admin-web/services"
+	    className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(56,81,68,0.12)]"
+	  >
+	    <div className="flex items-center mb-3">
+	      <div className="w-12 h-12 bg-[#B8795C] rounded-2xl flex items-center justify-center mr-4">
         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
@@ -165,12 +168,12 @@ export const AdminWebDashboard = () => {
     </div>
   </a>
 
-  <a
-    href="/admin-web/analytics"
-    className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition"
-  >
-    <div className="flex items-center mb-3">
-      <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mr-4">
+	  <a
+	    href="/admin-web/analytics"
+	    className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(56,81,68,0.12)]"
+	  >
+	    <div className="flex items-center mb-3">
+	      <div className="w-12 h-12 bg-[#8A5A3F] rounded-2xl flex items-center justify-center mr-4">
         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
@@ -182,12 +185,12 @@ export const AdminWebDashboard = () => {
     </div>
   </a>
 
-  <a
-    href="/admin-web/clients"
-    className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition"
-  >
-    <div className="flex items-center mb-3">
-      <div className="w-12 h-12 bg-[#385144] rounded-xl flex items-center justify-center mr-4">
+	  <a
+	    href="/admin-web/clients"
+	    className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(56,81,68,0.12)]"
+	  >
+	    <div className="flex items-center mb-3">
+	      <div className="w-12 h-12 bg-[#385144] rounded-2xl flex items-center justify-center mr-4">
         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
@@ -201,46 +204,46 @@ export const AdminWebDashboard = () => {
 </div>
 
         {/* Быстрые действия */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 mt-6">
           <button 
             onClick={() => navigate('/admin-web/consultations')}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 text-left shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5"
             >
-            <CalendarCheck className="w-8 h-8 text-[#6B4EE6] mb-3" />
+            <CalendarCheck className="w-8 h-8 text-[#B8795C] mb-3" />
             <h3 className="text-[#385144] font-bold text-lg mb-1">Управление записями</h3>
             <p className="text-gray-500 text-sm">Подтверждение и отмена записей</p>
             </button>
 
           <button 
             onClick={() => navigate('/admin-web/slots')}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 text-left shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5"
             >
-            <CalendarDays className="w-8 h-8 text-[#6B4EE6] mb-3" />
+            <CalendarDays className="w-8 h-8 text-[#B8795C] mb-3" />
             <h3 className="text-[#385144] font-bold text-lg mb-1">Управление окнами</h3>
             <p className="text-gray-500 text-sm">Создание слотов для записи</p>
             </button>
 
           <button 
             onClick={() => navigate('/admin-web/mailings')}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 text-left shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5"
             >
-            <Send className="w-8 h-8 text-[#6B4EE6] mb-3" />
+            <Send className="w-8 h-8 text-[#B8795C] mb-3" />
             <h3 className="text-[#385144] font-bold text-lg mb-1">Рассылка акций</h3>
             <p className="text-gray-500 text-sm">Отправка уведомлений клиентам</p>
             </button>
 
           <button 
             onClick={() => navigate('/admin-web/users')}
-            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition text-left"
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 text-left shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5"
             >
-            <Users className="w-8 h-8 text-[#6B4EE6] mb-3" />
+            <Users className="w-8 h-8 text-[#B8795C] mb-3" />
             <h3 className="text-[#385144] font-bold text-lg mb-1">Список клиентов</h3>
             <p className="text-gray-500 text-sm">Просмотр и управление клиентами</p>
             </button>
         </div>
 
         {/* Последние записи */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div className="rounded-[1.75rem] border border-white/80 bg-white/85 p-6 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
           <h3 className="text-[#385144] font-bold text-xl mb-4 flex items-center">
             <TrendingUp className="w-6 h-6 mr-2" />
             Последние записи
@@ -251,7 +254,7 @@ export const AdminWebDashboard = () => {
           ) : (
             <div className="space-y-3">
               {recentConsultations.map((consultation) => (
-                <div key={consultation.id} className="flex justify-between items-center p-4 bg-[#F8F5F2] rounded-xl">
+                <div key={consultation.id} className="flex justify-between items-center p-4 bg-[#F8F5F2] rounded-2xl">
                   <div>
                     <p className="text-[#385144] font-bold">{consultation.users?.name || 'Клиент'}</p>
                     <p className="text-gray-500 text-sm">
@@ -259,7 +262,7 @@ export const AdminWebDashboard = () => {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[#D4AF37] font-bold">{consultation.price} ₽</p>
+                    <p className="text-[#8A5A3F] font-bold">{consultation.price} ₽</p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       consultation.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                       consultation.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :

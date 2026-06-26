@@ -682,55 +682,48 @@ export const Dashboard = ({ user }: DashboardProps) => {
               <p className="text-[#6C756C]">Услуги пока не добавлены</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {services.map((service, index) => (
                 <div
                   key={service.id}
-                  className={`overflow-hidden rounded-[1.8rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(index)} p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(56,81,68,0.15)]`}
+                  className={`overflow-hidden rounded-[1.6rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
                 >
-                  <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="mb-3 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                      <span className="mb-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
                         {getServiceBadge(service, index)}
                       </span>
-                      <h4 className="text-2xl font-black leading-tight text-[#385144]">
+                      <h4 className="text-xl font-black leading-tight text-[#385144]">
                         {service.title}
                       </h4>
                     </div>
-                    <div className="shrink-0 rounded-2xl bg-white/80 px-4 py-3 text-right shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8FA092]">стоимость</p>
-                      <p className="text-xl font-black text-[#8A5A3F]">{service.price} ₽</p>
+                    <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
+                      <p className="text-lg font-black text-[#8A5A3F]">{service.price} ₽</p>
                     </div>
                   </div>
 
                   {service.description && (
-                    <p className="mb-4 text-[15px] leading-relaxed text-[#59645C]">
+                    <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
                       {service.description}
                     </p>
                   )}
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {service.duration_minutes && (
-                      <span className="inline-flex items-center rounded-full bg-[#385144]/10 px-3 py-2 text-xs font-bold text-[#385144]">
-                        <Clock className="mr-1.5 h-3.5 w-3.5" />
-                        {service.duration_minutes} минут
-                      </span>
-                    )}
-                    <span className="inline-flex items-center rounded-full bg-[#B8795C]/10 px-3 py-2 text-xs font-bold text-[#8A5A3F]">
-                      <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                      Личный разбор
-                    </span>
-                  </div>
 
                   <button
                     onClick={() => {
                       setSelectedService(service);
                       setShowBooking(true);
                     }}
-                    className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.20)] transition hover:bg-[#2d4238]"
+                    className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
                   >
-                    <CalendarCheck className="mr-2 h-5 w-5" />
-                    Записаться на консультацию
+                    <span className="inline-flex items-center">
+                      <CalendarCheck className="mr-2 h-4 w-4" />
+                      Записаться
+                    </span>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
+                      {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
+                      <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                    </span>
                   </button>
                 </div>
               ))}
