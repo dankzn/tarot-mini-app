@@ -7,6 +7,7 @@ import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
 import { notifyAdminNewBooking } from '../lib/notifications';
+import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 
 interface BookingFormProps {
   user: any;
@@ -92,8 +93,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [bonusAmount, setBonusAmount] = useState(0);
 
   const duration = service.duration_minutes || 60;
-  const originalPrice = service.price || 0;
+  const priceState = getServicePriceState(service);
+  const originalPrice = priceState.currentPrice;
   const userBalance = user.bonus_balance || 0;
+  const campaignCountdown = formatCountdown(priceState.countdownTarget);
 
   const maxBonusUsable = Math.min(userBalance, originalPrice);
   const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
@@ -124,7 +127,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       const futureSlots = allSlotsData.filter(slot =>
         !isBefore(new Date(slot.start_time), now)
       );
-      
+
       setAllSlots(futureSlots);
     }
   };
@@ -137,7 +140,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   const handleSubmit = async () => {
     if (!selectedDate || !selectedTime || selectedSlotIds.length === 0) return;
-    
+
     setLoading(true);
 
     try {
@@ -288,6 +291,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 <span className="text-gray-400 line-through text-sm">{originalPrice} ₽</span>
                 <span className="text-[#8A5A3F] font-bold text-xl">{finalPrice} ₽</span>
               </div>
+            ) : priceState.currentPrice !== priceState.basePrice ? (
+              <div className="flex flex-col items-end">
+                <span className="text-gray-400 line-through text-sm">{priceState.basePrice} ₽</span>
+                <span className="text-[#8A5A3F] font-bold text-xl">{originalPrice} ₽</span>
+              </div>
             ) : (
               <span className="text-[#8A5A3F] font-bold text-xl">{originalPrice} ₽</span>
             )}
@@ -299,6 +307,11 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         </div>
         {service.description && (
           <p className="text-gray-600 text-sm mt-2">{service.description}</p>
+        )}
+        {campaignCountdown && (
+          <div className="mt-4 rounded-2xl bg-[#385144]/10 px-4 py-3 text-sm font-bold text-[#385144]">
+            {priceState.countdownLabel}: {campaignCountdown}
+          </div>
         )}
       </div>
 
@@ -400,7 +413,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                     <Sparkles className="w-5 h-5 mr-2 text-[#B8795C]" />
                     Использовать бонусы?
                   </span>
-                  <div 
+                  <div
                     className={`w-12 h-6 rounded-full p-1 cursor-pointer transition ${useBonuses ? 'bg-[#385144]' : 'bg-gray-300'}`}
                     onClick={() => {
                       setUseBonuses(!useBonuses);

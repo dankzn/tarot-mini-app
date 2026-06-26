@@ -7,11 +7,12 @@ import { InfoMenu } from './InfoMenu';
 import { ReferralProgram } from './ReferralProgram';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { 
-  Crown, 
-  Sparkles, 
-  ScrollText, 
-  Gift, 
+import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
+import {
+  Crown,
+  Sparkles,
+  ScrollText,
+  Gift,
   CalendarCheck,
   MapPin,
   Clock,
@@ -28,6 +29,12 @@ interface Service {
   description: string;
   price: number;
   duration_minutes?: number;
+  next_price?: number | null;
+  price_increase_at?: string | null;
+  promo_title?: string | null;
+  promo_price?: number | null;
+  promo_starts_at?: string | null;
+  promo_ends_at?: string | null;
 }
 
 interface DashboardProps {
@@ -311,6 +318,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [showServiceQuiz, setShowServiceQuiz] = useState(false);
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, QuizOption>>({});
+  const [clockNow, setClockNow] = useState(() => new Date());
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -334,8 +342,15 @@ export const Dashboard = ({ user }: DashboardProps) => {
     loadProfilePhoto();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const loadServices = async () => {
     try {
+      await supabase.rpc('apply_due_service_price_changes');
+
       const { data } = await supabase
         .from('services')
         .select('*')
@@ -494,7 +509,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
   if (showBooking && selectedService) {
     return (
-      <BookingForm 
+      <BookingForm
         user={user}
         service={selectedService}
         onSuccess={() => {
@@ -586,7 +601,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     {recommendedService.duration_minutes ? `${recommendedService.duration_minutes} минут` : 'Индивидуально'}
                   </span>
                   <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
-                    {recommendedService.price} ₽
+                    {getServicePriceState(recommendedService, clockNow).currentPrice} ₽
                   </span>
                 </div>
               </div>
@@ -1018,50 +1033,75 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </div>
           ) : (
             <div className="space-y-3">
-              {services.map((service, index) => (
-                <div
-                  key={service.id}
-                  className={`overflow-hidden rounded-[1.6rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
-                >
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="mb-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
-                        {getServiceBadge(service, index)}
-                      </span>
-                      <h4 className="text-xl font-black leading-tight text-[#385144]">
-                        {service.title}
-                      </h4>
-                    </div>
-                    <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
-                      <p className="text-lg font-black text-[#8A5A3F]">{service.price} ₽</p>
-                    </div>
-                  </div>
+              {services.map((service, index) => {
+                const priceState = getServicePriceState(service, clockNow);
+                const countdown = formatCountdown(priceState.countdownTarget, clockNow);
 
-                  {service.description && (
-                    <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
-                      {service.description}
-                    </p>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      setSelectedService(service);
-                      setShowBooking(true);
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
+                return (
+                  <div
+                    key={service.id}
+                    className={`overflow-hidden rounded-[1.6rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
                   >
-                    <span className="inline-flex items-center">
-                      <CalendarCheck className="mr-2 h-4 w-4" />
-                      Записаться
-                    </span>
-                    <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
-                      {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
-                      <ChevronRight className="h-4 w-4 text-[#8FA092]" />
-                    </span>
-                  </button>
-                </div>
-              ))}
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          <span className="inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                            {priceState.isPromoActive ? priceState.promoTitle : getServiceBadge(service, index)}
+                          </span>
+                          {countdown && (
+                            <span className="inline-flex rounded-full bg-[#385144]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#385144]">
+                              {priceState.countdownLabel}: {countdown}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xl font-black leading-tight text-[#385144]">
+                          {service.title}
+                        </h4>
+                      </div>
+                      <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
+                        {priceState.currentPrice !== priceState.basePrice ? (
+                          <div>
+                            <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                            <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {priceState.nextPrice && priceState.priceIncreaseAt && !priceState.countdownTarget && (
+                      <div className="mb-3 rounded-2xl bg-white/65 px-3 py-2 text-xs font-bold text-[#6C756C]">
+                        Новая цена уже действует: {priceState.nextPrice} ₽
+                      </div>
+                    )}
+
+                    {service.description && (
+                      <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
+                        {service.description}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setSelectedService(service);
+                        setShowBooking(true);
+                      }}
+                      className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
+                    >
+                      <span className="inline-flex items-center">
+                        <CalendarCheck className="mr-2 h-4 w-4" />
+                        Записаться
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
+                        {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
+                        <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1069,7 +1109,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
       {/* Модальные окна */}
       {showPrivileges && (
-        <PrivilegeCards 
+        <PrivilegeCards
           currentStatus={currentStatus}
           totalConsultations={totalConsultations}
           onClose={() => setShowPrivileges(false)}
@@ -1081,7 +1121,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
       )}
 
       {showReferral && (
-        <ReferralProgram 
+        <ReferralProgram
           user={user}
           onClose={() => setShowReferral(false)}
         />

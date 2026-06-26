@@ -37,3 +37,9 @@ npm run dev
 npm run build
 npm run lint
 ```
+
+## Миграции Supabase
+
+Для кампаний услуг примените SQL из `supabase/migrations/20260626_service_campaigns.sql`.
+Он добавляет план повышения цен, акции и функцию `apply_due_service_price_changes`,
+которая тихо применяет новую цену при загрузке клиентской части или админки.
