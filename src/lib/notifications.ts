@@ -13,34 +13,84 @@ interface NotificationResult {
   error?: string;
 }
 
-// Отправка уведомления через защищенный API endpoint
+const TELEGRAM_API_BASE = 'https://api.telegram.org';
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  return error instanceof Error ? error.message : fallback;
+};
+
+const sendViaServerEndpoint = async (
+  chatId: string | number,
+  message: string
+): Promise<void> => {
+  const response = await fetch('/api/telegram/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chatId,
+      message,
+      parseMode: 'HTML',
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || 'Failed to send notification');
+  }
+};
+
+const sendViaLegacyClientToken = async (
+  chatId: string | number,
+  message: string
+): Promise<void> => {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+
+  if (!botToken) {
+    throw new Error('Legacy Telegram bot token is not configured');
+  }
+
+  const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.description || 'Telegram API request failed');
+  }
+};
+
+// Отправка уведомления через защищенный API endpoint с legacy fallback
 export const sendTelegramNotification = async (
   chatId: string | number,
   message: string
 ): Promise<NotificationResult> => {
   try {
-    const response = await fetch('/api/telegram/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chatId,
-        message,
-        parseMode: 'HTML',
-      }),
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error || 'Failed to send notification');
-    }
-
+    await sendViaServerEndpoint(chatId, message);
     return { ok: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown notification error';
-    console.error('❌ Ошибка отправки уведомления:', errorMessage);
-    return { ok: false, error: errorMessage };
+  } catch (serverError) {
+    try {
+      await sendViaLegacyClientToken(chatId, message);
+      return { ok: true };
+    } catch (fallbackError) {
+      const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
+      const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
+      const errorMessage = `${serverMessage}; fallback: ${fallbackMessage}`;
+
+      console.error('❌ Ошибка отправки уведомления:', errorMessage);
+      return { ok: false, error: errorMessage };
+    }
   }
 };
 
