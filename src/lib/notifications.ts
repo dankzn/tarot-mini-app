@@ -19,29 +19,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return error instanceof Error ? error.message : fallback;
 };
 
-const sendViaServerEndpoint = async (
-  chatId: string | number,
-  message: string
-): Promise<void> => {
-  const response = await fetch('/api/telegram/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      chatId,
-      message,
-      parseMode: 'HTML',
-    }),
-  });
-
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok || payload?.ok !== true) {
-    throw new Error(payload?.error || 'Telegram notification endpoint did not confirm delivery');
-  }
-};
-
 const sendViaLegacyClientToken = async (
   chatId: string | number,
   message: string
@@ -49,7 +26,7 @@ const sendViaLegacyClientToken = async (
   const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
 
   if (!botToken) {
-    throw new Error('Legacy Telegram bot token is not configured');
+    throw new Error('VITE_TELEGRAM_BOT_TOKEN is not available in the client bundle');
   }
 
   const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
@@ -72,47 +49,19 @@ const sendViaLegacyClientToken = async (
   }
 };
 
-// Отправка уведомления через защищенный API endpoint с legacy fallback
+// Отправка уведомления через прежний клиентский Telegram Bot API канал
 export const sendTelegramNotification = async (
   chatId: string | number,
   message: string
 ): Promise<NotificationResult> => {
-  const hasLegacyClientToken = Boolean(import.meta.env.VITE_TELEGRAM_BOT_TOKEN);
-
-  if (hasLegacyClientToken) {
-    try {
-      await sendViaLegacyClientToken(chatId, message);
-      return { ok: true };
-    } catch (fallbackError) {
-      try {
-        await sendViaServerEndpoint(chatId, message);
-        return { ok: true };
-      } catch (serverError) {
-        const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
-        const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
-        const errorMessage = `${fallbackMessage}; server: ${serverMessage}`;
-
-        console.error('❌ Ошибка отправки уведомления:', errorMessage);
-        return { ok: false, error: errorMessage };
-      }
-    }
-  }
-
   try {
-    await sendViaServerEndpoint(chatId, message);
+    await sendViaLegacyClientToken(chatId, message);
     return { ok: true };
-  } catch (serverError) {
-    try {
-      await sendViaLegacyClientToken(chatId, message);
-      return { ok: true };
-    } catch (fallbackError) {
-      const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
-      const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
-      const errorMessage = `${serverMessage}; fallback: ${fallbackMessage}`;
+  } catch (error) {
+    const errorMessage = getErrorMessage(error, 'Unknown Telegram notification error');
 
-      console.error('❌ Ошибка отправки уведомления:', errorMessage);
-      return { ok: false, error: errorMessage };
-    }
+    console.error('❌ Ошибка отправки уведомления:', errorMessage);
+    return { ok: false, error: errorMessage };
   }
 };
 
