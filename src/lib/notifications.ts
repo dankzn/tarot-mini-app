@@ -77,6 +77,27 @@ export const sendTelegramNotification = async (
   chatId: string | number,
   message: string
 ): Promise<NotificationResult> => {
+  const hasLegacyClientToken = Boolean(import.meta.env.VITE_TELEGRAM_BOT_TOKEN);
+
+  if (hasLegacyClientToken) {
+    try {
+      await sendViaLegacyClientToken(chatId, message);
+      return { ok: true };
+    } catch (fallbackError) {
+      try {
+        await sendViaServerEndpoint(chatId, message);
+        return { ok: true };
+      } catch (serverError) {
+        const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
+        const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
+        const errorMessage = `${fallbackMessage}; server: ${serverMessage}`;
+
+        console.error('❌ Ошибка отправки уведомления:', errorMessage);
+        return { ok: false, error: errorMessage };
+      }
+    }
+  }
+
   try {
     await sendViaServerEndpoint(chatId, message);
     return { ok: true };
@@ -104,38 +125,14 @@ export const notifyAdminNewBooking = async (
   dateTime: string,
   price: number
 ) => {
-  try {
-    const response = await fetch('/api/telegram/booking', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fallbackChatIds: adminTelegramIds,
-        clientName,
-        clientUsername,
-        serviceName,
-        dateTime,
-        price,
-      }),
-    });
+  if (adminTelegramIds.length === 0) {
+    const errorMessage = 'Admin Telegram ID was not found in users table';
+    console.error('❌ Ошибка отправки уведомления о записи:', errorMessage);
+    return { ok: false, error: errorMessage };
+  }
 
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok || payload?.ok !== true) {
-      throw new Error(payload?.error || 'Booking notification endpoint did not confirm delivery');
-    }
-
-    return { ok: true };
-  } catch (serverError) {
-    if (adminTelegramIds.length === 0) {
-      const errorMessage = getErrorMessage(serverError, 'Unknown booking notification error');
-      console.error('❌ Ошибка отправки уведомления о записи:', errorMessage);
-      return { ok: false, error: errorMessage };
-    }
-
-    const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
-    const message = `
+  const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
+  const message = `
 🔔 <b>Новая запись!</b>
 
 👤 <b>Клиент:</b> ${escapeHtml(clientName)}${usernameText}
@@ -144,15 +141,14 @@ export const notifyAdminNewBooking = async (
 💰 <b>Сумма:</b> ${price} ₽
 
 ⏳ Статус: Ожидает подтверждения
-    `.trim();
+  `.trim();
 
-    const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
-    const failed = results.filter(result => !result.ok);
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const failed = results.filter(result => !result.ok);
 
-    return failed.length === results.length
-      ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
-      : { ok: true };
-  }
+  return failed.length === results.length
+    ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
+    : { ok: true };
 };
 
 // Уведомление клиенту об изменении баланса
