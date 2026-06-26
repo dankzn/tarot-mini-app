@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import requests
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot.apihelper import ApiTelegramException
@@ -16,6 +17,13 @@ print(f"✅ WEB_APP_URL: {WEB_APP_URL}")
 print(f"✅ SUPABASE_URL: {SUPABASE_URL[:30] if SUPABASE_URL else 'NOT SET'}...")
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
+
+def supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
 
 def save_pending_referral(telegram_id: int, referrer_id: int):
     """Сохраняем pending referral в базу"""
@@ -61,6 +69,84 @@ def save_pending_referral(telegram_id: int, referrer_id: int):
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return False
+
+def update_notification(notification_id: str, payload: dict):
+    response = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/notification_queue?id=eq.{notification_id}",
+        headers={
+            **supabase_headers(),
+            "Prefer": "return=minimal",
+        },
+        json=payload,
+        timeout=10,
+    )
+
+    if response.status_code not in [200, 204]:
+        print(f"❌ Ошибка обновления уведомления {notification_id}: {response.status_code} - {response.text}")
+
+def send_queued_notification(notification: dict):
+    notification_id = notification["id"]
+    attempts = int(notification.get("attempts") or 0) + 1
+
+    update_notification(notification_id, {
+        "status": "processing",
+        "attempts": attempts,
+        "error": None,
+    })
+
+    try:
+        bot.send_message(
+            notification["chat_id"],
+            notification["message"],
+            parse_mode=notification.get("parse_mode") or "HTML",
+            disable_web_page_preview=True,
+        )
+        update_notification(notification_id, {
+            "status": "sent",
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "error": None,
+        })
+        print(f"✅ Уведомление отправлено: {notification_id} → {notification['chat_id']}")
+    except Exception as e:
+        next_status = "failed" if attempts >= 3 else "pending"
+        error_message = str(e)[:500]
+
+        update_notification(notification_id, {
+            "status": next_status,
+            "error": error_message,
+        })
+        print(f"❌ Ошибка отправки уведомления {notification_id}: {error_message}")
+
+def run_notification_worker():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("⚠️ Очередь уведомлений отключена: SUPABASE_URL или SUPABASE_KEY не заданы")
+        return
+
+    print("📨 Очередь уведомлений запущена")
+
+    while True:
+        try:
+            response = requests.get(
+                f"{SUPABASE_URL}/rest/v1/notification_queue",
+                headers=supabase_headers(),
+                params={
+                    "status": "eq.pending",
+                    "select": "id,chat_id,message,parse_mode,attempts",
+                    "order": "created_at.asc",
+                    "limit": "10",
+                },
+                timeout=10,
+            )
+
+            if response.status_code == 200:
+                for notification in response.json():
+                    send_queued_notification(notification)
+            else:
+                print(f"❌ Ошибка чтения очереди уведомлений: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"❌ Ошибка воркера уведомлений: {e}")
+
+        time.sleep(3)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -113,6 +199,9 @@ print("🤖 Бот запущен...")
 
 health_thread = threading.Thread(target=run_health_server, daemon=True)
 health_thread.start()
+
+notification_thread = threading.Thread(target=run_notification_worker, daemon=True)
+notification_thread.start()
 
 try:
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
