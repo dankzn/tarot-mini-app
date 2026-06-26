@@ -35,9 +35,10 @@ const sendViaServerEndpoint = async (
     }),
   });
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error || 'Failed to send notification');
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(payload?.error || 'Telegram notification endpoint did not confirm delivery');
   }
 };
 
