@@ -268,6 +268,68 @@ const getServiceAccent = (index: number) => {
   return accents[index % accents.length];
 };
 
+const SERVICE_GROUPS = [
+  {
+    id: 'quick',
+    title: 'Быстрый ориентир',
+    subtitle: 'Когда нужен мягкий ответ без длинного разбора',
+    keywords: ['карта', 'дня', 'мини', 'экспресс', 'прогноз'],
+  },
+  {
+    id: 'relationships',
+    title: 'Отношения и чувства',
+    subtitle: 'Динамика контакта, намерения, перспективы',
+    keywords: ['отнош', 'люб', 'чувств', 'партнер', 'партнёр', 'личн'],
+  },
+  {
+    id: 'deep',
+    title: 'Глубокий разбор',
+    subtitle: 'Для сложных ситуаций и нескольких слоёв запроса',
+    keywords: ['глуб', 'разбор', 'расклад', 'полноцен', 'сложн'],
+  },
+  {
+    id: 'support',
+    title: 'Сопровождение',
+    subtitle: 'Когда важно возвращаться к теме и идти постепенно',
+    keywords: ['веден', 'сопровожд', 'долг', 'путь'],
+  },
+];
+
+const getGroupedServices = (services: Service[]) => {
+  const usedIds = new Set<string>();
+  const normalizedServices = services.map(service => ({
+    service,
+    text: `${service.title} ${service.description || ''}`.toLowerCase(),
+  }));
+
+  const groups = SERVICE_GROUPS.map(group => {
+    const items = normalizedServices
+      .filter(({ service, text }) => !usedIds.has(service.id) && group.keywords.some(keyword => text.includes(keyword)))
+      .map(({ service }) => service);
+
+    items.forEach(service => usedIds.add(service.id));
+
+    return {
+      ...group,
+      services: items,
+    };
+  }).filter(group => group.services.length > 0);
+
+  const otherServices = services.filter(service => !usedIds.has(service.id));
+
+  if (otherServices.length > 0) {
+    groups.push({
+      id: 'other',
+      title: 'Индивидуальные форматы',
+      subtitle: 'Дополнительные варианты под нестандартный запрос',
+      keywords: [],
+      services: otherServices,
+    });
+  }
+
+  return groups;
+};
+
 const getDailyCardDateKey = () => new Date().toISOString().slice(0, 10);
 
 const getDailyCard = (seed: string): DailyCard => {
@@ -472,6 +534,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const statusProgress = getStatusProgress(currentStatus, totalConsultations);
   const selectedQuizOptions = Object.values(quizAnswers);
   const recommendedService = getServiceRecommendation(services, selectedQuizOptions);
+  const serviceGroups = getGroupedServices(services);
 
   const revealDailyCard = () => {
     try {
@@ -1045,17 +1108,30 @@ export const Dashboard = ({ user }: DashboardProps) => {
             <p className="text-[#6C756C]">Услуги пока не добавлены</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {services.map((service, index) => {
+          <div className="space-y-5">
+            {serviceGroups.map((group, groupIndex) => (
+              <section key={group.id} className="space-y-3">
+                <div className="flex items-end justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-lg font-black text-[#385144]">{group.title}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-[#6C756C]">{group.subtitle}</p>
+                  </div>
+                  <span className="rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-black text-[#8A5A3F]">
+                    {group.services.length}
+                  </span>
+                </div>
+
+                {group.services.map((service, index) => {
               const priceState = getServicePriceState(service, clockNow);
               const countdown = formatCountdown(priceState.countdownTarget, clockNow);
+              const accentIndex = groupIndex + index;
 
               return (
                 <div
                   key={service.id}
                   className={`overflow-hidden rounded-[1.6rem] border ${
                     priceState.isPromoActive ? 'border-[#B8795C]/35' : 'border-white/80'
-                  } bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
+                  } bg-gradient-to-br ${getServiceAccent(accentIndex)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
                 >
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1156,6 +1232,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 </div>
               );
             })}
+              </section>
+            ))}
           </div>
         )}
         </div>

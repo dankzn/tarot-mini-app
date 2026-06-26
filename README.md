@@ -26,6 +26,7 @@ cp .env.example .env
 Серверные переменные:
 
 - `TELEGRAM_BOT_TOKEN` или `BOT_TOKEN` для `/api/telegram/send`
+- `TELEGRAM_ADMIN_CHAT_ID` или `TELEGRAM_ADMIN_CHAT_IDS` для уведомлений админу о новых записях
 - `BOT_TOKEN`, `WEB_APP_URL`, `SUPABASE_URL`, `SUPABASE_KEY` для Python-бота
 
 `/api/telegram/send` временно поддерживает старую переменную `VITE_TELEGRAM_BOT_TOKEN`, если она уже настроена на Vercel. Для новых деплоев используйте `TELEGRAM_BOT_TOKEN`: переменные с префиксом `VITE_` не должны содержать секреты.

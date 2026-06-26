@@ -198,33 +198,25 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         .eq('role', 'admin')
         .not('telegram_id', 'is', null);
 
+      const adminTelegramIds = adminsError ? [] : Array.from(
+        new Set((adminsData || []).map(admin => admin.telegram_id).filter(Boolean))
+      );
+
       if (adminsError) {
         console.error('❌ Не удалось загрузить админов для уведомления:', adminsError);
-      } else {
-        const adminTelegramIds = Array.from(
-          new Set((adminsData || []).map(admin => admin.telegram_id).filter(Boolean))
-        );
+      }
 
-        const notificationResults = await Promise.allSettled(
-          adminTelegramIds.map(adminTelegramId => notifyAdminNewBooking(
-            adminTelegramId,
-            user.name || 'Клиент',
-            user.username || null,
-            service.title,
-            format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
-            finalPrice
-          ))
-        );
+      const notificationResult = await notifyAdminNewBooking(
+        adminTelegramIds,
+        user.name || 'Клиент',
+        user.username || null,
+        service.title,
+        format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
+        finalPrice
+      );
 
-        notificationResults.forEach((result, index) => {
-          if (result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok)) {
-            console.error(
-              '❌ Уведомление админу не отправлено:',
-              adminTelegramIds[index],
-              result.status === 'rejected' ? result.reason : result.value.error
-            );
-          }
-        });
+      if (!notificationResult.ok) {
+        console.error('❌ Уведомление админу не отправлено:', notificationResult.error);
       }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
