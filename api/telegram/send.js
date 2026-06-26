@@ -1,10 +1,19 @@
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
+const getTokenSource = (requestBotToken) => {
+  if (process.env.TELEGRAM_BOT_TOKEN) return 'TELEGRAM_BOT_TOKEN';
+  if (process.env.BOT_TOKEN) return 'BOT_TOKEN';
+  if (process.env.VITE_TELEGRAM_BOT_TOKEN) return 'VITE_TELEGRAM_BOT_TOKEN';
+  if (requestBotToken) return 'request';
+  return null;
+};
+
 const getBotToken = (requestBotToken) => (
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
   process.env.VITE_TELEGRAM_BOT_TOKEN ||
-  requestBotToken
+  requestBotToken ||
+  ''
 );
 
 const parseBody = (body) => {
@@ -52,23 +61,37 @@ export default async function handler(request, response) {
 
   const { chatId, message, parseMode, botToken: requestBotToken } = parseBody(request.body);
   const botToken = getBotToken(requestBotToken);
+  const tokenSource = getTokenSource(requestBotToken);
 
   if (!botToken) {
-    response.status(400).json({ error: 'Telegram bot token is not configured' });
+    response.status(400).json({
+      error: 'Telegram bot token is not configured',
+      code: 'NO_BOT_TOKEN',
+      tokenSource,
+    });
     return;
   }
 
   if (!chatId || typeof message !== 'string' || message.trim().length === 0) {
-    response.status(400).json({ error: 'chatId and message are required' });
+    response.status(400).json({
+      error: 'chatId and message are required',
+      code: 'BAD_REQUEST',
+      hasChatId: Boolean(chatId),
+      hasMessage: typeof message === 'string' && message.trim().length > 0,
+      tokenSource,
+    });
     return;
   }
 
   try {
     await sendMessage({ botToken, chatId, message: message.trim(), parseMode });
-    response.status(200).json({ ok: true });
+    response.status(200).json({ ok: true, tokenSource });
   } catch (error) {
     response.status(502).json({
       error: error instanceof Error ? error.message : 'Failed to send Telegram message',
+      code: 'TELEGRAM_API_ERROR',
+      chatId,
+      tokenSource,
     });
   }
 }

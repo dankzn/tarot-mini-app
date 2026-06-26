@@ -206,6 +206,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         console.error('❌ Не удалось загрузить админов для уведомления:', adminsError);
       }
 
+      const notificationErrors: string[] = [];
+
       const notificationResult = await notifyAdminNewBooking(
         adminTelegramIds,
         user.name || 'Клиент',
@@ -217,6 +219,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       if (!notificationResult.ok) {
         console.error('❌ Уведомление админу не отправлено:', notificationResult.error);
+        notificationErrors.push(`Админ: ${notificationResult.error}`);
       }
 
       if (user.telegram_id) {
@@ -229,10 +232,16 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
         if (!clientNotificationResult.ok) {
           console.error('❌ Уведомление клиенту не отправлено:', clientNotificationResult.error);
+          notificationErrors.push(`Клиент: ${clientNotificationResult.error}`);
         }
+      } else {
+        notificationErrors.push('Клиент: у пользователя нет telegram_id');
       }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+      if (notificationErrors.length > 0) {
+        alert(`Запись создана, но Telegram-уведомления не отправлены:\n\n${notificationErrors.join('\n')}`);
+      }
       onSuccess();
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
