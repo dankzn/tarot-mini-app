@@ -1073,12 +1073,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
                       </div>
                     </div>
 
-                    {priceState.nextPrice && priceState.priceIncreaseAt && !priceState.countdownTarget && (
-                      <div className="mb-3 rounded-2xl bg-white/65 px-3 py-2 text-xs font-bold text-[#6C756C]">
-                        Новая цена уже действует: {priceState.nextPrice} ₽
-                      </div>
-                    )}
-
                     {countdown && (
                       <div className={`mb-3 overflow-hidden rounded-[1.25rem] border p-3 ${
                         priceState.isPromoActive
@@ -1115,8 +1109,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
                               </>
                             ) : (
                               <>
-                                <p className="text-xs font-bold text-[#6C756C]">Сейчас {priceState.currentPrice} ₽</p>
-                                <p className="text-sm font-black text-[#385144]">будет {priceState.nextPrice} ₽</p>
+                                <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
+                                <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
                               </>
                             )}
                           </div>

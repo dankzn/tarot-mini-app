@@ -344,8 +344,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-bold text-[#6C756C]">Сейчас {priceState.currentPrice} ₽</p>
-                    <p className="text-sm font-black text-[#385144]">будет {priceState.nextPrice} ₽</p>
+                    <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
+                    <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
                   </>
                 )}
               </div>
