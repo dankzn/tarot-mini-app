@@ -41,6 +41,21 @@ interface DailyCard {
   message: string;
 }
 
+interface QuizOption {
+  id: string;
+  label: string;
+  description: string;
+  keywords: string[];
+  durationPreference?: 'short' | 'long';
+}
+
+interface QuizQuestion {
+  id: string;
+  title: string;
+  subtitle: string;
+  options: QuizOption[];
+}
+
 const consultationStatusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
   confirmed: 'Подтверждена',
@@ -112,6 +127,88 @@ const DAILY_CARDS: DailyCard[] = [
   },
 ];
 
+const SERVICE_QUIZ: QuizQuestion[] = [
+  {
+    id: 'request',
+    title: 'Что сейчас важнее всего?',
+    subtitle: 'Выберите самый близкий запрос — без идеальной формулировки.',
+    options: [
+      {
+        id: 'relationships',
+        label: 'Отношения и чувства',
+        description: 'Понять динамику, намерения, перспективу контакта.',
+        keywords: ['отнош', 'люб', 'чувств', 'партнер', 'партнёр', 'личн'],
+      },
+      {
+        id: 'choice',
+        label: 'Выбор или развилка',
+        description: 'Сравнить варианты и увидеть последствия решений.',
+        keywords: ['выбор', 'решен', 'вариант', 'развилк', 'ситуац'],
+      },
+      {
+        id: 'self',
+        label: 'Состояние и опора',
+        description: 'Вернуть ясность, ресурс и контакт с собой.',
+        keywords: ['себ', 'состоя', 'ресурс', 'путь', 'личн'],
+      },
+    ],
+  },
+  {
+    id: 'depth',
+    title: 'Насколько глубоко разбираем?',
+    subtitle: 'Это поможет не переплачивать за лишний формат.',
+    options: [
+      {
+        id: 'soft',
+        label: 'Быстро сориентироваться',
+        description: 'Нужен аккуратный прогноз или первая подсказка.',
+        keywords: ['карта', 'дня', 'мини', 'экспресс', 'прогноз'],
+        durationPreference: 'short',
+      },
+      {
+        id: 'classic',
+        label: 'Полноценный разбор',
+        description: 'Хочу структуру, детали и понятные следующие шаги.',
+        keywords: ['консультац', 'разбор', 'расклад', 'базов'],
+      },
+      {
+        id: 'deep',
+        label: 'Глубоко и обстоятельно',
+        description: 'Запрос сложный, хочется разобрать несколько слоёв.',
+        keywords: ['глуб', 'полноцен', 'веден', 'сопровожд', 'сложн'],
+        durationPreference: 'long',
+      },
+    ],
+  },
+  {
+    id: 'tempo',
+    title: 'Какой темп вам сейчас подходит?',
+    subtitle: 'Подберём формат под ваше состояние, а не наоборот.',
+    options: [
+      {
+        id: 'today',
+        label: 'Мягко и на сегодня',
+        description: 'Без перегруза, но с ясным ориентиром.',
+        keywords: ['день', 'прогноз', 'карта', 'мини'],
+        durationPreference: 'short',
+      },
+      {
+        id: 'soon',
+        label: 'Спокойно, но подробно',
+        description: 'Нужно время на разговор и нормальный контекст.',
+        keywords: ['консультац', 'расклад', 'разбор'],
+      },
+      {
+        id: 'longterm',
+        label: 'Хочу сопровождение',
+        description: 'Есть тема, к которой важно возвращаться.',
+        keywords: ['веден', 'сопровожд', 'личн', 'долг'],
+        durationPreference: 'long',
+      },
+    ],
+  },
+];
+
 const getStatusProgress = (currentStatus: string, totalConsultations: number) => {
   const currentIndex = Math.max(
     STATUS_MILESTONES.findIndex((status) => status.name === currentStatus),
@@ -171,6 +268,36 @@ const getDailyCard = (seed: string): DailyCard => {
   return DAILY_CARDS[hash % DAILY_CARDS.length];
 };
 
+const getServiceRecommendation = (services: Service[], selectedOptions: QuizOption[]) => {
+  if (services.length === 0) return null;
+
+  const scoredServices = services.map((service) => {
+    const title = service.title.toLowerCase();
+    const description = (service.description || '').toLowerCase();
+    const serviceText = `${title} ${description}`;
+
+    const score = selectedOptions.reduce((sum, option) => {
+      const keywordScore = option.keywords.reduce((keywordSum, keyword) => (
+        keywordSum + (serviceText.includes(keyword) ? 3 : 0)
+      ), 0);
+      const duration = service.duration_minutes || 60;
+      const durationScore =
+        option.durationPreference === 'short' && duration <= 45 ? 2 :
+        option.durationPreference === 'long' && duration >= 90 ? 2 :
+        0;
+
+      return sum + keywordScore + durationScore;
+    }, 0);
+
+    return { service, score };
+  });
+
+  return scoredServices.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return (a.service.price || 0) - (b.service.price || 0);
+  })[0].service;
+};
+
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +308,9 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [showPrivileges, setShowPrivileges] = useState(false);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
+  const [showServiceQuiz, setShowServiceQuiz] = useState(false);
+  const [quizStep, setQuizStep] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, QuizOption>>({});
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -320,6 +450,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
   const statusProgress = getStatusProgress(currentStatus, totalConsultations);
+  const selectedQuizOptions = Object.values(quizAnswers);
+  const recommendedService = getServiceRecommendation(services, selectedQuizOptions);
 
   const revealDailyCard = () => {
     try {
@@ -330,6 +462,34 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
     setIsDailyCardOpen(true);
+  };
+
+  const selectQuizOption = (question: QuizQuestion, option: QuizOption) => {
+    const nextAnswers = {
+      ...quizAnswers,
+      [question.id]: option,
+    };
+
+    setQuizAnswers(nextAnswers);
+
+    if (quizStep < SERVICE_QUIZ.length - 1) {
+      setQuizStep(quizStep + 1);
+    } else {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    }
+  };
+
+  const resetQuiz = () => {
+    setQuizStep(0);
+    setQuizAnswers({});
+  };
+
+  const bookRecommendedService = () => {
+    if (!recommendedService) return;
+
+    setSelectedService(recommendedService);
+    setShowServiceQuiz(false);
+    setShowBooking(true);
   };
 
   if (showBooking && selectedService) {
@@ -353,6 +513,151 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
   if (showHistory) {
     return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
+  }
+
+  if (showServiceQuiz) {
+    const currentQuestion = SERVICE_QUIZ[quizStep];
+    const isComplete = selectedQuizOptions.length === SERVICE_QUIZ.length;
+
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] p-4 text-[#2F463B]">
+        <div className="mx-auto max-w-xl">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+                service concierge
+              </p>
+              <h2 className="text-2xl font-black text-[#385144]">Подбор формата</h2>
+            </div>
+            <button
+              onClick={() => {
+                setShowServiceQuiz(false);
+                resetQuiz();
+              }}
+              className="rounded-2xl bg-white/80 px-4 py-3 text-sm font-black text-[#5E675D] shadow-sm"
+            >
+              Закрыть
+            </button>
+          </div>
+
+          <div className="mb-5 grid grid-cols-3 gap-2">
+            {SERVICE_QUIZ.map((question, index) => {
+              const isActive = index === quizStep && !isComplete;
+              const isDone = Boolean(quizAnswers[question.id]);
+
+              return (
+                <div
+                  key={question.id}
+                  className={`h-2 rounded-full transition ${
+                    isDone || isActive ? 'bg-[#385144]' : 'bg-white/75'
+                  }`}
+                />
+              );
+            })}
+          </div>
+
+          {isComplete && !recommendedService ? (
+            <div className="rounded-[2rem] border border-white/80 bg-white/80 p-5 text-center shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+              <p className="mb-2 text-2xl font-black text-[#385144]">Пока не из чего выбрать</p>
+              <p className="mb-5 text-sm leading-relaxed text-[#59645C]">
+                Услуги ещё загружаются или не добавлены. Вернитесь к каталогу и попробуйте чуть позже.
+              </p>
+              <button
+                onClick={() => {
+                  setShowServiceQuiz(false);
+                  resetQuiz();
+                }}
+                className="rounded-2xl bg-[#385144] px-5 py-3 font-black text-white"
+              >
+                Вернуться
+              </button>
+            </div>
+          ) : isComplete && recommendedService ? (
+            <div className="overflow-hidden rounded-[2rem] border border-white/80 bg-gradient-to-br from-[#FFF9F0] via-white to-[#EAF1EA] p-5 shadow-[0_20px_50px_rgba(56,81,68,0.14)]">
+              <div className="mb-5 rounded-[1.5rem] bg-[#385144] p-5 text-white">
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-white/65">
+                  рекомендация
+                </p>
+                <h3 className="text-2xl font-black leading-tight">
+                  {recommendedService.title}
+                </h3>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
+                    {recommendedService.duration_minutes ? `${recommendedService.duration_minutes} минут` : 'Индивидуально'}
+                  </span>
+                  <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
+                    {recommendedService.price} ₽
+                  </span>
+                </div>
+              </div>
+
+              {recommendedService.description && (
+                <p className="mb-5 text-sm leading-relaxed text-[#59645C]">
+                  {recommendedService.description}
+                </p>
+              )}
+
+              <div className="mb-5 rounded-2xl bg-white/75 p-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                  почему подходит
+                </p>
+                <div className="space-y-2">
+                  {selectedQuizOptions.map((option) => (
+                    <div key={option.id} className="flex items-start gap-2 text-sm text-[#59645C]">
+                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#B8795C]" />
+                      <span>{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={resetQuiz}
+                  className="flex-1 rounded-2xl bg-white/80 px-4 py-3 font-black text-[#385144]"
+                >
+                  Пройти заново
+                </button>
+                <button
+                  onClick={bookRecommendedService}
+                  className="flex-1 rounded-2xl bg-[#385144] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.20)]"
+                >
+                  Записаться
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[2rem] border border-white/80 bg-white/80 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                вопрос {quizStep + 1} из {SERVICE_QUIZ.length}
+              </p>
+              <h3 className="mb-2 text-2xl font-black leading-tight text-[#385144]">
+                {currentQuestion.title}
+              </h3>
+              <p className="mb-5 text-sm leading-relaxed text-[#59645C]">
+                {currentQuestion.subtitle}
+              </p>
+
+              <div className="space-y-3">
+                {currentQuestion.options.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => selectQuizOption(currentQuestion, option)}
+                    className="w-full rounded-[1.35rem] border border-[#385144]/10 bg-[#F8F3EC] p-4 text-left transition hover:border-[#385144]/25 hover:bg-white"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <span className="font-black text-[#385144]">{option.label}</span>
+                      <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                    </div>
+                    <p className="text-sm leading-relaxed text-[#6C756C]">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   if (showBonusInfo) {
@@ -531,6 +836,36 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </div>
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            resetQuiz();
+            setShowServiceQuiz(true);
+          }}
+          className="mb-4 w-full overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-left text-white shadow-[0_18px_45px_rgba(56,81,68,0.20)] transition hover:-translate-y-0.5"
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
+                not sure where to start?
+              </p>
+              <h3 className="text-xl font-black leading-tight">Помочь выбрать формат</h3>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12">
+              <Sparkles className="h-5 w-5 text-[#F4E7C8]" />
+            </div>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-white/76">
+            Ответьте на 3 коротких вопроса — я подберу услугу под ваш запрос и состояние.
+          </p>
+          <div className="flex items-center justify-between border-t border-white/15 pt-4">
+            <span className="text-sm font-bold text-white/80">Займёт меньше минуты</span>
+            <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-black text-[#385144]">
+              Начать
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </span>
+          </div>
+        </button>
 
         {upcomingConsultation && (
           <button
