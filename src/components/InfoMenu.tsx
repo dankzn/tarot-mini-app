@@ -25,7 +25,7 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
       />
 
       <div className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[92vh] max-w-xl flex-col overflow-hidden rounded-t-[2rem] bg-[#F8F3EC] shadow-[0_-20px_60px_rgba(17,17,17,0.24)] animate-slide-up">
-        <div className="relative overflow-hidden bg-[#385144] px-5 pb-5 pt-4 text-white">
+        <div className="relative overflow-hidden bg-[#385144] px-5 pb-4 pt-4 text-white">
           <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div>
@@ -33,9 +33,6 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
                 information space
               </p>
               <h2 className="text-2xl font-black">Информация</h2>
-              <p className="mt-1 text-sm font-medium text-white/70">
-                Коротко, спокойно и без лишней юридической простыни.
-              </p>
             </div>
             <button
               onClick={onClose}
