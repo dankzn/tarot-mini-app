@@ -70,29 +70,42 @@ def save_pending_referral(telegram_id: int, referrer_id: int):
         print(f"❌ Ошибка: {e}")
         return False
 
-def update_notification(notification_id: str, payload: dict):
+def update_notification(notification_id: str, payload: dict, status_filter: str = None):
+    params = {"id": f"eq.{notification_id}"}
+
+    if status_filter:
+        params["status"] = f"eq.{status_filter}"
+
     response = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/notification_queue?id=eq.{notification_id}",
+        f"{SUPABASE_URL}/rest/v1/notification_queue",
         headers={
             **supabase_headers(),
             "Prefer": "return=minimal",
         },
+        params=params,
         json=payload,
         timeout=10,
     )
 
     if response.status_code not in [200, 204]:
         print(f"❌ Ошибка обновления уведомления {notification_id}: {response.status_code} - {response.text}")
+        return False
+
+    return True
 
 def send_queued_notification(notification: dict):
     notification_id = notification["id"]
     attempts = int(notification.get("attempts") or 0) + 1
 
-    update_notification(notification_id, {
+    locked = update_notification(notification_id, {
         "status": "processing",
         "attempts": attempts,
         "error": None,
-    })
+    }, status_filter="pending")
+
+    if not locked:
+        print(f"⚠️ Уведомление {notification_id} не удалось взять в обработку")
+        return
 
     try:
         bot.send_message(
@@ -105,7 +118,7 @@ def send_queued_notification(notification: dict):
             "status": "sent",
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "error": None,
-        })
+        }, status_filter="processing")
         print(f"✅ Уведомление отправлено: {notification_id} → {notification['chat_id']}")
     except Exception as e:
         next_status = "failed" if attempts >= 3 else "pending"
@@ -114,7 +127,7 @@ def send_queued_notification(notification: dict):
         update_notification(notification_id, {
             "status": next_status,
             "error": error_message,
-        })
+        }, status_filter="processing")
         print(f"❌ Ошибка отправки уведомления {notification_id}: {error_message}")
 
 def run_notification_worker():

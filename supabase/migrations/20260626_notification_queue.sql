@@ -21,3 +21,18 @@ on public.notification_queue
 for insert
 to anon, authenticated
 with check (status = 'pending');
+
+drop policy if exists "Bot can read pending notifications" on public.notification_queue;
+create policy "Bot can read pending notifications"
+on public.notification_queue
+for select
+to anon, authenticated
+using (status in ('pending', 'processing'));
+
+drop policy if exists "Bot can update queued notifications" on public.notification_queue;
+create policy "Bot can update queued notifications"
+on public.notification_queue
+for update
+to anon, authenticated
+using (status in ('pending', 'processing'))
+with check (status in ('pending', 'processing', 'sent', 'failed'));
