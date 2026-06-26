@@ -14,13 +14,15 @@ import {
   ScrollText,
   Gift,
   CalendarCheck,
+  Home,
   MapPin,
   Clock,
   ChevronRight,
   Menu,
   Camera,
   Eye,
-  Leaf
+  Leaf,
+  UserCircle
 } from 'lucide-react';
 
 interface Service {
@@ -62,6 +64,8 @@ interface QuizQuestion {
   subtitle: string;
   options: QuizOption[];
 }
+
+type DashboardTab = 'home' | 'services' | 'cabinet' | 'menu';
 
 const consultationStatusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
@@ -318,6 +322,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [showServiceQuiz, setShowServiceQuiz] = useState(false);
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, QuizOption>>({});
+  const [activeTab, setActiveTab] = useState<DashboardTab>('home');
   const [clockNow, setClockNow] = useState(() => new Date());
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [totalConsultations, setTotalConsultations] = useState(0);
@@ -735,10 +740,10 @@ export const Dashboard = ({ user }: DashboardProps) => {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_38%,#F6EFE7_72%,#EFE6DA_100%)] p-4 pb-24 text-[#2F463B]">
       <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(135deg,rgba(56,81,68,0.16),rgba(184,121,92,0.08),transparent)]" />
       <div className="relative mx-auto max-w-xl">
-        {/* Шапка с бургер-меню */}
+        {/* Шапка */}
         <div className="mb-5 flex items-center justify-between">
           <button
-            onClick={() => setShowInfoMenu(true)}
+            onClick={() => setActiveTab('menu')}
             className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-[0_12px_30px_rgba(56,81,68,0.10)] backdrop-blur transition hover:border-[#385144]/30"
           >
             <Menu className="h-5 w-5 text-[#385144]" />
@@ -752,7 +757,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </div>
         </div>
 
-        {/* Карточка пользователя */}
+        {(activeTab === 'home' || activeTab === 'cabinet') && (
         <div className="relative mb-4 overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-[#FFFCF7] via-[#F5EFE7] to-[#E8EFE7] p-5 shadow-[0_22px_55px_rgba(56,81,68,0.16)]">
           <div className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[#DDE9E0]/80 blur-2xl" />
           <div className="absolute -bottom-16 left-8 h-32 w-32 rounded-full bg-[#E9D7C6]/70 blur-2xl" />
@@ -795,6 +800,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
               </div>
             </div>
 
+            {activeTab === 'cabinet' && (
             <button
               onClick={() => setShowPrivileges(true)}
               className="mb-3 w-full rounded-2xl border border-white/80 bg-white/75 p-4 text-left shadow-sm backdrop-blur transition hover:border-[#385144]/25"
@@ -823,7 +829,9 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 <ChevronRight className="h-4 w-4" />
               </div>
             </button>
+            )}
 
+            {activeTab === 'cabinet' && (
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setShowBonusInfo(true)}
@@ -849,34 +857,35 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 <p className="text-2xl font-black text-[#385144]">{totalConsultations}</p>
               </button>
             </div>
+            )}
           </div>
         </div>
+        )}
 
+        {activeTab === 'home' && (
+        <>
         <button
-          onClick={() => {
-            resetQuiz();
-            setShowServiceQuiz(true);
-          }}
+          onClick={() => setActiveTab('services')}
           className="mb-4 w-full overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-left text-white shadow-[0_18px_45px_rgba(56,81,68,0.20)] transition hover:-translate-y-0.5"
         >
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
-                not sure where to start?
+                book your reading
               </p>
-              <h3 className="text-xl font-black leading-tight">Помочь выбрать формат</h3>
+              <h3 className="text-xl font-black leading-tight">Выбрать консультацию</h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12">
-              <Sparkles className="h-5 w-5 text-[#F4E7C8]" />
+              <CalendarCheck className="h-5 w-5 text-[#F4E7C8]" />
             </div>
           </div>
           <p className="mb-4 text-sm leading-relaxed text-white/76">
-            Ответьте на 3 коротких вопроса — я подберу услугу под ваш запрос и состояние.
+            Каталог услуг, акции, таймеры и быстрый подбор формата — всё в отдельном разделе.
           </p>
           <div className="flex items-center justify-between border-t border-white/15 pt-4">
-            <span className="text-sm font-bold text-white/80">Займёт меньше минуты</span>
+            <span className="text-sm font-bold text-white/80">{services.length || 0} форматов</span>
             <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-black text-[#385144]">
-              Начать
+              Перейти
               <ChevronRight className="ml-1 h-4 w-4" />
             </span>
           </div>
@@ -922,15 +931,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
                 </p>
               </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between border-t border-white/15 pt-4">
-              <span className="text-sm text-white/72">
-                {upcomingConsultation.bonus_used > 0
-                  ? `Бонусами списано: ${upcomingConsultation.bonus_used} ₽`
-                  : 'Без списания бонусов'}
-              </span>
-              <span className="text-lg font-black">{upcomingConsultation.price} ₽</span>
             </div>
           </button>
         )}
@@ -984,8 +984,185 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </div>
           )}
         </div>
+        </>
+        )}
 
-        {/* Кнопки навигации */}
+        {activeTab === 'services' && (
+        <>
+        <button
+          onClick={() => {
+            resetQuiz();
+            setShowServiceQuiz(true);
+          }}
+          className="mb-4 w-full overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-left text-white shadow-[0_18px_45px_rgba(56,81,68,0.20)] transition hover:-translate-y-0.5"
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
+                not sure where to start?
+              </p>
+              <h3 className="text-xl font-black leading-tight">Помочь выбрать формат</h3>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12">
+              <Sparkles className="h-5 w-5 text-[#F4E7C8]" />
+            </div>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-white/76">
+            Ответьте на 3 коротких вопроса — я подберу услугу под ваш запрос и состояние.
+          </p>
+          <div className="flex items-center justify-between border-t border-white/15 pt-4">
+            <span className="text-sm font-bold text-white/80">Займёт меньше минуты</span>
+            <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-black text-[#385144]">
+              Начать
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </span>
+          </div>
+        </button>
+
+        {/* Список услуг */}
+        <div>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+              choose your reading
+            </p>
+            <h3 className="mt-1 flex items-center text-2xl font-black text-[#385144]">
+              <CalendarCheck className="mr-2 h-6 w-6" />
+              Услуги
+            </h3>
+          </div>
+          <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">
+            {services.length || 0} форматов
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+            <p className="text-[#6C756C]">Загрузка услуг...</p>
+          </div>
+        ) : services.length === 0 ? (
+          <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+            <p className="text-[#6C756C]">Услуги пока не добавлены</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {services.map((service, index) => {
+              const priceState = getServicePriceState(service, clockNow);
+              const countdown = formatCountdown(priceState.countdownTarget, clockNow);
+
+              return (
+                <div
+                  key={service.id}
+                  className={`overflow-hidden rounded-[1.6rem] border ${
+                    priceState.isPromoActive ? 'border-[#B8795C]/35' : 'border-white/80'
+                  } bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                          {priceState.isPromoActive ? priceState.promoTitle : getServiceBadge(service, index)}
+                        </span>
+                        {countdown && (
+                          <span className="inline-flex rounded-full bg-[#385144]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#385144]">
+                            {priceState.countdownLabel}: {countdown}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xl font-black leading-tight text-[#385144]">
+                        {service.title}
+                      </h4>
+                    </div>
+                    <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
+                      {priceState.currentPrice !== priceState.basePrice ? (
+                        <div>
+                          <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                          <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
+                        </div>
+                      ) : (
+                        <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {countdown && (
+                    <div className={`mb-3 overflow-hidden rounded-[1.25rem] border p-3 ${
+                      priceState.isPromoActive
+                        ? 'border-[#B8795C]/25 bg-[#FFF1E8]'
+                        : 'border-[#385144]/15 bg-[#EAF1EA]'
+                    }`}>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
+                          priceState.isPromoActive
+                            ? 'bg-[#B8795C] text-white'
+                            : 'bg-[#385144] text-white'
+                        }`}>
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          {priceState.isPromoActive ? 'Акция' : 'Скоро новая цена'}
+                        </span>
+                        <span className="rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-black text-[#385144]">
+                          {countdown}
+                        </span>
+                      </div>
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold text-[#6C756C]">
+                            {priceState.isPromoActive ? priceState.promoTitle : 'Успейте записаться по текущей цене'}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8A5A3F]/75">
+                            {priceState.countdownLabel}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {priceState.isPromoActive ? (
+                            <>
+                              <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                              <p className="text-xl font-black text-[#B8795C]">{priceState.currentPrice} ₽</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
+                              <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {service.description && (
+                    <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
+                      {service.description}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setSelectedService(service);
+                      setShowBooking(true);
+                    }}
+                    className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
+                  >
+                    <span className="inline-flex items-center">
+                      <CalendarCheck className="mr-2 h-4 w-4" />
+                      Записаться
+                    </span>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
+                      {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
+                      <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        </div>
+        </>
+        )}
+
+        {activeTab === 'cabinet' && (
         <div className="mb-7 grid grid-cols-2 gap-3">
           <button
             onClick={() => setShowHistory(true)}
@@ -1005,146 +1182,60 @@ export const Dashboard = ({ user }: DashboardProps) => {
             <p className="mt-1 text-xs leading-snug text-[#6C756C]">Бонусы за тёплые рекомендации</p>
           </button>
         </div>
+        )}
 
-        {/* Список услуг */}
-        <div>
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
-                choose your reading
-              </p>
-              <h3 className="mt-1 flex items-center text-2xl font-black text-[#385144]">
-                <CalendarCheck className="mr-2 h-6 w-6" />
-                Услуги
-              </h3>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">
-              {services.length || 0} форматов
-            </span>
+        {activeTab === 'menu' && (
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowInfoMenu(true)}
+              className="flex w-full items-center justify-between rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)]"
+            >
+              <span>
+                <span className="block font-black text-[#385144]">Информация</span>
+                <span className="mt-1 block text-xs text-[#6C756C]">Правила, контакты и полезные детали</span>
+              </span>
+              <ChevronRight className="h-5 w-5 text-[#8FA092]" />
+            </button>
+            <button
+              onClick={() => setShowReferral(true)}
+              className="flex w-full items-center justify-between rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)]"
+            >
+              <span>
+                <span className="block font-black text-[#385144]">Пригласить друга</span>
+                <span className="mt-1 block text-xs text-[#6C756C]">Реферальная ссылка и бонусы</span>
+              </span>
+              <ChevronRight className="h-5 w-5 text-[#8FA092]" />
+            </button>
           </div>
+        )}
+      </div>
 
-          {loading ? (
-            <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
-              <p className="text-[#6C756C]">Загрузка услуг...</p>
-            </div>
-          ) : services.length === 0 ? (
-            <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
-              <p className="text-[#6C756C]">Услуги пока не добавлены</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {services.map((service, index) => {
-                const priceState = getServicePriceState(service, clockNow);
-                const countdown = formatCountdown(priceState.countdownTarget, clockNow);
+      <div className="fixed inset-x-0 bottom-4 z-30 px-4">
+        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2 rounded-[1.5rem] border border-white/75 bg-white/85 p-2 shadow-[0_18px_45px_rgba(56,81,68,0.18)] backdrop-blur">
+          {[
+            { id: 'home' as DashboardTab, label: 'Главная', icon: Home },
+            { id: 'services' as DashboardTab, label: 'Услуги', icon: CalendarCheck },
+            { id: 'cabinet' as DashboardTab, label: 'Кабинет', icon: UserCircle },
+            { id: 'menu' as DashboardTab, label: 'Меню', icon: Menu },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-                return (
-                  <div
-                    key={service.id}
-                    className={`overflow-hidden rounded-[1.6rem] border ${
-                      priceState.isPromoActive ? 'border-[#B8795C]/35' : 'border-white/80'
-                    } bg-gradient-to-br ${getServiceAccent(index)} p-4 shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          <span className="inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
-                            {priceState.isPromoActive ? priceState.promoTitle : getServiceBadge(service, index)}
-                          </span>
-                          {countdown && (
-                            <span className="inline-flex rounded-full bg-[#385144]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#385144]">
-                              {priceState.countdownLabel}: {countdown}
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-xl font-black leading-tight text-[#385144]">
-                          {service.title}
-                        </h4>
-                      </div>
-                      <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
-                        {priceState.currentPrice !== priceState.basePrice ? (
-                          <div>
-                            <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
-                            <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
-                          </div>
-                        ) : (
-                          <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {countdown && (
-                      <div className={`mb-3 overflow-hidden rounded-[1.25rem] border p-3 ${
-                        priceState.isPromoActive
-                          ? 'border-[#B8795C]/25 bg-[#FFF1E8]'
-                          : 'border-[#385144]/15 bg-[#EAF1EA]'
-                      }`}>
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
-                            priceState.isPromoActive
-                              ? 'bg-[#B8795C] text-white'
-                              : 'bg-[#385144] text-white'
-                          }`}>
-                            <Sparkles className="mr-1 h-3 w-3" />
-                            {priceState.isPromoActive ? 'Акция' : 'Скоро новая цена'}
-                          </span>
-                          <span className="rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-black text-[#385144]">
-                            {countdown}
-                          </span>
-                        </div>
-                        <div className="flex items-end justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-bold text-[#6C756C]">
-                              {priceState.isPromoActive ? priceState.promoTitle : 'Успейте записаться по текущей цене'}
-                            </p>
-                            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8A5A3F]/75">
-                              {priceState.countdownLabel}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            {priceState.isPromoActive ? (
-                              <>
-                                <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
-                                <p className="text-xl font-black text-[#B8795C]">{priceState.currentPrice} ₽</p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
-                                <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {service.description && (
-                      <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
-                        {service.description}
-                      </p>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        setSelectedService(service);
-                        setShowBooking(true);
-                      }}
-                      className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
-                    >
-                      <span className="inline-flex items-center">
-                        <CalendarCheck className="mr-2 h-4 w-4" />
-                        Записаться
-                      </span>
-                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
-                        {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
-                        <ChevronRight className="h-4 w-4 text-[#8FA092]" />
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex flex-col items-center justify-center rounded-[1.1rem] px-2 py-2 text-[11px] font-black transition ${
+                  isActive
+                    ? 'bg-[#385144] text-white shadow-[0_10px_22px_rgba(56,81,68,0.18)]'
+                    : 'text-[#6C756C] hover:bg-[#F3EEE7]'
+                }`}
+              >
+                <Icon className="mb-1 h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
