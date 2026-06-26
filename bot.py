@@ -216,12 +216,17 @@ health_thread.start()
 notification_thread = threading.Thread(target=run_notification_worker, daemon=True)
 notification_thread.start()
 
-try:
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
-except ApiTelegramException as e:
-    if "Conflict" in str(e) or "409" in str(e):
-        print("❌ КОНФЛИКТ: Где-то уже работает другой бот!")
+while True:
+    try:
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except ApiTelegramException as e:
+        if "Conflict" in str(e) or "409" in str(e):
+            print("⚠️ КОНФЛИКТ polling: где-то уже работает другой экземпляр бота. Уведомления продолжают обрабатываться через очередь.")
+            time.sleep(60)
+            continue
+
+        print(f"❌ Ошибка Telegram polling: {e}")
+        time.sleep(15)
+    except Exception as e:
+        print(f"❌ Неожиданная ошибка polling: {e}")
         time.sleep(60)
-        exit(1)
-    else:
-        raise
