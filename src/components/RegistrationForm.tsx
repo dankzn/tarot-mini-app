@@ -192,7 +192,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
     <div className="min-h-screen bg-[#F8F5F2] p-4">
       <div className="max-w-md mx-auto pt-6">
         <div className="text-center mb-6">
-          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white text-3xl font-bold">
+          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-[#385144] via-[#6A7C69] to-[#B8795C] rounded-full flex items-center justify-center text-white text-3xl font-bold">
             {telegramUser?.first_name?.charAt(0) || 'U'}
           </div>
           <h1 className="text-2xl font-bold text-[#385144] mb-2">Добро пожаловать!</h1>

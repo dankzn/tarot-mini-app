@@ -235,10 +235,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             {useBonuses && bonusAmount > 0 ? (
               <div className="flex flex-col items-end">
                 <span className="text-gray-400 line-through text-sm">{originalPrice} ₽</span>
-                <span className="text-[#6B4EE6] font-bold text-xl">{finalPrice} ₽</span>
+                <span className="text-[#8A5A3F] font-bold text-xl">{finalPrice} ₽</span>
               </div>
             ) : (
-              <span className="text-[#D4AF37] font-bold text-xl">{originalPrice} ₽</span>
+              <span className="text-[#8A5A3F] font-bold text-xl">{originalPrice} ₽</span>
             )}
           </div>
         </div>
@@ -337,7 +337,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 <span>{selectedTime}</span>
               </div>
               <div className="flex items-center text-gray-700">
-                <span className="text-[#D4AF37]">₽</span>
+                <span className="text-[#8A5A3F]">₽</span>
                 <span className="font-bold">{finalPrice} ₽</span>
               </div>
             </div>
@@ -346,7 +346,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[#385144] font-bold flex items-center">
-                    <Sparkles className="w-5 h-5 mr-2 text-[#D4AF37]" />
+                    <Sparkles className="w-5 h-5 mr-2 text-[#B8795C]" />
                     Использовать бонусы?
                   </span>
                   <div 
@@ -363,7 +363,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 {useBonuses && (
                   <div className="bg-[#F8F5F2] p-4 rounded-xl border border-[#385144]/20">
                     <p className="text-gray-700 text-sm mb-2">
-                      Ваш баланс: <span className="text-[#D4AF37] font-bold">{userBalance} ₽</span>
+                      Ваш баланс: <span className="text-[#8A5A3F] font-bold">{userBalance} ₽</span>
                     </p>
                     <label className="text-gray-700 text-xs mb-1 block">Списать бонусов (макс. {maxBonusUsable}):</label>
                     <input

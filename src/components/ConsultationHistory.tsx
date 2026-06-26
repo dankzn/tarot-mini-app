@@ -12,7 +12,7 @@ interface ConsultationHistoryProps {
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
   confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
-  in_progress: 'bg-purple-100 text-purple-800 border-purple-300',
+  in_progress: 'bg-[#E7D8C9] text-[#8A5A3F] border-[#D8C0AC]',
   completed: 'bg-green-100 text-green-800 border-green-300',
   cancelled: 'bg-red-100 text-red-800 border-red-300',
 };
@@ -83,21 +83,21 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
 
               <div className="space-y-2 mb-4">
                 <div className="flex items-center text-gray-600 text-sm">
-                  <Calendar className="w-4 h-4 mr-2 text-[#6B4EE6]" />
+                  <Calendar className="w-4 h-4 mr-2 text-[#B8795C]" />
                   {consultation.scheduled_at 
                     ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
                     : 'Дата не указана'
                   }
                 </div>
                 <div className="flex items-center text-gray-600 text-sm">
-                  <Clock className="w-4 h-4 mr-2 text-[#6B4EE6]" />
+                  <Clock className="w-4 h-4 mr-2 text-[#B8795C]" />
                   {consultation.scheduled_at 
                     ? format(new Date(consultation.scheduled_at), 'HH:mm')
                     : ''
                   }
                 </div>
                 <div className="flex items-center text-gray-600 text-sm">
-                  <DollarSign className="w-4 h-4 mr-2 text-[#6B4EE6]" />
+                  <DollarSign className="w-4 h-4 mr-2 text-[#B8795C]" />
                   <span className="font-bold text-[#385144]">{consultation.price} ₽</span>
                   {consultation.bonus_used > 0 && (
                     <span className="ml-2 text-xs text-gray-500">
@@ -108,9 +108,9 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
               </div>
 
               {consultation.admin_notes && consultation.status === 'completed' && (
-                <div className="bg-[#F8F5F2] border-l-4 border-[#6B4EE6] p-4 rounded-r-xl mb-3">
+                <div className="bg-[#F8F5F2] border-l-4 border-[#B8795C] p-4 rounded-r-xl mb-3">
                   <div className="flex items-start">
-                    <FileText className="w-5 h-5 mr-2 text-[#6B4EE6] flex-shrink-0 mt-0.5" />
+                    <FileText className="w-5 h-5 mr-2 text-[#B8795C] flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-[#385144] text-xs font-bold mb-1">Рекомендации:</p>
                       <p className="text-gray-700 text-sm whitespace-pre-wrap">{consultation.admin_notes}</p>
@@ -128,9 +128,9 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
 
               {consultation.bonus_paid > 0 && (
                 <div className="mt-3 flex items-center text-sm">
-                  <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
+                  <Sparkles className="w-4 h-4 mr-1 text-[#B8795C]" />
                   <span className="text-gray-600">Начислено бонусов:</span>
-                  <span className="text-[#D4AF37] font-bold ml-1">+{consultation.bonus_paid} ₽</span>
+                  <span className="text-[#8A5A3F] font-bold ml-1">+{consultation.bonus_paid} ₽</span>
                 </div>
               )}
 

@@ -39,9 +39,65 @@ const consultationStatusLabels: Record<string, string> = {
 };
 
 const consultationStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  confirmed: 'bg-blue-100 text-blue-800',
-  in_progress: 'bg-purple-100 text-purple-800',
+  pending: 'bg-[#F4E7C8] text-[#7A5A21]',
+  confirmed: 'bg-[#DDE9E0] text-[#385144]',
+  in_progress: 'bg-[#E7D8C9] text-[#8A5A3F]',
+};
+
+const STATUS_MILESTONES = [
+  { name: 'Первое знакомство', consultations: 0 },
+  { name: 'Basic', consultations: 1 },
+  { name: 'Silver', consultations: 3 },
+  { name: 'Gold', consultations: 6 },
+  { name: 'Platinum', consultations: 11 },
+];
+
+const getStatusProgress = (currentStatus: string, totalConsultations: number) => {
+  const currentIndex = Math.max(
+    STATUS_MILESTONES.findIndex((status) => status.name === currentStatus),
+    0
+  );
+  const current = STATUS_MILESTONES[currentIndex];
+  const next = STATUS_MILESTONES[currentIndex + 1];
+
+  if (!next) {
+    return {
+      label: 'Максимальный уровень заботы открыт',
+      progress: 100,
+      remaining: 0,
+    };
+  }
+
+  const consultationsInLevel = Math.max(totalConsultations - current.consultations, 0);
+  const consultationsNeeded = next.consultations - current.consultations;
+  const remaining = Math.max(next.consultations - totalConsultations, 0);
+
+  return {
+    label: `До ${next.name}: ${remaining} ${remaining === 1 ? 'консультация' : 'консультации'}`,
+    progress: Math.min(Math.round((consultationsInLevel / consultationsNeeded) * 100), 100),
+    remaining,
+  };
+};
+
+const getServiceBadge = (service: Service, index: number) => {
+  const title = service.title.toLowerCase();
+
+  if (title.includes('карта') || title.includes('new')) return 'Новый формат';
+  if (index === 0) return 'Мягкий вход';
+  if (service.duration_minutes && service.duration_minutes >= 90) return 'Глубокий разбор';
+  if (service.price >= 3000) return 'Для сложного запроса';
+
+  return 'Индивидуально';
+};
+
+const getServiceAccent = (index: number) => {
+  const accents = [
+    'from-[#F7F0E7] via-white to-[#EEF3EE]',
+    'from-[#EEF3EE] via-white to-[#F3E8DA]',
+    'from-[#F7EFE8] via-white to-[#E8EFE7]',
+  ];
+
+  return accents[index % accents.length];
 };
 
 export const Dashboard = ({ user }: DashboardProps) => {
@@ -172,16 +228,17 @@ export const Dashboard = ({ user }: DashboardProps) => {
   };
 
   const statusColors: Record<string, string> = {
-    'Первое знакомство': 'bg-gray-200 text-gray-700',
-    'Basic': 'bg-blue-100 text-blue-700',
-    'Silver': 'bg-gray-100 text-gray-600',
-    'Gold': 'bg-yellow-100 text-yellow-700',
-    'Platinum': 'bg-purple-100 text-purple-700',
-    'Личное ведение': 'bg-[#6B4EE6]/10 text-[#6B4EE6]',
+    'Первое знакомство': 'bg-[#ECE7DF] text-[#5E675D]',
+    'Basic': 'bg-[#E1ECE5] text-[#385144]',
+    'Silver': 'bg-[#ECEFF0] text-[#5B6464]',
+    'Gold': 'bg-[#F1E3C4] text-[#7A5A21]',
+    'Platinum': 'bg-[#E8DED2] text-[#8A5A3F]',
+    'Личное ведение': 'bg-[#DDE9E0] text-[#385144]',
   };
 
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
+  const statusProgress = getStatusProgress(currentStatus, totalConsultations);
 
   if (showBooking && selectedService) {
     return (
@@ -222,7 +279,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
         <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <span className="text-gray-600">Текущий баланс:</span>
-            <span className="text-[#D4AF37] font-bold text-2xl">{user.bonus_balance || 0} ₽</span>
+            <span className="text-[#8A5A3F] font-bold text-2xl">{user.bonus_balance || 0} ₽</span>
           </div>
           <p className="text-gray-500 text-xs">Кэшбэк 5% с каждой консультации</p>
         </div>
@@ -263,230 +320,281 @@ export const Dashboard = ({ user }: DashboardProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F5F2] p-4 pb-20">
-      {/* Шапка с бургер-меню */}
-      <div className="flex justify-between items-center mb-4">
-        <button
-          onClick={() => setShowInfoMenu(true)}
-          className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-[#385144] transition"
-        >
-          <Menu className="w-5 h-5 text-[#385144]" />
-        </button>
-        
-        <h1 className="text-[#385144] font-bold text-lg">Tarot by Danil</h1>
-      </div>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_38%,#F6EFE7_72%,#EFE6DA_100%)] p-4 pb-24 text-[#2F463B]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-48 bg-[linear-gradient(135deg,rgba(56,81,68,0.16),rgba(184,121,92,0.08),transparent)]" />
+      <div className="relative mx-auto max-w-xl">
+        {/* Шапка с бургер-меню */}
+        <div className="mb-5 flex items-center justify-between">
+          <button
+            onClick={() => setShowInfoMenu(true)}
+            className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-[0_12px_30px_rgba(56,81,68,0.10)] backdrop-blur transition hover:border-[#385144]/30"
+          >
+            <Menu className="h-5 w-5 text-[#385144]" />
+          </button>
 
-      {/* Карточка пользователя */}
-      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-gray-100">
-        <div className="flex items-center space-x-3 mb-4">
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8A5A3F]/70">
+              personal tarot space
+            </p>
+            <h1 className="text-xl font-black tracking-tight text-[#385144]">Tarot by Danil</h1>
+          </div>
+        </div>
+
+        {/* Карточка пользователя */}
+        <div className="relative mb-4 overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-[#FFFCF7] via-[#F5EFE7] to-[#E8EFE7] p-5 shadow-[0_22px_55px_rgba(56,81,68,0.16)]">
+          <div className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[#DDE9E0]/80 blur-2xl" />
+          <div className="absolute -bottom-16 left-8 h-32 w-32 rounded-full bg-[#E9D7C6]/70 blur-2xl" />
           <div className="relative">
-            {profilePhoto ? (
-              <img 
-                src={profilePhoto} 
-                alt="Profile" 
-                className="w-14 h-14 rounded-full object-cover border-2 border-[#385144]"
-              />
-            ) : (
-              <div className="w-14 h-14 bg-gradient-to-br from-[#385144] to-[#6B4EE6] rounded-full flex items-center justify-center text-white font-bold text-xl">
-                {user.name?.charAt(0) || 'U'}
+            <div className="mb-5 flex items-start gap-4">
+              <div className="relative shrink-0">
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt="Profile"
+                    className="h-20 w-20 rounded-[1.5rem] border-4 border-white object-cover shadow-lg"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-[1.5rem] border-4 border-white bg-gradient-to-br from-[#385144] via-[#5B705F] to-[#B8795C] text-2xl font-black text-white shadow-lg">
+                    {user.name?.charAt(0) || 'U'}
+                  </div>
+                )}
+                <label className="absolute -bottom-2 -right-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-[#385144] shadow-md">
+                  <Camera className="h-4 w-4 text-white" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                </label>
               </div>
-            )}
-            <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#385144] rounded-full flex items-center justify-center cursor-pointer border-2 border-white">
-              <Camera className="w-3 h-3 text-white" />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
-            </label>
-          </div>
-          <div className="flex-1">
-            <h2 className="text-[#385144] font-bold text-lg">{user.name || 'Пользователь'}</h2>
-            <div className="flex items-center text-gray-500 text-sm">
-              <MapPin className="w-3 h-3 mr-1" />
-              {user.city || 'Город не указан'}
+
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                  Личный кабинет
+                </p>
+                <h2 className="truncate text-2xl font-black leading-tight text-[#385144]">
+                  {user.name || 'Пользователь'}
+                </h2>
+                <div className="mt-2 flex items-center text-sm text-[#5E675D]">
+                  <MapPin className="mr-1 h-4 w-4" />
+                  {user.city || 'Город не указан'}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowPrivileges(true)}
+              className="mb-3 w-full rounded-2xl border border-white/80 bg-white/75 p-4 text-left shadow-sm backdrop-blur transition hover:border-[#385144]/25"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                    Статус клиента
+                  </p>
+                  <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-black ${statusColor}`}>
+                    {currentStatus}
+                  </span>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#DDE9E0] text-[#385144]">
+                  <Crown className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#E5DED5]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#385144] to-[#8A9B7B]"
+                  style={{ width: `${statusProgress.progress}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-[#6C756C]">
+                <span>{statusProgress.label}</span>
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </button>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowBonusInfo(true)}
+                className="rounded-2xl border border-white/80 bg-white/75 p-4 text-left shadow-sm backdrop-blur transition hover:border-[#B8795C]/35"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <Sparkles className="h-5 w-5 text-[#B8795C]" />
+                  <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C756C]">Бонусы</p>
+                <p className="text-2xl font-black text-[#8A5A3F]">{user.bonus_balance || 0} ₽</p>
+              </button>
+
+              <button
+                onClick={() => setShowHistory(true)}
+                className="rounded-2xl border border-white/80 bg-white/75 p-4 text-left shadow-sm backdrop-blur transition hover:border-[#385144]/25"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <ScrollText className="h-5 w-5 text-[#385144]" />
+                  <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C756C]">Опыт</p>
+                <p className="text-2xl font-black text-[#385144]">{totalConsultations}</p>
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <button 
-            onClick={() => setShowPrivileges(true)}
-            className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
+        {upcomingConsultation && (
+          <button
+            onClick={() => setShowHistory(true)}
+            className="mb-4 w-full overflow-hidden rounded-[1.75rem] bg-[#385144] p-5 text-left text-white shadow-[0_18px_45px_rgba(56,81,68,0.22)] transition hover:bg-[#2d4238]"
           >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center">
-                <Crown className="w-4 h-4 mr-1 text-[#D4AF37]" />
-                <span className="text-gray-500 text-xs">Статус</span>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-[#DDE9E0]/80">
+                  Активная запись
+                </p>
+                <h3 className="text-xl font-black leading-tight">
+                  {upcomingConsultation.services?.title || 'Консультация'}
+                </h3>
               </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
+                consultationStatusColors[upcomingConsultation.status] || 'bg-white/15 text-white'
+              }`}>
+                {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+              </span>
             </div>
-            <span className={`inline-block px-2 py-1 rounded-lg text-xs font-bold ${statusColor}`}>
-              {currentStatus}
-            </span>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                <div className="mb-1 flex items-center text-xs text-white/70">
+                  <CalendarCheck className="mr-1 h-3 w-3" />
+                  Дата
+                </div>
+                <p className="text-sm font-black">
+                  {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
+                <div className="mb-1 flex items-center text-xs text-white/70">
+                  <Clock className="mr-1 h-3 w-3" />
+                  Время
+                </div>
+                <p className="text-sm font-black">
+                  {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between border-t border-white/15 pt-4">
+              <span className="text-sm text-white/72">
+                {upcomingConsultation.bonus_used > 0
+                  ? `Бонусами списано: ${upcomingConsultation.bonus_used} ₽`
+                  : 'Без списания бонусов'}
+              </span>
+              <span className="text-lg font-black">{upcomingConsultation.price} ₽</span>
+            </div>
+          </button>
+        )}
+
+        {/* Кнопки навигации */}
+        <div className="mb-7 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setShowHistory(true)}
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#385144]/25"
+          >
+            <ScrollText className="mb-4 h-6 w-6 text-[#385144]" />
+            <p className="font-black text-[#385144]">История</p>
+            <p className="mt-1 text-xs leading-snug text-[#6C756C]">Записи, статусы и рекомендации</p>
           </button>
 
-          <button 
-            onClick={() => setShowBonusInfo(true)}
-            className="bg-[#F8F5F2] rounded-xl p-3 border border-gray-100 hover:border-[#385144] transition text-left"
+          <button
+            onClick={() => setShowReferral(true)}
+            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#B8795C]/35"
           >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center">
-                <Sparkles className="w-4 h-4 mr-1 text-[#D4AF37]" />
-                <span className="text-gray-500 text-xs">Бонусы</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-            </div>
-            <span className="text-[#D4AF37] font-bold text-lg">
-              {user.bonus_balance || 0} ₽
-            </span>
+            <Gift className="mb-4 h-6 w-6 text-[#B8795C]" />
+            <p className="font-black text-[#385144]">Пригласить</p>
+            <p className="mt-1 text-xs leading-snug text-[#6C756C]">Бонусы за тёплые рекомендации</p>
           </button>
         </div>
-      </div>
 
-      {upcomingConsultation && (
-        <button
-          onClick={() => setShowHistory(true)}
-          className="w-full bg-[#385144] text-white rounded-2xl p-5 mb-4 shadow-sm text-left hover:bg-[#2d4238] transition"
-        >
-          <div className="flex items-start justify-between gap-3 mb-4">
+        {/* Список услуг */}
+        <div>
+          <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <p className="text-white/70 text-xs font-bold uppercase mb-1">
-                Активная запись
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+                choose your reading
               </p>
-              <h3 className="font-bold text-lg leading-tight">
-                {upcomingConsultation.services?.title || 'Консультация'}
+              <h3 className="mt-1 flex items-center text-2xl font-black text-[#385144]">
+                <CalendarCheck className="mr-2 h-6 w-6" />
+                Услуги
               </h3>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
-              consultationStatusColors[upcomingConsultation.status] || 'bg-white/15 text-white'
-            }`}>
-              {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">
+              {services.length || 0} форматов
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/10 rounded-xl p-3">
-              <div className="flex items-center text-white/70 text-xs mb-1">
-                <CalendarCheck className="w-3 h-3 mr-1" />
-                Дата
-              </div>
-              <p className="font-bold text-sm">
-                {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
-              </p>
+          {loading ? (
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+              <p className="text-[#6C756C]">Загрузка услуг...</p>
             </div>
-            <div className="bg-white/10 rounded-xl p-3">
-              <div className="flex items-center text-white/70 text-xs mb-1">
-                <Clock className="w-3 h-3 mr-1" />
-                Время
-              </div>
-              <p className="font-bold text-sm">
-                {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
-              </p>
+          ) : services.length === 0 ? (
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+              <p className="text-[#6C756C]">Услуги пока не добавлены</p>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/15">
-            <span className="text-white/70 text-sm">
-              {upcomingConsultation.bonus_used > 0
-                ? `С учетом бонусов: ${upcomingConsultation.bonus_used} ₽`
-                : 'Без списания бонусов'}
-            </span>
-            <span className="font-bold text-lg">{upcomingConsultation.price} ₽</span>
-          </div>
-        </button>
-      )}
-
-      {/* Кнопки навигации */}
-      <div className="grid grid-cols-1 gap-3 mb-6">
-        <button 
-          onClick={() => setShowHistory(true)}
-          className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm"
-        >
-          <div className="flex items-center">
-            <ScrollText className="w-5 h-5 mr-3 text-[#6B4EE6]" />
-            <div>
-              <span>История консультаций</span>
-              {upcomingConsultation && (
-                <p className="text-gray-500 text-xs font-normal mt-0.5">
-                  Все записи и рекомендации
-                </p>
-              )}
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </button>
-
-        <button 
-          onClick={() => setShowReferral(true)}
-          className="bg-white text-[#385144] p-4 rounded-xl font-bold text-left flex items-center justify-between hover:bg-gray-50 transition border border-gray-100 shadow-sm"
-        >
-          <div className="flex items-center">
-            <Gift className="w-5 h-5 mr-3 text-[#6B4EE6]" />
-            <span>Пригласить друга</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </button>
-      </div>
-
-      {/* Список услуг */}
-      <div>
-        <h3 className="text-[#385144] font-bold mb-3 flex items-center">
-          <CalendarCheck className="w-5 h-5 mr-2" />
-          Услуги
-        </h3>
-        
-        {loading ? (
-          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-            <p className="text-gray-500">Загрузка услуг...</p>
-          </div>
-        ) : services.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-            <p className="text-gray-500">Услуги пока не добавлены</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {services.map((service) => (
-              <div 
-                key={service.id} 
-                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-[#385144] font-bold text-lg flex-1 pr-2">
-                    {service.title}
-                  </h4>
-                  <div className="flex items-center text-[#D4AF37] font-bold text-xl">
-                    <span className="mr-1">₽</span>
-                    <span>{service.price}</span>
-                  </div>
-                </div>
-
-                {service.description && (
-                  <p className="text-gray-600 text-sm mb-3">{service.description}</p>
-                )}
-
-                {service.duration_minutes && (
-                  <div className="flex items-center text-gray-500 text-xs mb-3">
-                    <Clock className="w-3 h-3 mr-1" />
-                    {service.duration_minutes} минут
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    setSelectedService(service);
-                    setShowBooking(true);
-                  }}
-                  className="w-full bg-[#385144] text-white py-3 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+          ) : (
+            <div className="space-y-4">
+              {services.map((service, index) => (
+                <div
+                  key={service.id}
+                  className={`overflow-hidden rounded-[1.8rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(index)} p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(56,81,68,0.15)]`}
                 >
-                  <CalendarCheck className="w-4 h-4 mr-2" />
-                  Записаться
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="mb-3 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                        {getServiceBadge(service, index)}
+                      </span>
+                      <h4 className="text-2xl font-black leading-tight text-[#385144]">
+                        {service.title}
+                      </h4>
+                    </div>
+                    <div className="shrink-0 rounded-2xl bg-white/80 px-4 py-3 text-right shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8FA092]">стоимость</p>
+                      <p className="text-xl font-black text-[#8A5A3F]">{service.price} ₽</p>
+                    </div>
+                  </div>
+
+                  {service.description && (
+                    <p className="mb-4 text-[15px] leading-relaxed text-[#59645C]">
+                      {service.description}
+                    </p>
+                  )}
+
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {service.duration_minutes && (
+                      <span className="inline-flex items-center rounded-full bg-[#385144]/10 px-3 py-2 text-xs font-bold text-[#385144]">
+                        <Clock className="mr-1.5 h-3.5 w-3.5" />
+                        {service.duration_minutes} минут
+                      </span>
+                    )}
+                    <span className="inline-flex items-center rounded-full bg-[#B8795C]/10 px-3 py-2 text-xs font-bold text-[#8A5A3F]">
+                      <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                      Личный разбор
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSelectedService(service);
+                      setShowBooking(true);
+                    }}
+                    className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.20)] transition hover:bg-[#2d4238]"
+                  >
+                    <CalendarCheck className="mr-2 h-5 w-5" />
+                    Записаться на консультацию
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Модальные окна */}

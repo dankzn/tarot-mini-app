@@ -57,7 +57,7 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
         {/* Шапка */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center rounded-t-3xl z-10">
           <h2 className="text-xl font-bold text-[#385144] flex items-center">
-            <Gift className="w-6 h-6 mr-2 text-[#6B4EE6]" />
+            <Gift className="w-6 h-6 mr-2 text-[#B8795C]" />
             Пригласи друга
           </h2>
           <button 
@@ -70,7 +70,7 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
 
         <div className="p-6">
           {/* Статистика */}
-          <div className="bg-gradient-to-br from-[#6B4EE6] to-[#385144] rounded-2xl p-5 mb-6 text-white">
+          <div className="bg-gradient-to-br from-[#B8795C] to-[#385144] rounded-2xl p-5 mb-6 text-white">
             <div className="flex items-center justify-between mb-2">
               <span className="text-white/80 text-sm">Вы пригласили:</span>
               <Users className="w-5 h-5" />
@@ -147,7 +147,7 @@ export const ReferralProgram = ({ user, onClose }: ReferralProgramProps) => {
           {/* Кнопка поделиться */}
           <button
             onClick={shareLink}
-            className="w-full bg-[#6B4EE6] text-white py-3 rounded-xl font-bold hover:bg-[#5a3fd4] transition flex items-center justify-center gap-2"
+            className="w-full bg-[#385144] text-white py-3 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center gap-2"
           >
             <Gift className="w-5 h-5" />
             Поделиться в Telegram

@@ -5,9 +5,11 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #1a0b2e 0%, #2d1b4e 100%);
+  background:
+    radial-gradient(circle at top left, rgba(221, 233, 224, 0.85), transparent 34%),
+    linear-gradient(135deg, #F8F3EC 0%, #EFE6DA 100%);
   min-height: 100vh;
-  color: white;
+  color: #2F463B;
 }
 
 @keyframes fade-in {
