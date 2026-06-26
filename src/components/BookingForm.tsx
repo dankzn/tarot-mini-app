@@ -218,19 +218,52 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
   const availableSlotOptions = buildSlotOptions(allSlots, duration);
   const bookedSlots = allSlots.filter(slot => slot.is_booked);
+  const stepLabels = ['Дата', 'Время', 'Детали'];
 
   return (
-    <div className="min-h-screen bg-[#F8F5F2] p-4">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-[#385144]">Запись на консультацию</h2>
-        <button onClick={onCancel} className="text-gray-500 hover:text-[#385144]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] p-4 text-[#2F463B]">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+            booking
+          </p>
+          <h2 className="text-2xl font-black text-[#385144]">Запись на консультацию</h2>
+        </div>
+        <button onClick={onCancel} className="rounded-2xl bg-white/80 p-3 text-gray-500 shadow-sm transition hover:text-[#385144]">
           <X className="w-6 h-6" />
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        {stepLabels.map((label, index) => {
+          const stepNumber = index + 1;
+          const isActive = step === stepNumber;
+          const isDone = step > stepNumber;
+
+          return (
+            <div
+              key={label}
+              className={`rounded-2xl border p-3 text-center text-xs font-black transition ${
+                isActive || isDone
+                  ? 'border-[#385144]/20 bg-[#385144] text-white shadow-[0_10px_24px_rgba(56,81,68,0.16)]'
+                  : 'border-white/80 bg-white/70 text-[#6C756C]'
+              }`}
+            >
+              <span className="mb-1 block text-[10px] opacity-75">0{stepNumber}</span>
+              {label}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mb-6 rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#FFF9F0] via-white to-[#EAF1EA] p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
         <div className="flex justify-between items-start mb-3">
-          <h3 className="text-[#385144] font-bold text-lg flex-1">{service.title}</h3>
+          <div className="flex-1 pr-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+              выбранный формат
+            </p>
+            <h3 className="text-[#385144] font-black text-xl leading-tight">{service.title}</h3>
+          </div>
           <div className="text-right ml-3">
             {useBonuses && bonusAmount > 0 ? (
               <div className="flex flex-col items-end">
@@ -252,7 +285,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       </div>
 
       {step === 1 && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
           <h3 className="text-[#385144] font-bold mb-4 flex items-center">
             <CalendarIcon className="w-5 h-5 mr-2" />
             Выберите дату
@@ -277,7 +310,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
       )}
 
       {step === 2 && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[#385144] font-bold flex items-center">
               <Clock className="w-5 h-5 mr-2" />
@@ -297,7 +330,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 <button
                   key={slotOption.id}
                   onClick={() => handleTimeSelect(slotOption)}
-                  className="p-3 rounded-lg font-bold transition bg-[#385144] text-white hover:bg-[#2d4238]"
+                  className="p-3 rounded-2xl font-bold transition bg-[#385144] text-white hover:bg-[#2d4238] shadow-sm"
                 >
                   {slotOption.time}
                 </button>
@@ -308,7 +341,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   <button
                     key={slot.id}
                     disabled
-                    className="p-3 rounded-lg font-bold bg-gray-200 text-gray-400 cursor-not-allowed"
+                    className="p-3 rounded-2xl font-bold bg-gray-200 text-gray-400 cursor-not-allowed"
                   >
                     {slotTime}
                   </button>
@@ -321,7 +354,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[#385144] font-bold">Подтверждение</h3>
               <button onClick={() => setStep(2)} className="text-gray-500 text-sm">← Назад</button>
@@ -389,7 +422,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
             <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
               <MessageSquare className="w-4 h-4 mr-2" />
               Комментарий (необязательно)
@@ -408,7 +441,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex-1 bg-[#385144] text-white p-4 rounded-xl font-bold hover:bg-[#2d4238] transition disabled:opacity-50"
+              className="flex-1 bg-[#385144] text-white p-4 rounded-2xl font-bold hover:bg-[#2d4238] transition disabled:opacity-50 shadow-[0_12px_28px_rgba(56,81,68,0.20)]"
             >
               {loading ? 'Отправка...' : 'Подтвердить запись'}
             </button>

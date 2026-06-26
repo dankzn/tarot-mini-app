@@ -17,7 +17,9 @@ import {
   Clock,
   ChevronRight,
   Menu,
-  Camera
+  Camera,
+  Eye,
+  Leaf
 } from 'lucide-react';
 
 interface Service {
@@ -30,6 +32,13 @@ interface Service {
 
 interface DashboardProps {
   user: any;
+}
+
+interface DailyCard {
+  name: string;
+  arcana: string;
+  focus: string;
+  message: string;
 }
 
 const consultationStatusLabels: Record<string, string> = {
@@ -50,6 +59,57 @@ const STATUS_MILESTONES = [
   { name: 'Silver', consultations: 3 },
   { name: 'Gold', consultations: 6 },
   { name: 'Platinum', consultations: 11 },
+];
+
+const DAILY_CARDS: DailyCard[] = [
+  {
+    name: 'Маг',
+    arcana: 'I аркан',
+    focus: 'Инициатива',
+    message: 'Сегодня лучше не ждать идеального момента, а мягко начать с первого точного действия.',
+  },
+  {
+    name: 'Жрица',
+    arcana: 'II аркан',
+    focus: 'Интуиция',
+    message: 'Ответ уже ближе, чем кажется. Оставьте пространство тишине и не спорьте с внутренним знанием.',
+  },
+  {
+    name: 'Императрица',
+    arcana: 'III аркан',
+    focus: 'Забота',
+    message: 'День просит телесности, красоты и бережного отношения к себе. Не обесценивайте простые радости.',
+  },
+  {
+    name: 'Колесница',
+    arcana: 'VII аркан',
+    focus: 'Движение',
+    message: 'Важен не рывок, а управление. Выберите направление и не распыляйтесь на чужие маршруты.',
+  },
+  {
+    name: 'Сила',
+    arcana: 'VIII аркан',
+    focus: 'Мягкая власть',
+    message: 'Сегодня работает спокойная уверенность. Не давите — ведите ситуацию через выдержку.',
+  },
+  {
+    name: 'Отшельник',
+    arcana: 'IX аркан',
+    focus: 'Ясность',
+    message: 'Полезно сократить шум и услышать собственную позицию. Не каждый ответ должен быть быстрым.',
+  },
+  {
+    name: 'Звезда',
+    arcana: 'XVII аркан',
+    focus: 'Восстановление',
+    message: 'День возвращает веру в себя маленькими знаками. Поддержите то, что внутри ещё светится.',
+  },
+  {
+    name: 'Солнце',
+    arcana: 'XIX аркан',
+    focus: 'Открытость',
+    message: 'Не прячьте радость и результат. Сегодня честная проявленность сильнее идеальной стратегии.',
+  },
 ];
 
 const getStatusProgress = (currentStatus: string, totalConsultations: number) => {
@@ -100,6 +160,17 @@ const getServiceAccent = (index: number) => {
   return accents[index % accents.length];
 };
 
+const getDailyCardDateKey = () => new Date().toISOString().slice(0, 10);
+
+const getDailyCard = (seed: string): DailyCard => {
+  const dateKey = getDailyCardDateKey();
+  const hash = `${seed}-${dateKey}`.split('').reduce((acc, char) => (
+    (acc * 31 + char.charCodeAt(0)) % 9973
+  ), 7);
+
+  return DAILY_CARDS[hash % DAILY_CARDS.length];
+};
+
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,6 +185,16 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [upcomingConsultation, setUpcomingConsultation] = useState<any>(null);
+  const dailyCardSeed = String(user.telegram_id || user.id || user.name || 'guest');
+  const dailyCard = getDailyCard(dailyCardSeed);
+  const dailyCardStorageKey = `tarot-daily-card:${dailyCardSeed}:${getDailyCardDateKey()}`;
+  const [isDailyCardOpen, setIsDailyCardOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(dailyCardStorageKey) === 'open';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     loadServices();
@@ -239,6 +320,17 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const currentStatus = user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
   const statusProgress = getStatusProgress(currentStatus, totalConsultations);
+
+  const revealDailyCard = () => {
+    try {
+      window.localStorage.setItem(dailyCardStorageKey, 'open');
+    } catch {
+      // localStorage может быть недоступен внутри некоторых WebView
+    }
+
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+    setIsDailyCardOpen(true);
+  };
 
   if (showBooking && selectedService) {
     return (
@@ -492,6 +584,56 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </div>
           </button>
         )}
+
+        <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#FFF9F0] via-white to-[#EAF1EA] p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+                daily ritual
+              </p>
+              <h3 className="flex items-center text-xl font-black text-[#385144]">
+                <Leaf className="mr-2 h-5 w-5 text-[#B8795C]" />
+                Карта дня
+              </h3>
+            </div>
+            <span className="rounded-full bg-[#385144]/10 px-3 py-1 text-xs font-black text-[#385144]">
+              {format(new Date(), 'd MMM', { locale: ru })}
+            </span>
+          </div>
+
+          {isDailyCardOpen ? (
+            <div className="rounded-[1.4rem] border border-[#E6D7C9] bg-white/75 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8FA092]">
+                    {dailyCard.arcana}
+                  </p>
+                  <p className="text-2xl font-black text-[#385144]">{dailyCard.name}</p>
+                </div>
+                <div className="rounded-2xl bg-[#B8795C]/10 px-3 py-2 text-right">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8A5A3F]/70">
+                    фокус
+                  </p>
+                  <p className="font-black text-[#8A5A3F]">{dailyCard.focus}</p>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-[#59645C]">{dailyCard.message}</p>
+            </div>
+          ) : (
+            <div className="rounded-[1.4rem] border border-dashed border-[#B8795C]/40 bg-white/60 p-4">
+              <p className="mb-4 text-sm leading-relaxed text-[#59645C]">
+                Откройте мягкий ориентир на день. Карта закрепится за вами до завтра.
+              </p>
+              <button
+                onClick={revealDailyCard}
+                className="flex w-full items-center justify-center rounded-2xl bg-[#B8795C] py-3 font-black text-white shadow-[0_12px_28px_rgba(184,121,92,0.22)] transition hover:bg-[#9E654A]"
+              >
+                <Eye className="mr-2 h-5 w-5" />
+                Открыть карту
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Кнопки навигации */}
         <div className="mb-7 grid grid-cols-2 gap-3">
