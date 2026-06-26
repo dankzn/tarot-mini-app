@@ -1,9 +1,10 @@
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
-const getBotToken = () => (
+const getBotToken = (requestBotToken) => (
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
-  process.env.VITE_TELEGRAM_BOT_TOKEN
+  process.env.VITE_TELEGRAM_BOT_TOKEN ||
+  requestBotToken
 );
 
 const parseBody = (body) => {
@@ -49,14 +50,13 @@ export default async function handler(request, response) {
     return;
   }
 
-  const botToken = getBotToken();
+  const { chatId, message, parseMode, botToken: requestBotToken } = parseBody(request.body);
+  const botToken = getBotToken(requestBotToken);
 
   if (!botToken) {
-    response.status(500).json({ error: 'Telegram bot token is not configured' });
+    response.status(400).json({ error: 'Telegram bot token is not configured' });
     return;
   }
-
-  const { chatId, message, parseMode } = parseBody(request.body);
 
   if (!chatId || typeof message !== 'string' || message.trim().length === 0) {
     response.status(400).json({ error: 'chatId and message are required' });
