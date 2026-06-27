@@ -22,6 +22,8 @@ const sendViaServerEndpoint = async (
   chatId: string | number,
   message: string
 ): Promise<void> => {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+
   const response = await fetch('/api/telegram/send', {
     method: 'POST',
     headers: {
@@ -31,6 +33,7 @@ const sendViaServerEndpoint = async (
       chatId,
       message,
       parseMode: 'HTML',
+      botToken,
     }),
   });
 
