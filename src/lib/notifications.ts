@@ -1,5 +1,3 @@
-import { supabase } from './supabase';
-
 const escapeHtml = (value: string | number | null | undefined): string => {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -14,26 +12,107 @@ interface NotificationResult {
   error?: string;
 }
 
-// Добавляет уведомление в очередь. Отправляет его уже Python-бот, где хранится BOT_TOKEN.
+const TELEGRAM_API_BASE = 'https://api.telegram.org';
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  return error instanceof Error ? error.message : fallback;
+};
+
+const sendViaServerEndpoint = async (
+  chatId: string | number,
+  message: string
+): Promise<void> => {
+  const response = await fetch('/api/telegram/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chatId,
+      message,
+      parseMode: 'HTML',
+    }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(payload?.error || 'Telegram notification endpoint did not confirm delivery');
+  }
+};
+
+const sendViaLegacyClientToken = async (
+  chatId: string | number,
+  message: string
+): Promise<void> => {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+
+  if (!botToken) {
+    throw new Error('Legacy Telegram bot token is not configured');
+  }
+
+  const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.description || 'Telegram API request failed');
+  }
+};
+
+// Старая схема: сначала прямой клиентский токен, затем server endpoint fallback
 export const sendTelegramNotification = async (
   chatId: string | number,
   message: string
 ): Promise<NotificationResult> => {
-  const { error } = await supabase
-    .from('notification_queue')
-    .insert({
-      chat_id: String(chatId),
-      message,
-      parse_mode: 'HTML',
-      status: 'pending',
-    });
+  const hasLegacyClientToken = Boolean(import.meta.env.VITE_TELEGRAM_BOT_TOKEN);
 
-  if (error) {
-    console.error('❌ Ошибка постановки уведомления в очередь:', error.message);
-    return { ok: false, error: error.message };
+  if (hasLegacyClientToken) {
+    try {
+      await sendViaLegacyClientToken(chatId, message);
+      return { ok: true };
+    } catch (fallbackError) {
+      try {
+        await sendViaServerEndpoint(chatId, message);
+        return { ok: true };
+      } catch (serverError) {
+        const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
+        const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
+        const errorMessage = `${fallbackMessage}; server: ${serverMessage}`;
+
+        console.error('❌ Ошибка отправки уведомления:', errorMessage);
+        return { ok: false, error: errorMessage };
+      }
+    }
   }
 
-  return { ok: true };
+  try {
+    await sendViaServerEndpoint(chatId, message);
+    return { ok: true };
+  } catch (serverError) {
+    try {
+      await sendViaLegacyClientToken(chatId, message);
+      return { ok: true };
+    } catch (fallbackError) {
+      const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
+      const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
+      const errorMessage = `${serverMessage}; fallback: ${fallbackMessage}`;
+
+      console.error('❌ Ошибка отправки уведомления:', errorMessage);
+      return { ok: false, error: errorMessage };
+    }
+  }
 };
 
 // Уведомление админу о новой записи
