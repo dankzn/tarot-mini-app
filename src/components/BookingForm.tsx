@@ -6,7 +6,7 @@ import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
-import { notifyAdminNewBooking, notifyClientBookingCreated } from '../lib/notifications';
+import { notifyAdminNewBooking } from '../lib/notifications';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 
 interface BookingFormProps {
@@ -206,8 +206,6 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         console.error('❌ Не удалось загрузить админов для уведомления:', adminsError);
       }
 
-      const notificationErrors: string[] = [];
-
       const notificationResult = await notifyAdminNewBooking(
         adminTelegramIds,
         user.name || 'Клиент',
@@ -219,29 +217,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
       if (!notificationResult.ok) {
         console.error('❌ Уведомление админу не отправлено:', notificationResult.error);
-        notificationErrors.push(`Админ: ${notificationResult.error}`);
-      }
-
-      if (user.telegram_id) {
-        const clientNotificationResult = await notifyClientBookingCreated(
-          user.telegram_id,
-          service.title,
-          format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
-          finalPrice
-        );
-
-        if (!clientNotificationResult.ok) {
-          console.error('❌ Уведомление клиенту не отправлено:', clientNotificationResult.error);
-          notificationErrors.push(`Клиент: ${clientNotificationResult.error}`);
-        }
-      } else {
-        notificationErrors.push('Клиент: у пользователя нет telegram_id');
       }
 
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-      if (notificationErrors.length > 0) {
-        alert(`Запись создана, но Telegram-уведомления не отправлены:\n\n${notificationErrors.join('\n')}`);
-      }
       onSuccess();
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
