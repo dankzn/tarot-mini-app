@@ -57,6 +57,15 @@ const fromDateTimeLocal = (value: string) => {
   return value ? new Date(value).toISOString() : null;
 };
 
+const getDateTimeLocalDaysFromNow = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setMinutes(0, 0, 0);
+
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
 export const ServicesManager = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -199,6 +208,34 @@ export const ServicesManager = () => {
     setFormData(emptyFormData);
   };
 
+  const applyPromoPreset = (days = 3) => {
+    const promoPrice = formData.price > 0 ? Math.max(Math.round(formData.price * 0.85), 1) : 0;
+
+    setFormData({
+      ...formData,
+      promo_title: formData.promo_title || 'Специальное окно',
+      promo_price: formData.promo_price || promoPrice,
+      promo_starts_at: formData.promo_starts_at || getDateTimeLocalDaysFromNow(0),
+      promo_ends_at: getDateTimeLocalDaysFromNow(days),
+    });
+  };
+
+  const applyPriceIncreasePreset = (days = 7) => {
+    const nextPrice = formData.price > 0 ? Math.ceil((formData.price * 1.15) / 50) * 50 : 0;
+
+    setFormData({
+      ...formData,
+      next_price: formData.next_price || nextPrice,
+      price_increase_at: getDateTimeLocalDaysFromNow(days),
+    });
+  };
+
+  const activePromosCount = services.filter(service => getServicePriceState(service).isPromoActive).length;
+  const scheduledIncreasesCount = services.filter((service) => {
+    const priceState = getServicePriceState(service);
+    return Boolean(priceState.nextPrice && priceState.countdownTarget);
+  }).length;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -214,6 +251,21 @@ export const ServicesManager = () => {
           <Plus className="w-4 h-4" />
           Добавить услугу
         </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-[#385144]/10 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">Всего услуг</p>
+          <p className="mt-2 text-3xl font-black text-[#385144]">{services.length}</p>
+        </div>
+        <div className="rounded-2xl border border-[#B8795C]/20 bg-[#FFF9F0] p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#B8795C]/70">Акции сейчас</p>
+          <p className="mt-2 text-3xl font-black text-[#B8795C]">{activePromosCount}</p>
+        </div>
+        <div className="rounded-2xl border border-[#385144]/10 bg-[#F8F5F2] p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">Повышения цен</p>
+          <p className="mt-2 text-3xl font-black text-[#385144]">{scheduledIncreasesCount}</p>
+        </div>
       </div>
 
       {showForm && (
@@ -296,6 +348,22 @@ export const ServicesManager = () => {
                   Очистить
                 </button>
               </div>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyPriceIncreasePreset(7)}
+                  className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#385144] shadow-sm hover:bg-[#EAF1EA]"
+                >
+                  +15% через 7 дней
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPriceIncreasePreset(14)}
+                  className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#385144] shadow-sm hover:bg-[#EAF1EA]"
+                >
+                  +15% через 14 дней
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">
@@ -344,6 +412,22 @@ export const ServicesManager = () => {
                   className="text-xs font-bold text-gray-500 hover:text-[#385144]"
                 >
                   Очистить
+                </button>
+              </div>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyPromoPreset(3)}
+                  className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#B8795C] shadow-sm hover:bg-[#FFF1E8]"
+                >
+                  Акция -15% на 3 дня
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPromoPreset(7)}
+                  className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#B8795C] shadow-sm hover:bg-[#FFF1E8]"
+                >
+                  Акция -15% на неделю
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

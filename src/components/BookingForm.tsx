@@ -346,6 +346,19 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         )}
       </div>
 
+      <div className="mb-5 grid grid-cols-1 gap-3">
+        <div className="rounded-[1.5rem] border border-white/80 bg-white/70 p-4 shadow-sm">
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">
+            как подготовиться
+          </p>
+          <div className="grid gap-2 text-sm leading-relaxed text-[#59645C]">
+            <span>— можно кратко описать вопрос в комментарии;</span>
+            <span>— если формулировки нет, достаточно выбрать тему и время;</span>
+            <span>— после заявки я подтвержу запись лично.</span>
+          </div>
+        </div>
+      </div>
+
       {step === 1 && (
         <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
           <h3 className="text-[#385144] font-bold mb-4 flex items-center">
@@ -496,6 +509,15 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[#385144]/10 bg-[#EAF1EA] p-4">
+            <p className="mb-2 text-sm font-black text-[#385144]">Что будет дальше</p>
+            <div className="space-y-2 text-sm leading-relaxed text-[#59645C]">
+              <p>1. Заявка сохранится со статусом “ожидает подтверждения”.</p>
+              <p>2. Я проверю время и свяжусь с вами для финального подтверждения.</p>
+              <p>3. Историю записи можно будет посмотреть в личном кабинете.</p>
+            </div>
           </div>
 
           <div className="flex gap-3">

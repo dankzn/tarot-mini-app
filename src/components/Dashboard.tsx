@@ -138,6 +138,21 @@ const DAILY_CARDS: DailyCard[] = [
   },
 ];
 
+const ONBOARDING_CARDS = [
+  {
+    title: 'Сначала — бережно',
+    text: 'Вы выбираете формат и удобное время, а после заявки я подтверждаю детали лично.',
+  },
+  {
+    title: 'Без лишнего шума',
+    text: 'В консультации фокус на ясности, возможных сценариях и спокойных следующих шагах.',
+  },
+  {
+    title: 'Личное остаётся личным',
+    text: 'Можно говорить прямо: без осуждения, давления и “страшных прогнозов”.',
+  },
+];
+
 const SERVICE_QUIZ: QuizQuestion[] = [
   {
     id: 'request',
@@ -258,6 +273,53 @@ const getServiceBadge = (service: Service, index: number) => {
   return 'Индивидуально';
 };
 
+const getServiceBenefits = (service: Service) => {
+  const text = `${service.title} ${service.description || ''}`.toLowerCase();
+  const benefits = new Set<string>();
+
+  if (text.includes('отнош') || text.includes('люб') || text.includes('чувств')) {
+    benefits.add('прояснить чувства');
+    benefits.add('увидеть динамику');
+  }
+
+  if (text.includes('карта') || text.includes('дня') || text.includes('прогноз')) {
+    benefits.add('быстрый ориентир');
+    benefits.add('мягкий фокус на день');
+  }
+
+  if (text.includes('глуб') || text.includes('разбор') || text.includes('расклад')) {
+    benefits.add('разобрать слои ситуации');
+    benefits.add('собрать план действий');
+  }
+
+  if (text.includes('веден') || text.includes('сопровожд')) {
+    benefits.add('двигаться постепенно');
+    benefits.add('держать опору в процессе');
+  }
+
+  benefits.add(service.duration_minutes && service.duration_minutes <= 45 ? 'без перегруза' : 'с вниманием к деталям');
+
+  return Array.from(benefits).slice(0, 3);
+};
+
+const getServiceOutcome = (service: Service) => {
+  const text = `${service.title} ${service.description || ''}`.toLowerCase();
+
+  if (text.includes('отнош') || text.includes('люб') || text.includes('чувств')) {
+    return 'Подойдёт, если хочется понять контакт, намерения и возможную траекторию отношений.';
+  }
+
+  if (text.includes('карта') || text.includes('дня') || text.includes('прогноз')) {
+    return 'Подойдёт, если нужен быстрый, аккуратный ориентир без большого разбора.';
+  }
+
+  if (text.includes('веден') || text.includes('сопровожд')) {
+    return 'Подойдёт, если тема требует не одного ответа, а спокойного движения рядом.';
+  }
+
+  return 'Подойдёт для честного разбора ситуации и понятных следующих шагов.';
+};
+
 const getServiceAccent = (index: number) => {
   const accents = [
     'from-[#F7F0E7] via-white to-[#EEF3EE]',
@@ -341,8 +403,8 @@ const getDailyCard = (seed: string): DailyCard => {
   return DAILY_CARDS[hash % DAILY_CARDS.length];
 };
 
-const getServiceRecommendation = (services: Service[], selectedOptions: QuizOption[]) => {
-  if (services.length === 0) return null;
+const getServiceRecommendations = (services: Service[], selectedOptions: QuizOption[]) => {
+  if (services.length === 0) return [];
 
   const scoredServices = services.map((service) => {
     const title = service.title.toLowerCase();
@@ -368,7 +430,7 @@ const getServiceRecommendation = (services: Service[], selectedOptions: QuizOpti
   return scoredServices.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return (a.service.price || 0) - (b.service.price || 0);
-  })[0].service;
+  }).map(({ service }) => service);
 };
 
 export const Dashboard = ({ user }: DashboardProps) => {
@@ -390,6 +452,14 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [upcomingConsultation, setUpcomingConsultation] = useState<any>(null);
+  const onboardingStorageKey = `tarot-onboarding-seen:${user.id || user.telegram_id || 'guest'}`;
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      return window.localStorage.getItem(onboardingStorageKey) !== 'yes';
+    } catch {
+      return false;
+    }
+  });
   const dailyCardSeed = String(user.telegram_id || user.id || user.name || 'guest');
   const dailyCard = getDailyCard(dailyCardSeed);
   const dailyCardStorageKey = `tarot-daily-card:${dailyCardSeed}:${getDailyCardDateKey()}`;
@@ -533,7 +603,9 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
   const statusProgress = getStatusProgress(currentStatus, totalConsultations);
   const selectedQuizOptions = Object.values(quizAnswers);
-  const recommendedService = getServiceRecommendation(services, selectedQuizOptions);
+  const recommendedServices = getServiceRecommendations(services, selectedQuizOptions);
+  const recommendedService = recommendedServices[0] || null;
+  const alternativeServices = recommendedServices.filter(service => service.id !== recommendedService?.id).slice(0, 2);
   const serviceGroups = getGroupedServices(services);
 
   const revealDailyCard = () => {
@@ -565,6 +637,16 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const resetQuiz = () => {
     setQuizStep(0);
     setQuizAnswers({});
+  };
+
+  const closeOnboarding = () => {
+    try {
+      window.localStorage.setItem(onboardingStorageKey, 'yes');
+    } catch {
+      // localStorage может быть недоступен внутри некоторых WebView
+    }
+
+    setShowOnboarding(false);
   };
 
   const bookRecommendedService = () => {
@@ -680,6 +762,25 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 </p>
               )}
 
+              <div className="mb-5 rounded-2xl border border-[#385144]/10 bg-white/75 p-4">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                  что получите
+                </p>
+                <p className="text-sm leading-relaxed text-[#59645C]">
+                  {getServiceOutcome(recommendedService)}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {getServiceBenefits(recommendedService).map((benefit) => (
+                    <span
+                      key={benefit}
+                      className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]"
+                    >
+                      {benefit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <div className="mb-5 rounded-2xl bg-white/75 p-4">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
                   почему подходит
@@ -693,6 +794,35 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   ))}
                 </div>
               </div>
+
+              {alternativeServices.length > 0 && (
+                <div className="mb-5">
+                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
+                    ещё могут подойти
+                  </p>
+                  <div className="grid gap-2">
+                    {alternativeServices.map((service) => (
+                      <button
+                        key={service.id}
+                        onClick={() => {
+                          setSelectedService(service);
+                          setShowServiceQuiz(false);
+                          setShowBooking(true);
+                        }}
+                        className="flex items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/70 p-3 text-left transition hover:border-[#385144]/25 hover:bg-white"
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-[#385144]">{service.title}</span>
+                          <span className="mt-0.5 block text-xs text-[#6C756C]">
+                            {service.duration_minutes ? `${service.duration_minutes} минут` : 'Индивидуально'} · {getServicePriceState(service, clockNow).currentPrice} ₽
+                          </span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button
@@ -1213,6 +1343,25 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     </p>
                   )}
 
+                  <div className="mb-3 rounded-[1.25rem] bg-white/55 p-3">
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]/70">
+                      формат даст
+                    </p>
+                    <p className="text-xs leading-relaxed text-[#59645C]">
+                      {getServiceOutcome(service)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {getServiceBenefits(service).map((benefit) => (
+                        <span
+                          key={benefit}
+                          className="rounded-full bg-[#385144]/10 px-2.5 py-1 text-[11px] font-black text-[#385144]"
+                        >
+                          {benefit}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
                     onClick={() => {
                       setSelectedService(service);
@@ -1316,6 +1465,41 @@ export const Dashboard = ({ user }: DashboardProps) => {
           })}
         </div>
       </div>
+
+      {showOnboarding && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#1F2E27]/35 p-3 backdrop-blur-sm">
+          <div className="mx-auto w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/70 bg-[#FFFCF7] shadow-[0_24px_70px_rgba(31,46,39,0.28)]">
+            <div className="bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-white">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-white/60">
+                welcome ritual
+              </p>
+              <h3 className="text-2xl font-black leading-tight">Как здесь всё устроено</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/75">
+                Три короткие детали, чтобы запись ощущалась спокойно и понятно.
+              </p>
+            </div>
+            <div className="space-y-3 p-4">
+              {ONBOARDING_CARDS.map((card, index) => (
+                <div key={card.title} className="rounded-[1.4rem] bg-[#F8F3EC] p-4">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#385144] text-xs font-black text-white">
+                      0{index + 1}
+                    </span>
+                    <p className="font-black text-[#385144]">{card.title}</p>
+                  </div>
+                  <p className="text-sm leading-relaxed text-[#59645C]">{card.text}</p>
+                </div>
+              ))}
+              <button
+                onClick={closeOnboarding}
+                className="w-full rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)]"
+              >
+                Понятно, к услугам
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модальные окна */}
       {showPrivileges && (
