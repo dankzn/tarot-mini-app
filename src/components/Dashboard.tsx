@@ -1187,29 +1187,24 @@ export const Dashboard = ({ user }: DashboardProps) => {
             resetQuiz();
             setShowServiceQuiz(true);
           }}
-          className="mb-4 w-full overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-left text-white shadow-[0_18px_45px_rgba(56,81,68,0.20)] transition hover:-translate-y-0.5"
+          className="mb-4 flex w-full items-center justify-between gap-4 rounded-[1.5rem] border border-white/80 bg-[#385144] p-4 text-left text-white shadow-[0_14px_34px_rgba(56,81,68,0.18)] transition hover:-translate-y-0.5"
         >
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
-                not sure where to start?
-              </p>
-              <h3 className="text-xl font-black leading-tight">Помочь выбрать формат</h3>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/12">
               <Sparkles className="h-5 w-5 text-[#F4E7C8]" />
             </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
+                не знаете, что выбрать?
+              </p>
+              <h3 className="mt-0.5 text-lg font-black leading-tight">Подобрать формат</h3>
+              <p className="mt-1 text-xs font-semibold text-white/68">3 вопроса · меньше минуты</p>
+            </div>
           </div>
-          <p className="mb-4 text-sm leading-relaxed text-white/76">
-            Ответьте на 3 коротких вопроса — я подберу услугу под ваш запрос и состояние.
-          </p>
-          <div className="flex items-center justify-between border-t border-white/15 pt-4">
-            <span className="text-sm font-bold text-white/80">Займёт меньше минуты</span>
-            <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-black text-[#385144]">
-              Начать
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </span>
-          </div>
+          <span className="inline-flex shrink-0 items-center rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#385144]">
+            Начать
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </span>
         </button>
 
         {/* Список услуг */}
@@ -1292,74 +1287,21 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     </div>
                   </div>
 
-                  {countdown && (
-                    <div className={`mb-3 overflow-hidden rounded-[1.25rem] border p-3 ${
-                      priceState.isPromoActive
-                        ? 'border-[#B8795C]/25 bg-[#FFF1E8]'
-                        : 'border-[#385144]/15 bg-[#EAF1EA]'
-                    }`}>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
-                          priceState.isPromoActive
-                            ? 'bg-[#B8795C] text-white'
-                            : 'bg-[#385144] text-white'
-                        }`}>
-                          <Sparkles className="mr-1 h-3 w-3" />
-                          {priceState.isPromoActive ? 'Акция' : 'Скоро новая цена'}
-                        </span>
-                        <span className="rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-black text-[#385144]">
-                          {countdown}
-                        </span>
-                      </div>
-                      <div className="flex items-end justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-bold text-[#6C756C]">
-                            {priceState.isPromoActive ? priceState.promoTitle : 'Успейте записаться по текущей цене'}
-                          </p>
-                          <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8A5A3F]/75">
-                            {priceState.countdownLabel}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          {priceState.isPromoActive ? (
-                            <>
-                              <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
-                              <p className="text-xl font-black text-[#B8795C]">{priceState.currentPrice} ₽</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
-                              <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {service.description && (
-                    <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#59645C]">
+                    <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-[#59645C]">
                       {service.description}
                     </p>
                   )}
 
-                  <div className="mb-3 rounded-[1.25rem] bg-white/55 p-3">
-                    <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]/70">
-                      формат даст
-                    </p>
-                    <p className="text-xs leading-relaxed text-[#59645C]">
-                      {getServiceOutcome(service)}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {getServiceBenefits(service).map((benefit) => (
-                        <span
-                          key={benefit}
-                          className="rounded-full bg-[#385144]/10 px-2.5 py-1 text-[11px] font-black text-[#385144]"
-                        >
-                          {benefit}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {getServiceBenefits(service).slice(0, 2).map((benefit) => (
+                      <span
+                        key={benefit}
+                        className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-black text-[#385144]"
+                      >
+                        {benefit}
+                      </span>
+                    ))}
                   </div>
 
                   <button
