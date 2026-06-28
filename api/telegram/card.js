@@ -1,7 +1,12 @@
+import sharp from 'sharp';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { deflateSync } from 'zlib';
 
 const WIDTH = 1200;
 const HEIGHT = 630;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const BONUS_TEMPLATE_PATH = join(__dirname, '../../public/telegram/bonus-template.png');
 
 const FONT = {
   A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
@@ -30,6 +35,12 @@ const FONT = {
   X: ['10001', '01010', '00100', '00100', '00100', '01010', '10001'],
   Y: ['10001', '01010', '00100', '00100', '00100', '00100', '00100'],
   Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+  Б: ['11111', '10000', '10000', '11110', '10001', '10001', '11110'],
+  Н: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  О: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  С: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  У: ['10001', '10001', '01010', '00100', '00100', '01000', '10000'],
+  Ы: ['10001', '10001', '10001', '11101', '10011', '10011', '11101'],
   '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
   '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
   '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
@@ -176,6 +187,44 @@ const createPng = (buffer) => {
   ]);
 };
 
+
+const escapeSvg = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const formatMoney = (value, prefix = '') => {
+  const number = Number(value || 0);
+  const normalized = Number.isFinite(number) ? number : 0;
+  return `${prefix}${Math.round(normalized).toLocaleString('ru-RU')} ₽`;
+};
+
+const renderBonusTemplateCard = async ({ amount, spent, total }) => {
+  const overlay = `
+    <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .title { font: 800 66px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -1.5px; }
+        .line { font: 400 38px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -0.4px; }
+        .value { font-weight: 800; }
+      </style>
+      <rect x="214" y="315" width="548" height="132" rx="18" fill="#3a263e"/>
+      <text class="title" x="238" y="392">Бонусы</text>
+
+      <rect x="214" y="530" width="748" height="310" rx="24" fill="#3a2d43"/>
+      <text class="line" x="238" y="593">Бонусы начислены: <tspan class="value">${escapeSvg(formatMoney(amount, '+'))}</tspan></text>
+      <text class="line" x="238" y="691">Бонусы списаны: <tspan class="value">${escapeSvg(formatMoney(spent))}</tspan></text>
+      <text class="line" x="238" y="789">Бонусов всего: <tspan class="value">${escapeSvg(formatMoney(total))}</tspan></text>
+    </svg>
+  `;
+
+  return sharp(BONUS_TEMPLATE_PATH)
+    .composite([{ input: Buffer.from(overlay), top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+};
+
 const renderCard = ({ type, price, date, amount }) => {
   const palette = palettes[type] || palettes.booking;
   const buffer = Buffer.alloc(WIDTH * HEIGHT * 4);
@@ -213,14 +262,21 @@ const renderCard = ({ type, price, date, amount }) => {
   return createPng(buffer);
 };
 
-export default function handler(request, response) {
+export default async function handler(request, response) {
   const url = new URL(request.url || '/api/telegram/card', `https://${request.headers.host || 'localhost'}`);
-  const image = renderCard({
-    type: url.searchParams.get('type') || 'booking',
-    price: url.searchParams.get('price') || '',
-    amount: url.searchParams.get('amount') || '',
-    date: url.searchParams.get('date') || '',
-  });
+  const type = url.searchParams.get('type') || 'booking';
+  const image = type === 'bonus'
+    ? await renderBonusTemplateCard({
+      amount: url.searchParams.get('amount') || '',
+      spent: url.searchParams.get('spent') || '',
+      total: url.searchParams.get('total') || url.searchParams.get('amount') || '',
+    })
+    : renderCard({
+      type,
+      price: url.searchParams.get('price') || '',
+      amount: url.searchParams.get('amount') || '',
+      date: url.searchParams.get('date') || '',
+    });
 
   response.setHeader('Content-Type', 'image/png');
   response.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');

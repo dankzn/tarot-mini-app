@@ -289,6 +289,8 @@ export const notifyClientBonusUpdate = async (
   return sendTelegramNotification(clientTelegramId, message, {
     photoUrl: getTelegramCardUrl('bonus', {
       amount: bonusAmount,
+      spent: 0,
+      total: newBalance,
     }),
   });
 };
