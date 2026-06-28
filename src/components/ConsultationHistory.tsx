@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ScrollText, Clock, DollarSign, Sparkles, FileText, ChevronLeft } from 'lucide-react';
+import { ScrollText, Clock, DollarSign, Sparkles, FileText, ChevronLeft, CalendarCheck } from 'lucide-react';
 
 interface ConsultationHistoryProps {
   user: any;
   onBack: () => void;
+  onRebook?: (service: any) => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -25,7 +26,9 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Отменена',
 };
 
-export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) => {
+const statusSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+
+export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHistoryProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +41,7 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
       .from('consultations')
       .select(`
         *,
-        services (title, price)
+        services (*)
       `)
       .eq('user_id', user.id)
       .order('scheduled_at', { ascending: false });
@@ -137,6 +140,30 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
                     </div>
                   </div>
 
+                  <div className="mb-4 rounded-[1.25rem] bg-[#F8F3EC] p-3">
+                    <div className="grid grid-cols-4 gap-2">
+                      {statusSteps.map((status, stepIndex) => {
+                        const currentIndex = statusSteps.indexOf(consultation.status);
+                        const isDone = currentIndex >= stepIndex;
+
+                        return (
+                          <div key={status} className="text-center">
+                            <div className={`mx-auto mb-1 h-2 rounded-full ${
+                              isDone ? 'bg-[#385144]' : 'bg-[#D8CFC4]'
+                            }`} />
+                            <p className={`text-[10px] font-black leading-tight ${
+                              isDone ? 'text-[#385144]' : 'text-[#8FA092]'
+                            }`}>
+                              {status === 'pending' ? 'Заявка' :
+                                status === 'confirmed' ? 'Подтверждение' :
+                                status === 'in_progress' ? 'Встреча' : 'Итоги'}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {consultation.bonus_used > 0 && (
                     <p className="mb-3 rounded-2xl bg-[#EAF1EA] px-3 py-2 text-xs font-bold text-[#385144]">
                       Списано бонусов: {consultation.bonus_used} ₽
@@ -166,6 +193,16 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
                       <span className="text-[#6C756C]">Начислено бонусов:</span>
                       <span className="ml-1 font-black text-[#8A5A3F]">+{consultation.bonus_paid} ₽</span>
                     </div>
+                  )}
+
+                  {consultation.services && onRebook && (
+                    <button
+                      onClick={() => onRebook(consultation.services)}
+                      className="mt-4 flex w-full items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)]"
+                    >
+                      <CalendarCheck className="mr-2 h-4 w-4" />
+                      Записаться снова
+                    </button>
                   )}
                 </div>
               </div>

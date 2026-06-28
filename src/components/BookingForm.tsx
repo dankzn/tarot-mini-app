@@ -87,6 +87,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>([]);
   const [allSlots, setAllSlots] = useState<TimeSlot[]>([]);
   const [notes, setNotes] = useState('');
+  const [mainQuestion, setMainQuestion] = useState('');
+  const [desiredResult, setDesiredResult] = useState('');
   const [step, setStep] = useState(1);
 
   const [useBonuses, setUseBonuses] = useState(false);
@@ -165,6 +167,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         throw new Error('Это окно только что заняли. Выберите другое время.');
       }
 
+      const preparedNotes = [
+        mainQuestion.trim() ? `Что важно обсудить: ${mainQuestion.trim()}` : '',
+        desiredResult.trim() ? `Желаемый результат: ${desiredResult.trim()}` : '',
+        notes.trim() ? `Комментарий: ${notes.trim()}` : '',
+      ].filter(Boolean).join('\n\n');
+
       const { error: consultError } = await supabase
         .from('consultations')
         .insert([
@@ -172,7 +180,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             user_id: user.id,
             service_id: service.id,
             scheduled_at: bookingDateTime.toISOString(),
-            notes: notes,
+            notes: preparedNotes,
             price: finalPrice,
             bonus_used: useBonuses ? bonusAmount : 0,
             status: 'pending',
@@ -500,12 +508,26 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
             <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
               <MessageSquare className="w-4 h-4 mr-2" />
-              Комментарий (необязательно)
+              Подготовка к консультации
             </label>
+            <div className="mb-3 grid gap-3">
+              <input
+                className="w-full rounded-lg border border-gray-200 bg-[#F8F5F2] p-3 text-gray-700 placeholder-gray-400 focus:border-[#385144] focus:outline-none"
+                placeholder="Что важно обсудить?"
+                value={mainQuestion}
+                onChange={(e) => setMainQuestion(e.target.value)}
+              />
+              <input
+                className="w-full rounded-lg border border-gray-200 bg-[#F8F5F2] p-3 text-gray-700 placeholder-gray-400 focus:border-[#385144] focus:outline-none"
+                placeholder="Какой результат хочется получить?"
+                value={desiredResult}
+                onChange={(e) => setDesiredResult(e.target.value)}
+              />
+            </div>
             <textarea
               rows={3}
               className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#385144]"
-              placeholder="Расскажите кратко о вашем вопросе..."
+              placeholder="Дополнительный комментарий, если хочется..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -513,10 +535,15 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
 
           <div className="rounded-[1.5rem] border border-[#385144]/10 bg-[#EAF1EA] p-4">
             <p className="mb-2 text-sm font-black text-[#385144]">Что будет дальше</p>
-            <div className="space-y-2 text-sm leading-relaxed text-[#59645C]">
-              <p>1. Заявка сохранится со статусом “ожидает подтверждения”.</p>
-              <p>2. Я проверю время и свяжусь с вами для финального подтверждения.</p>
-              <p>3. Историю записи можно будет посмотреть в личном кабинете.</p>
+            <div className="grid grid-cols-4 gap-2">
+              {['Заявка', 'Подтверждение', 'Консультация', 'Рекомендации'].map((label, index) => (
+                <div key={label} className="text-center">
+                  <div className={`mx-auto mb-2 h-2 rounded-full ${index === 0 ? 'bg-[#385144]' : 'bg-[#C9D8CD]'}`} />
+                  <p className={`text-[10px] font-black leading-tight ${index === 0 ? 'text-[#385144]' : 'text-[#6C756C]'}`}>
+                    {label}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 

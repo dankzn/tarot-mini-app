@@ -15,6 +15,11 @@ interface Service {
   promo_price?: number | null;
   promo_starts_at?: string | null;
   promo_ends_at?: string | null;
+  category_id?: string | null;
+  display_badge?: string | null;
+  request_tags?: string[] | null;
+  short_description?: string | null;
+  sort_order?: number | null;
 }
 
 interface ServiceFormData {
@@ -28,6 +33,11 @@ interface ServiceFormData {
   promo_price: number;
   promo_starts_at: string;
   promo_ends_at: string;
+  category_id: string;
+  display_badge: string;
+  request_tags: string;
+  short_description: string;
+  sort_order: number;
 }
 
 const emptyFormData: ServiceFormData = {
@@ -41,7 +51,39 @@ const emptyFormData: ServiceFormData = {
   promo_price: 0,
   promo_starts_at: '',
   promo_ends_at: '',
+  category_id: '',
+  display_badge: '',
+  request_tags: '',
+  short_description: '',
+  sort_order: 0,
 };
+
+const SERVICE_CATEGORIES = [
+  { id: '', label: 'Автоопределение' },
+  { id: 'quick', label: 'Быстрый ориентир' },
+  { id: 'relationships', label: 'Отношения и чувства' },
+  { id: 'deep', label: 'Расклады и разборы' },
+  { id: 'support', label: 'Сопровождение' },
+  { id: 'other', label: 'Индивидуальные форматы' },
+];
+
+const SERVICE_BADGES = [
+  '',
+  'Новый формат',
+  'Мягкий вход',
+  'Для сложного запроса',
+  'Глубокий разбор',
+  'Индивидуально',
+  'Популярно',
+  'Для отношений',
+];
+
+const parseTags = (value: string) => (
+  value
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(Boolean)
+);
 
 const toDateTimeLocal = (value?: string | null) => {
   if (!value) return '';
@@ -82,6 +124,7 @@ export const ServicesManager = () => {
     const { data, error } = await supabase
       .from('services')
       .select('*')
+      .order('sort_order', { ascending: true })
       .order('price', { ascending: true });
 
     if (error) {
@@ -112,6 +155,11 @@ export const ServicesManager = () => {
         promo_price: formData.promo_price || null,
         promo_starts_at: fromDateTimeLocal(formData.promo_starts_at),
         promo_ends_at: fromDateTimeLocal(formData.promo_ends_at),
+        category_id: formData.category_id || null,
+        display_badge: formData.display_badge || null,
+        request_tags: parseTags(formData.request_tags),
+        short_description: formData.short_description || null,
+        sort_order: formData.sort_order || 0,
       };
 
       console.log('Обновляем услугу ID:', editingId);
@@ -142,6 +190,11 @@ export const ServicesManager = () => {
         promo_price: formData.promo_price || null,
         promo_starts_at: fromDateTimeLocal(formData.promo_starts_at),
         promo_ends_at: fromDateTimeLocal(formData.promo_ends_at),
+        category_id: formData.category_id || null,
+        display_badge: formData.display_badge || null,
+        request_tags: parseTags(formData.request_tags),
+        short_description: formData.short_description || null,
+        sort_order: formData.sort_order || 0,
       };
 
       console.log('Создаем новую услугу:', insertData);
@@ -182,6 +235,11 @@ export const ServicesManager = () => {
       promo_price: service.promo_price || 0,
       promo_starts_at: toDateTimeLocal(service.promo_starts_at),
       promo_ends_at: toDateTimeLocal(service.promo_ends_at),
+      category_id: service.category_id || '',
+      display_badge: service.display_badge || '',
+      request_tags: (service.request_tags || []).join(', '),
+      short_description: service.short_description || '',
+      sort_order: service.sort_order || 0,
     });
     setShowForm(true);
 
@@ -299,6 +357,82 @@ export const ServicesManager = () => {
                 rows={3}
                 placeholder="Описание услуги..."
               />
+            </div>
+
+            <div className="rounded-2xl border border-[#385144]/10 bg-[#F8F5F2] p-4">
+              <h4 className="mb-3 font-bold text-[#385144]">Витрина и смысл услуги</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                    Категория
+                  </label>
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({...formData, category_id: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-[#385144] focus:border-transparent"
+                  >
+                    {SERVICE_CATEGORIES.map(category => (
+                      <option key={category.id} value={category.id}>{category.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                    Бейдж в карточке
+                  </label>
+                  <input
+                    list="service-badges"
+                    value={formData.display_badge}
+                    onChange={(e) => setFormData({...formData, display_badge: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-[#385144] focus:border-transparent"
+                    placeholder="Например: Для сложного запроса"
+                  />
+                  <datalist id="service-badges">
+                    {SERVICE_BADGES.map(badge => (
+                      <option key={badge || 'empty'} value={badge} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                    Привязка к запросам
+                  </label>
+                  <input
+                    value={formData.request_tags}
+                    onChange={(e) => setFormData({...formData, request_tags: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-[#385144] focus:border-transparent"
+                    placeholder="отношения, выбор, ресурс"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Через запятую — потом можно использовать для умного подбора.</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                    Порядок в списке
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.sort_order}
+                    onChange={(e) => setFormData({...formData, sort_order: parseInt(e.target.value) || 0})}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-[#385144] focus:border-transparent"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                    Короткое описание для карточки
+                  </label>
+                  <textarea
+                    value={formData.short_description}
+                    onChange={(e) => setFormData({...formData, short_description: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-[#385144] focus:border-transparent"
+                    rows={2}
+                    placeholder="Короткая версия, чтобы карточка не перегружалась..."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -513,8 +647,20 @@ export const ServicesManager = () => {
               className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center"
             >
               <div className="flex-1">
-                <h3 className="font-bold text-lg text-[#385144]">{service.title}</h3>
-                <p className="text-gray-600 text-sm mt-1">{service.description}</p>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-lg text-[#385144]">{service.title}</h3>
+                  {service.category_id && (
+                    <span className="rounded-full bg-[#EAF1EA] px-2 py-0.5 text-xs font-bold text-[#385144]">
+                      {SERVICE_CATEGORIES.find(category => category.id === service.category_id)?.label || service.category_id}
+                    </span>
+                  )}
+                  {service.display_badge && (
+                    <span className="rounded-full bg-[#FFF1E8] px-2 py-0.5 text-xs font-bold text-[#B8795C]">
+                      {service.display_badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-600 text-sm mt-1">{service.short_description || service.description}</p>
                 <div className="flex flex-wrap gap-3 mt-2 text-sm">
                   {priceState.currentPrice !== priceState.basePrice ? (
                     <span className="font-bold text-[#B8795C]">
@@ -534,6 +680,11 @@ export const ServicesManager = () => {
                       Новая цена: {priceState.nextPrice} ₽
                     </span>
                   )}
+                  {(service.request_tags || []).map(tag => (
+                    <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500">
+                      #{tag}
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="flex gap-2">

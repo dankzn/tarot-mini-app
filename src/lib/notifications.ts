@@ -135,14 +135,16 @@ export const notifyAdminNewBooking = async (
 
   const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
   const message = `
-🔔 <b>Новая запись!</b>
+🔔 <b>Новая заявка на консультацию</b>
 
 👤 <b>Клиент:</b> ${escapeHtml(clientName)}${usernameText}
-📋 <b>Услуга:</b> ${escapeHtml(serviceName)}
-📅 <b>Дата:</b> ${escapeHtml(dateTime)}
-💰 <b>Сумма:</b> ${price} ₽
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+🗓 <b>Когда:</b> ${escapeHtml(dateTime)}
+💳 <b>Стоимость:</b> ${price} ₽
 
-⏳ Статус: Ожидает подтверждения
+⏳ <b>Статус:</b> ожидает подтверждения
+
+Проверь время и подтверди запись в админке.
   `.trim();
 
   const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
@@ -160,13 +162,19 @@ export const notifyClientBookingCreated = async (
   price: number
 ) => {
   const message = `
-✅ <b>Заявка на консультацию принята</b>
+✅ <b>Заявка принята</b>
 
-📋 <b>Услуга:</b> ${escapeHtml(serviceName)}
-📅 <b>Дата:</b> ${escapeHtml(dateTime)}
-💰 <b>Сумма:</b> ${price} ₽
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+🗓 <b>Дата и время:</b> ${escapeHtml(dateTime)}
+💳 <b>Стоимость:</b> ${price} ₽
 
-Я получил вашу запись и скоро подтвержу её.
+Я получил вашу запись. Следующий шаг — подтверждение времени.
+
+Маршрут записи:
+1) заявка отправлена
+2) подтверждение
+3) консультация
+4) рекомендации после встречи
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message);
@@ -179,12 +187,12 @@ export const notifyClientBonusUpdate = async (
   newBalance: number
 ) => {
   const message = `
-✨ <b>Бонусы начислены!</b>
+✨ <b>Бонусы начислены</b>
 
-💎 Начислено: +${bonusAmount} ₽
-💰 Новый баланс: ${newBalance} ₽
+💎 <b>Начислено:</b> +${bonusAmount} ₽
+💰 <b>Баланс:</b> ${newBalance} ₽
 
-Спасибо за консультацию!
+Спасибо за доверие. Бонусы можно использовать при следующей записи.
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message);
@@ -196,11 +204,11 @@ export const notifyClientStatusChange = async (
   newStatus: string
 ) => {
   const message = `
-👑 <b>Ваш статус обновлён!</b>
+👑 <b>Статус клиента обновлён</b>
 
-🎉 Новый статус: <b>${escapeHtml(newStatus)}</b>
+Новый уровень: <b>${escapeHtml(newStatus)}</b>
 
-Поздравляем! Вы получаете дополнительные преимущества.
+Это открывает дополнительные преимущества в личном кабинете.
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message);

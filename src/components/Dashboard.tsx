@@ -25,7 +25,8 @@ import {
   Leaf,
   UserCircle,
   Info,
-  Flame
+  Flame,
+  Heart
 } from 'lucide-react';
 
 interface Service {
@@ -40,6 +41,10 @@ interface Service {
   promo_price?: number | null;
   promo_starts_at?: string | null;
   promo_ends_at?: string | null;
+  category_id?: string | null;
+  display_badge?: string | null;
+  request_tags?: string[] | null;
+  short_description?: string | null;
 }
 
 interface DashboardProps {
@@ -266,6 +271,8 @@ const getStatusProgress = (currentStatus: string, totalConsultations: number) =>
 };
 
 const getServiceBadge = (service: Service, index: number) => {
+  if (service.display_badge) return service.display_badge;
+
   const title = service.title.toLowerCase();
 
   if (title.includes('карта') || title.includes('new')) return 'Новый формат';
@@ -382,10 +389,11 @@ const getGroupedServices = (services: Service[]) => {
   const groups = SERVICE_GROUPS.map(group => {
     const items = normalizedServices
       .filter(({ service, text }) => {
+        const hasManualCategory = service.category_id === group.id;
         const hasKeyword = group.keywords.some(keyword => text.includes(keyword));
         const hasExcludedKeyword = group.excludeKeywords.some(keyword => text.includes(keyword));
 
-        return !usedIds.has(service.id) && hasKeyword && !hasExcludedKeyword;
+        return !usedIds.has(service.id) && (hasManualCategory || (hasKeyword && !hasExcludedKeyword));
       })
       .map(({ service }) => service);
 
@@ -513,6 +521,15 @@ export const Dashboard = ({ user }: DashboardProps) => {
       return window.localStorage.getItem(dailyCardStorageKey) === 'open';
     } catch {
       return false;
+    }
+  });
+  const favoriteServicesStorageKey = `tarot-favorite-services:${user.id || user.telegram_id || 'guest'}`;
+  const [favoriteServiceIds, setFavoriteServiceIds] = useState<string[]>(() => {
+    try {
+      const raw = window.localStorage.getItem(favoriteServicesStorageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
     }
   });
 
@@ -653,6 +670,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const alternativeServices = recommendedServices.filter(service => service.id !== recommendedService?.id).slice(0, 2);
   const serviceGroups = getGroupedServices(services);
   const selectedServiceGroup = serviceGroups.find(group => group.id === selectedServiceGroupId) || null;
+  const favoriteServices = services.filter(service => favoriteServiceIds.includes(service.id));
   const campaignServices = services.filter(service => {
     const priceState = getServicePriceState(service, clockNow);
     return Boolean(priceState.countdownTarget);
@@ -668,6 +686,23 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
     window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
     setIsDailyCardOpen(true);
+  };
+
+  const toggleFavoriteService = (serviceId: string) => {
+    setFavoriteServiceIds((current) => {
+      const next = current.includes(serviceId)
+        ? current.filter(id => id !== serviceId)
+        : [...current, serviceId];
+
+      try {
+        window.localStorage.setItem(favoriteServicesStorageKey, JSON.stringify(next));
+      } catch {
+        // localStorage может быть недоступен внутри некоторых WebView
+      }
+
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+      return next;
+    });
   };
 
   const selectQuizOption = (question: QuizQuestion, option: QuizOption) => {
@@ -728,7 +763,17 @@ export const Dashboard = ({ user }: DashboardProps) => {
   }
 
   if (showHistory) {
-    return <ConsultationHistory user={user} onBack={() => setShowHistory(false)} />;
+    return (
+      <ConsultationHistory
+        user={user}
+        onBack={() => setShowHistory(false)}
+        onRebook={(service) => {
+          setShowHistory(false);
+          setSelectedService(service);
+          setShowBooking(true);
+        }}
+      />
+    );
   }
 
   if (showServiceQuiz) {
@@ -1434,22 +1479,35 @@ export const Dashboard = ({ user }: DashboardProps) => {
                         {service.title}
                       </h4>
                     </div>
-                    <div className="shrink-0 rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
-                      {priceState.currentPrice !== priceState.basePrice ? (
-                        <div>
-                          <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                    <div className="flex shrink-0 items-start gap-2">
+                      <button
+                        onClick={() => toggleFavoriteService(service.id)}
+                        className={`flex h-10 w-10 items-center justify-center rounded-2xl shadow-sm transition ${
+                          favoriteServiceIds.includes(service.id)
+                            ? 'bg-[#B8795C] text-white'
+                            : 'bg-white/80 text-[#8FA092]'
+                        }`}
+                        aria-label="Добавить в избранное"
+                      >
+                        <Heart className={`h-4 w-4 ${favoriteServiceIds.includes(service.id) ? 'fill-current' : ''}`} />
+                      </button>
+                      <div className="rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
+                        {priceState.currentPrice !== priceState.basePrice ? (
+                          <div>
+                            <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                            <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
+                          </div>
+                        ) : (
                           <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
-                        </div>
-                      ) : (
-                        <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {service.description && (
                     <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-[#59645C]">
-                      {service.description}
+                      {service.short_description || service.description}
                     </p>
                   )}
 
@@ -1546,6 +1604,50 @@ export const Dashboard = ({ user }: DashboardProps) => {
               </div>
             </button>
           )}
+
+          <div className="mb-4 rounded-[1.75rem] border border-white/80 bg-white/85 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8A5A3F]/70">
+                  ваши форматы
+                </p>
+                <h3 className="mt-1 text-xl font-black text-[#385144]">Избранные услуги</h3>
+              </div>
+              <Heart className="h-5 w-5 text-[#B8795C]" />
+            </div>
+
+            {favoriteServices.length === 0 ? (
+              <div className="rounded-[1.3rem] bg-[#F8F3EC] p-4">
+                <p className="text-sm leading-relaxed text-[#59645C]">
+                  Отмечайте услуги сердечком — здесь появится быстрый доступ к любимым форматам.
+                </p>
+                <button
+                  onClick={() => setActiveTab('services')}
+                  className="mt-3 rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white"
+                >
+                  Перейти к услугам
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {favoriteServices.slice(0, 3).map((service) => (
+                  <button
+                    key={service.id}
+                    onClick={() => setServiceDetails(service)}
+                    className="flex items-center justify-between rounded-2xl bg-[#F8F3EC] p-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-black text-[#385144]">{service.title}</span>
+                      <span className="mt-0.5 block text-xs font-bold text-[#8A5A3F]">
+                        {getServicePriceState(service, clockNow).currentPrice} ₽
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-[#8FA092]" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="mb-7 grid grid-cols-2 gap-3">
             <button
@@ -1671,12 +1773,24 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   </p>
                   <h3 className="text-2xl font-black leading-tight">{serviceDetails.title}</h3>
                 </div>
-                <button
-                  onClick={() => setServiceDetails(null)}
-                  className="rounded-2xl bg-white/12 px-3 py-2 text-lg font-black text-white"
-                >
-                  ×
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => toggleFavoriteService(serviceDetails.id)}
+                    className={`rounded-2xl px-3 py-2 text-white ${
+                      favoriteServiceIds.includes(serviceDetails.id) ? 'bg-[#B8795C]' : 'bg-white/12'
+                    }`}
+                    aria-label="Добавить в избранное"
+                  >
+                    <Heart className={`h-5 w-5 ${favoriteServiceIds.includes(serviceDetails.id) ? 'fill-current' : ''}`} />
+                  </button>
+                  <button
+                    onClick={() => setServiceDetails(null)}
+                    className="rounded-2xl bg-white/12 px-3 py-2 text-lg font-black text-white"
+                    aria-label="Закрыть"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
@@ -1690,7 +1804,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
             <div className="space-y-4 p-4">
               {serviceDetails.description && (
                 <p className="rounded-[1.35rem] bg-[#F8F3EC] p-4 text-sm leading-relaxed text-[#59645C]">
-                  {serviceDetails.description}
+                  {serviceDetails.short_description || serviceDetails.description}
                 </p>
               )}
               <div className="rounded-[1.35rem] border border-[#385144]/10 bg-white/80 p-4">
