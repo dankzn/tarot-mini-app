@@ -7,6 +7,14 @@ const WIDTH = 1200;
 const HEIGHT = 630;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BONUS_TEMPLATE_PATH = join(__dirname, '../../public/telegram/bonus-template.png');
+const TITLE_X = 238;
+const TITLE_Y = 382;
+const ACCRUED_X = 612;
+const ACCRUED_Y = 584;
+const SPENT_X = 570;
+const SPENT_Y = 681;
+const TOTAL_X = 600;
+const TOTAL_Y = 784;
 
 const FONT = {
   A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
@@ -201,21 +209,55 @@ const formatMoney = (value, prefix = '') => {
   return `${prefix}${Math.round(normalized).toLocaleString('ru-RU')} ₽`;
 };
 
-const renderBonusTemplateCard = async ({ amount, spent, total }) => {
+const wrapText = (text, maxLineLength, maxLines) => {
+  const words = String(text || 'Консультация').trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let currentLine = '';
+
+  words.forEach((word) => {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+    if (nextLine.length <= maxLineLength) {
+      currentLine = nextLine;
+      return;
+    }
+
+    if (currentLine) lines.push(currentLine);
+    currentLine = word;
+  });
+
+  if (currentLine) lines.push(currentLine);
+
+  if (lines.length > maxLines) {
+    const visibleLines = lines.slice(0, maxLines);
+    visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1].replace(/[.,:;!?—-]+$/, '')}…`;
+    return visibleLines;
+  }
+
+  return lines;
+};
+
+const renderTitleTspans = (title) => {
+  const lines = wrapText(title, 19, 3);
+  const fontSize = lines.length > 2 ? 48 : 58;
+  const lineHeight = lines.length > 2 ? 54 : 58;
+
+  return lines.map((line, index) => (
+    `<tspan x="${TITLE_X}" dy="${index === 0 ? 0 : lineHeight}">${escapeSvg(line)}</tspan>`
+  )).join('');
+};
+
+const renderBonusTemplateCard = async ({ amount, spent, total, title }) => {
   const overlay = `
     <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
       <style>
-        .title { font: 800 66px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -1.5px; }
-        .line { font: 400 38px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -0.4px; }
-        .value { font-weight: 800; }
+        .title { font-family: Arial, Helvetica, sans-serif; font-weight: 800; fill: #fff; letter-spacing: -1.4px; }
+        .amount { font: 400 34px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -0.3px; }
+        .total { font: 600 42px Arial, Helvetica, sans-serif; fill: #fff; letter-spacing: -0.6px; }
       </style>
-      <rect x="214" y="315" width="548" height="132" rx="18" fill="#3a263e"/>
-      <text class="title" x="238" y="392">Бонусы</text>
-
-      <rect x="214" y="530" width="748" height="310" rx="24" fill="#3a2d43"/>
-      <text class="line" x="238" y="593">Бонусы начислены: <tspan class="value">${escapeSvg(formatMoney(amount, '+'))}</tspan></text>
-      <text class="line" x="238" y="691">Бонусы списаны: <tspan class="value">${escapeSvg(formatMoney(spent))}</tspan></text>
-      <text class="line" x="238" y="789">Бонусов всего: <tspan class="value">${escapeSvg(formatMoney(total))}</tspan></text>
+      <text class="title" x="${TITLE_X}" y="${TITLE_Y}" font-size="${wrapText(title, 19, 3).length > 2 ? 48 : 58}">${renderTitleTspans(title)}</text>
+      <text class="amount" x="${ACCRUED_X}" y="${ACCRUED_Y}">${escapeSvg(formatMoney(amount, '+'))}</text>
+      <text class="amount" x="${SPENT_X}" y="${SPENT_Y}">${escapeSvg(formatMoney(spent))}</text>
+      <text class="total" x="${TOTAL_X}" y="${TOTAL_Y}">${escapeSvg(formatMoney(total))}</text>
     </svg>
   `;
 
@@ -267,6 +309,7 @@ export default async function handler(request, response) {
   const type = url.searchParams.get('type') || 'booking';
   const image = type === 'bonus'
     ? await renderBonusTemplateCard({
+      title: url.searchParams.get('title') || '',
       amount: url.searchParams.get('amount') || '',
       spent: url.searchParams.get('spent') || '',
       total: url.searchParams.get('total') || url.searchParams.get('amount') || '',

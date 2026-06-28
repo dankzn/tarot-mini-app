@@ -232,7 +232,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         await notifyClientBonusUpdate(
           clientTelegramId,
           bonusEarned,
-          verifyUser?.bonus_balance || 0
+          verifyUser?.bonus_balance || 0,
+          selectedConsultation.services?.title || 'Консультация'
         );
       }
 

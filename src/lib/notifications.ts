@@ -275,7 +275,8 @@ export const notifyClientBookingCreated = async (
 export const notifyClientBonusUpdate = async (
   clientTelegramId: string | number,
   bonusAmount: number,
-  newBalance: number
+  newBalance: number,
+  consultationTitle = 'Консультация'
 ) => {
   const message = `
 ✨ <b>Бонусы начислены</b>
@@ -288,6 +289,7 @@ export const notifyClientBonusUpdate = async (
 
   return sendTelegramNotification(clientTelegramId, message, {
     photoUrl: getTelegramCardUrl('bonus', {
+      title: consultationTitle,
       amount: bonusAmount,
       spent: 0,
       total: newBalance,

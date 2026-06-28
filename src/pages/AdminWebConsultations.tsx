@@ -165,7 +165,8 @@ export const AdminWebConsultations = () => {
         await notifyClientBonusUpdate(
           selectedConsultation.users.telegram_id,
           bonusEarned,
-          newBonusBalance
+          newBonusBalance,
+          selectedConsultation.services?.title || 'Консультация'
         );
       }
 
