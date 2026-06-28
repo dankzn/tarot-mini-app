@@ -1,5 +1,4 @@
 import sharp from 'sharp';
-import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { deflateSync } from 'zlib';
@@ -8,20 +7,17 @@ const WIDTH = 1200;
 const HEIGHT = 630;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BONUS_TEMPLATE_PATH = join(__dirname, '../../public/telegram/bonus-template.png');
-const NOTO_SANS_REGULAR_PATH = join(__dirname, '../../node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-ext-400-normal.woff2');
-const NOTO_SANS_SEMIBOLD_PATH = join(__dirname, '../../node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-ext-600-normal.woff2');
-const NOTO_SANS_EXTRABOLD_PATH = join(__dirname, '../../node_modules/@fontsource/noto-sans/files/noto-sans-cyrillic-ext-800-normal.woff2');
-const NOTO_SANS_REGULAR = readFileSync(NOTO_SANS_REGULAR_PATH).toString('base64');
-const NOTO_SANS_SEMIBOLD = readFileSync(NOTO_SANS_SEMIBOLD_PATH).toString('base64');
-const NOTO_SANS_EXTRABOLD = readFileSync(NOTO_SANS_EXTRABOLD_PATH).toString('base64');
+const NOTO_SANS_REGULAR_PATH = join(__dirname, '../../public/telegram/fonts/noto-sans-cyrillic-ext-400-normal.woff2');
+const NOTO_SANS_SEMIBOLD_PATH = join(__dirname, '../../public/telegram/fonts/noto-sans-cyrillic-ext-600-normal.woff2');
+const NOTO_SANS_EXTRABOLD_PATH = join(__dirname, '../../public/telegram/fonts/noto-sans-cyrillic-ext-800-normal.woff2');
 const TITLE_X = 238;
-const TITLE_Y = 382;
+const TITLE_Y = 326;
 const ACCRUED_X = 612;
-const ACCRUED_Y = 584;
+const ACCRUED_Y = 552;
 const SPENT_X = 570;
-const SPENT_Y = 681;
+const SPENT_Y = 650;
 const TOTAL_X = 600;
-const TOTAL_Y = 784;
+const TOTAL_Y = 746;
 
 const FONT = {
   A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
@@ -243,51 +239,56 @@ const wrapText = (text, maxLineLength, maxLines) => {
   return lines;
 };
 
-const renderTitleTspans = (title) => {
-  const lines = wrapText(title, 19, 3);
-  const fontSize = lines.length > 2 ? 48 : 58;
-  const lineHeight = lines.length > 2 ? 54 : 58;
-
-  return lines.map((line, index) => (
-    `<tspan x="${TITLE_X}" dy="${index === 0 ? 0 : lineHeight}">${escapeSvg(line)}</tspan>`
-  )).join('');
-};
+const renderTextLayer = async ({ text, fontfile, size, width, weight = 400 }) => (
+  sharp({
+    text: {
+      text: `<span foreground="white" font_weight="${weight}" size="${size * 1000}">${escapeSvg(text)}</span>`,
+      fontfile,
+      width,
+      rgba: true,
+    },
+  })
+    .png()
+    .toBuffer()
+);
 
 const renderBonusTemplateCard = async ({ amount, spent, total, title }) => {
-  const overlay = `
-    <svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        @font-face {
-          font-family: 'BonusNoto';
-          font-style: normal;
-          font-weight: 400;
-          src: url(data:font/woff2;base64,${NOTO_SANS_REGULAR}) format('woff2');
-        }
-        @font-face {
-          font-family: 'BonusNoto';
-          font-style: normal;
-          font-weight: 600;
-          src: url(data:font/woff2;base64,${NOTO_SANS_SEMIBOLD}) format('woff2');
-        }
-        @font-face {
-          font-family: 'BonusNoto';
-          font-style: normal;
-          font-weight: 800;
-          src: url(data:font/woff2;base64,${NOTO_SANS_EXTRABOLD}) format('woff2');
-        }
-        .title { font-family: 'BonusNoto', sans-serif; font-weight: 800; fill: #fff; letter-spacing: -1.4px; }
-        .amount { font: 400 34px 'BonusNoto', sans-serif; fill: #fff; letter-spacing: -0.3px; }
-        .total { font: 600 42px 'BonusNoto', sans-serif; fill: #fff; letter-spacing: -0.6px; }
-      </style>
-      <text class="title" x="${TITLE_X}" y="${TITLE_Y}" font-size="${wrapText(title, 19, 3).length > 2 ? 48 : 58}">${renderTitleTspans(title)}</text>
-      <text class="amount" x="${ACCRUED_X}" y="${ACCRUED_Y}">${escapeSvg(formatMoney(amount, '+'))}</text>
-      <text class="amount" x="${SPENT_X}" y="${SPENT_Y}">${escapeSvg(formatMoney(spent))}</text>
-      <text class="total" x="${TOTAL_X}" y="${TOTAL_Y}">${escapeSvg(formatMoney(total))}</text>
-    </svg>
-  `;
+  const titleLines = wrapText(title, 19, 3).join('\n');
+  const titleSize = titleLines.includes('\n') && titleLines.split('\n').length > 2 ? 48 : 58;
+  const titleLayer = await renderTextLayer({
+    text: titleLines,
+    fontfile: NOTO_SANS_EXTRABOLD_PATH,
+    size: titleSize,
+    width: 650,
+    weight: 800,
+  });
+  const accruedLayer = await renderTextLayer({
+    text: formatMoney(amount, '+'),
+    fontfile: NOTO_SANS_REGULAR_PATH,
+    size: 34,
+    width: 250,
+  });
+  const spentLayer = await renderTextLayer({
+    text: formatMoney(spent),
+    fontfile: NOTO_SANS_REGULAR_PATH,
+    size: 34,
+    width: 220,
+  });
+  const totalLayer = await renderTextLayer({
+    text: formatMoney(total),
+    fontfile: NOTO_SANS_SEMIBOLD_PATH,
+    size: 42,
+    width: 340,
+    weight: 600,
+  });
 
   return sharp(BONUS_TEMPLATE_PATH)
-    .composite([{ input: Buffer.from(overlay), top: 0, left: 0 }])
+    .composite([
+      { input: titleLayer, top: TITLE_Y, left: TITLE_X },
+      { input: accruedLayer, top: ACCRUED_Y, left: ACCRUED_X },
+      { input: spentLayer, top: SPENT_Y, left: SPENT_X },
+      { input: totalLayer, top: TOTAL_Y, left: TOTAL_X },
+    ])
     .png()
     .toBuffer();
 };
