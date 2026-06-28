@@ -276,6 +276,10 @@ const getServiceBadge = (service: Service, index: number) => {
   return 'Индивидуально';
 };
 
+const isDailyCardService = (text: string) => (
+  text.includes('карта дня') || text.includes('картой дня') || text.includes('на день')
+);
+
 const getServiceBenefits = (service: Service) => {
   const text = `${service.title} ${service.description || ''}`.toLowerCase();
   const benefits = new Set<string>();
@@ -285,12 +289,12 @@ const getServiceBenefits = (service: Service) => {
     benefits.add('увидеть динамику');
   }
 
-  if (text.includes('карта') || text.includes('дня') || text.includes('прогноз')) {
+  if (isDailyCardService(text)) {
     benefits.add('быстрый ориентир');
     benefits.add('мягкий фокус на день');
   }
 
-  if (text.includes('глуб') || text.includes('разбор') || text.includes('расклад')) {
+  if (text.includes('глуб') || text.includes('разбор') || text.includes('расклад') || text.includes('базов')) {
     benefits.add('разобрать слои ситуации');
     benefits.add('собрать план действий');
   }
@@ -312,8 +316,12 @@ const getServiceOutcome = (service: Service) => {
     return 'Подойдёт, если хочется понять контакт, намерения и возможную траекторию отношений.';
   }
 
-  if (text.includes('карта') || text.includes('дня') || text.includes('прогноз')) {
+  if (isDailyCardService(text)) {
     return 'Подойдёт, если нужен быстрый, аккуратный ориентир без большого разбора.';
+  }
+
+  if (text.includes('базов') || text.includes('расклад')) {
+    return 'Подойдёт для полноценного базового разбора: увидеть структуру ситуации, важные влияния и ближайшие шаги.';
   }
 
   if (text.includes('веден') || text.includes('сопровожд')) {
@@ -338,25 +346,29 @@ const SERVICE_GROUPS = [
     id: 'quick',
     title: 'Быстрый ориентир',
     subtitle: 'Когда нужен мягкий ответ без длинного разбора',
-    keywords: ['карта', 'дня', 'мини', 'экспресс', 'прогноз'],
+    keywords: ['карта дня', 'картой дня', 'на день', 'мини', 'экспресс'],
+    excludeKeywords: ['базов', 'расклад', 'консультац'],
   },
   {
     id: 'relationships',
     title: 'Отношения и чувства',
     subtitle: 'Динамика контакта, намерения, перспективы',
     keywords: ['отнош', 'люб', 'чувств', 'партнер', 'партнёр', 'личн'],
+    excludeKeywords: [],
   },
   {
     id: 'deep',
-    title: 'Глубокий разбор',
-    subtitle: 'Для сложных ситуаций и нескольких слоёв запроса',
-    keywords: ['глуб', 'разбор', 'расклад', 'полноцен', 'сложн'],
+    title: 'Расклады и разборы',
+    subtitle: 'Базовые и глубокие форматы для полноценного понимания ситуации',
+    keywords: ['базов', 'глуб', 'разбор', 'расклад', 'полноцен', 'сложн'],
+    excludeKeywords: [],
   },
   {
     id: 'support',
     title: 'Сопровождение',
     subtitle: 'Когда важно возвращаться к теме и идти постепенно',
     keywords: ['веден', 'сопровожд', 'долг', 'путь'],
+    excludeKeywords: [],
   },
 ];
 
@@ -369,7 +381,12 @@ const getGroupedServices = (services: Service[]) => {
 
   const groups = SERVICE_GROUPS.map(group => {
     const items = normalizedServices
-      .filter(({ service, text }) => !usedIds.has(service.id) && group.keywords.some(keyword => text.includes(keyword)))
+      .filter(({ service, text }) => {
+        const hasKeyword = group.keywords.some(keyword => text.includes(keyword));
+        const hasExcludedKeyword = group.excludeKeywords.some(keyword => text.includes(keyword));
+
+        return !usedIds.has(service.id) && hasKeyword && !hasExcludedKeyword;
+      })
       .map(({ service }) => service);
 
     items.forEach(service => usedIds.add(service.id));
@@ -388,6 +405,7 @@ const getGroupedServices = (services: Service[]) => {
       title: 'Индивидуальные форматы',
       subtitle: 'Дополнительные варианты под нестандартный запрос',
       keywords: [],
+      excludeKeywords: [],
       services: otherServices,
     });
   }
