@@ -130,15 +130,28 @@ const getPublicAssetUrl = (path: string) => (
     : new URL(path, window.location.origin).toString()
 );
 
-const getAppUrl = (path = '/') => (
-  typeof window === 'undefined'
-    ? path
-    : new URL(path, window.location.origin).toString()
-);
+const getTelegramCardDate = (dateTime: string) => {
+  const time = dateTime.match(/\d{2}:\d{2}/)?.[0] || '';
+  const day = dateTime.match(/\d{1,2}/)?.[0] || '';
+  const year = dateTime.match(/\d{4}/)?.[0] || '';
 
-const getTelegramVisual = (name: 'booking-client' | 'booking-admin' | 'bonus-update' | 'status-update') => (
-  getPublicAssetUrl(`/telegram/${name}.png`)
-);
+  return [day, year, time].filter(Boolean).join(' ');
+};
+
+const getTelegramCardUrl = (
+  type: 'booking' | 'admin' | 'bonus' | 'status',
+  params: Record<string, string | number | null | undefined> = {}
+) => {
+  const searchParams = new URLSearchParams({ type });
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      searchParams.set(key, String(value));
+    }
+  });
+
+  return getPublicAssetUrl(`/api/telegram/card?${searchParams.toString()}`);
+};
 
 // Старая схема: сначала прямой клиентский токен, затем server endpoint fallback
 export const sendTelegramNotification = async (
@@ -214,11 +227,10 @@ export const notifyAdminNewBooking = async (
 Проверь время и подтверди запись в админке.
   `.trim();
   const options: NotificationOptions = {
-    photoUrl: getTelegramVisual('booking-admin'),
-    buttons: [
-      { text: 'Открыть записи', url: getAppUrl('/admin-web/consultations') },
-      { text: 'Админ-пульт', url: getAppUrl('/admin-web/dashboard') },
-    ],
+    photoUrl: getTelegramCardUrl('admin', {
+      price,
+      date: getTelegramCardDate(dateTime),
+    }),
   };
 
   const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message, options)));
@@ -252,10 +264,10 @@ export const notifyClientBookingCreated = async (
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message, {
-    photoUrl: getTelegramVisual('booking-client'),
-    buttons: [
-      { text: 'Открыть мини-приложение', url: getAppUrl('/') },
-    ],
+    photoUrl: getTelegramCardUrl('booking', {
+      price,
+      date: getTelegramCardDate(dateTime),
+    }),
   });
 };
 
@@ -275,10 +287,9 @@ export const notifyClientBonusUpdate = async (
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message, {
-    photoUrl: getTelegramVisual('bonus-update'),
-    buttons: [
-      { text: 'Посмотреть кабинет', url: getAppUrl('/') },
-    ],
+    photoUrl: getTelegramCardUrl('bonus', {
+      amount: bonusAmount,
+    }),
   });
 };
 
@@ -296,10 +307,7 @@ export const notifyClientStatusChange = async (
   `.trim();
 
   return sendTelegramNotification(clientTelegramId, message, {
-    photoUrl: getTelegramVisual('status-update'),
-    buttons: [
-      { text: 'Открыть кабинет', url: getAppUrl('/') },
-    ],
+    photoUrl: getTelegramCardUrl('status'),
   });
 };
 
