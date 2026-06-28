@@ -108,27 +108,81 @@ const getDateTimeLocalDaysFromNow = (days: number) => {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 };
 
+const buildServicePayload = (formData: ServiceFormData, includeDisplayControls = true) => {
+  const basePayload = {
+    title: formData.title,
+    description: formData.description,
+    price: formData.price,
+    duration_minutes: formData.duration_minutes,
+    next_price: formData.next_price || null,
+    price_increase_at: fromDateTimeLocal(formData.price_increase_at),
+    promo_title: formData.promo_title || null,
+    promo_price: formData.promo_price || null,
+    promo_starts_at: fromDateTimeLocal(formData.promo_starts_at),
+    promo_ends_at: fromDateTimeLocal(formData.promo_ends_at),
+  };
+
+  if (!includeDisplayControls) {
+    return basePayload;
+  }
+
+  return {
+    ...basePayload,
+    category_id: formData.category_id || null,
+    display_badge: formData.display_badge || null,
+    request_tags: parseTags(formData.request_tags),
+    short_description: formData.short_description || null,
+    sort_order: formData.sort_order || 0,
+  };
+};
+
 export const ServicesManager = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<ServiceFormData>(emptyFormData);
+  const [loadWarning, setLoadWarning] = useState('');
 
   useEffect(() => {
     loadServices();
   }, []);
 
   const loadServices = async () => {
-    await supabase.rpc('apply_due_service_price_changes');
+    setLoadWarning('');
 
-    const { data, error } = await supabase
+    const { error: priceApplyError } = await supabase.rpc('apply_due_service_price_changes');
+    if (priceApplyError) {
+      console.warn('Не удалось применить плановые изменения цен:', priceApplyError);
+    }
+
+    const orderedRequest = await supabase
       .from('services')
       .select('*')
       .order('sort_order', { ascending: true })
       .order('price', { ascending: true });
 
+    let data = orderedRequest.data;
+    let error = orderedRequest.error;
+
+    if (error) {
+      console.warn('Не удалось загрузить услуги с сортировкой витрины, пробуем базовую загрузку:', error);
+
+      const fallbackRequest = await supabase
+        .from('services')
+        .select('*')
+        .order('price', { ascending: true });
+
+      data = fallbackRequest.data;
+      error = fallbackRequest.error;
+
+      if (!error) {
+        setLoadWarning('Услуги загружены в базовом режиме. Чтобы сохранять категории, бейджи и порядок, примените миграцию 20260628_service_control_and_client_notes.sql.');
+      }
+    }
+
     if (error) {
       console.error('Ошибка загрузки услуг:', error);
+      setLoadWarning(`Не удалось загрузить услуги: ${error.message}`);
       return;
     }
 
@@ -144,70 +198,67 @@ export const ServicesManager = () => {
     console.log('Данные формы:', formData);
 
     if (editingId) {
-      const updateData = {
-        title: formData.title,
-        description: formData.description,
-        price: formData.price,
-        duration_minutes: formData.duration_minutes,
-        next_price: formData.next_price || null,
-        price_increase_at: fromDateTimeLocal(formData.price_increase_at),
-        promo_title: formData.promo_title || null,
-        promo_price: formData.promo_price || null,
-        promo_starts_at: fromDateTimeLocal(formData.promo_starts_at),
-        promo_ends_at: fromDateTimeLocal(formData.promo_ends_at),
-        category_id: formData.category_id || null,
-        display_badge: formData.display_badge || null,
-        request_tags: parseTags(formData.request_tags),
-        short_description: formData.short_description || null,
-        sort_order: formData.sort_order || 0,
-      };
+      const updateData = buildServicePayload(formData);
 
       console.log('Обновляем услугу ID:', editingId);
       console.log('Данные для обновления:', updateData);
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('services')
         .update(updateData)
         .eq('id', editingId)
         .select();
 
       if (error) {
-        console.error('❌ Ошибка обновления услуги:', error);
-        alert('Ошибка при обновлении: ' + error.message);
-        return;
+        console.warn('Не удалось сохранить расширенные поля услуги, пробуем базовое сохранение:', error);
+
+        const fallbackResult = await supabase
+          .from('services')
+          .update(buildServicePayload(formData, false))
+          .eq('id', editingId)
+          .select();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+
+        if (error) {
+          console.error('❌ Ошибка обновления услуги:', error);
+          alert('Ошибка при обновлении: ' + error.message);
+          return;
+        }
+
+        setLoadWarning('Базовые поля услуги сохранены. Для категорий, бейджей и сортировки примените миграцию 20260628_service_control_and_client_notes.sql.');
       }
 
       console.log('✅ Услуга обновлена:', data);
     } else {
-      const insertData = {
-        title: formData.title,
-        description: formData.description,
-        price: formData.price,
-        duration_minutes: formData.duration_minutes,
-        next_price: formData.next_price || null,
-        price_increase_at: fromDateTimeLocal(formData.price_increase_at),
-        promo_title: formData.promo_title || null,
-        promo_price: formData.promo_price || null,
-        promo_starts_at: fromDateTimeLocal(formData.promo_starts_at),
-        promo_ends_at: fromDateTimeLocal(formData.promo_ends_at),
-        category_id: formData.category_id || null,
-        display_badge: formData.display_badge || null,
-        request_tags: parseTags(formData.request_tags),
-        short_description: formData.short_description || null,
-        sort_order: formData.sort_order || 0,
-      };
+      const insertData = buildServicePayload(formData);
 
       console.log('Создаем новую услугу:', insertData);
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('services')
         .insert([insertData])
         .select();
 
       if (error) {
-        console.error('❌ Ошибка создания услуги:', error);
-        alert('Ошибка при создании: ' + error.message);
-        return;
+        console.warn('Не удалось создать услугу с расширенными полями, пробуем базовое создание:', error);
+
+        const fallbackResult = await supabase
+          .from('services')
+          .insert([buildServicePayload(formData, false)])
+          .select();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+
+        if (error) {
+          console.error('❌ Ошибка создания услуги:', error);
+          alert('Ошибка при создании: ' + error.message);
+          return;
+        }
+
+        setLoadWarning('Услуга создана в базовом режиме. Для категорий, бейджей и сортировки примените миграцию 20260628_service_control_and_client_notes.sql.');
       }
 
       console.log('✅ Услуга создана:', data);
@@ -332,6 +383,12 @@ export const ServicesManager = () => {
           <p className="mt-2 text-3xl font-black text-[#385144]">{scheduledIncreasesCount}</p>
         </div>
       </div>
+
+      {loadWarning && (
+        <div className="rounded-2xl border border-[#B8795C]/25 bg-[#FFF9F0] p-4 text-sm font-semibold leading-relaxed text-[#8A5A3F]">
+          {loadWarning}
+        </div>
+      )}
 
       <div className="rounded-[1.5rem] border border-[#B8795C]/20 bg-[#FFF9F0] p-5 shadow-sm">
         <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
