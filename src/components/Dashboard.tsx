@@ -18,11 +18,14 @@ import {
   MapPin,
   Clock,
   ChevronRight,
+  ArrowLeft,
   Menu,
   Camera,
   Eye,
   Leaf,
-  UserCircle
+  UserCircle,
+  Info,
+  Flame
 } from 'lucide-react';
 
 interface Service {
@@ -433,6 +436,28 @@ const getServiceRecommendations = (services: Service[], selectedOptions: QuizOpt
   }).map(({ service }) => service);
 };
 
+const getTodaySuggestedService = (services: Service[], dailyCard: DailyCard) => {
+  if (services.length === 0) return null;
+
+  const focus = dailyCard.focus.toLowerCase();
+  const keywordMap: Record<string, string[]> = {
+    инициатива: ['карта', 'прогноз', 'выбор'],
+    интуиция: ['карта', 'себ', 'расклад'],
+    забота: ['себ', 'ресурс', 'личн'],
+    движение: ['выбор', 'разбор', 'ситуац'],
+    'мягкая власть': ['отнош', 'чувств', 'личн'],
+    ясность: ['разбор', 'ситуац', 'глуб'],
+    восстановление: ['себ', 'ресурс', 'сопровожд'],
+    открытость: ['отнош', 'люб', 'прогноз'],
+  };
+  const keywords = keywordMap[focus] || ['карта', 'разбор'];
+
+  return services.find((service) => {
+    const text = `${service.title} ${service.description || ''}`.toLowerCase();
+    return keywords.some((keyword) => text.includes(keyword));
+  }) || services[0];
+};
+
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -446,6 +471,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [showServiceQuiz, setShowServiceQuiz] = useState(false);
   const [quizStep, setQuizStep] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, QuizOption>>({});
+  const [selectedServiceGroupId, setSelectedServiceGroupId] = useState<string | null>(null);
+  const [serviceDetails, setServiceDetails] = useState<Service | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>('home');
   const [clockNow, setClockNow] = useState(() => new Date());
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
@@ -607,6 +634,12 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const recommendedService = recommendedServices[0] || null;
   const alternativeServices = recommendedServices.filter(service => service.id !== recommendedService?.id).slice(0, 2);
   const serviceGroups = getGroupedServices(services);
+  const selectedServiceGroup = serviceGroups.find(group => group.id === selectedServiceGroupId) || null;
+  const campaignServices = services.filter(service => {
+    const priceState = getServicePriceState(service, clockNow);
+    return Boolean(priceState.countdownTarget);
+  }).slice(0, 2);
+  const todaySuggestedService = getTodaySuggestedService(services, dailyCard);
 
   const revealDailyCard = () => {
     try {
@@ -1084,6 +1117,44 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </div>
         </button>
 
+        {todaySuggestedService && (
+          <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)] backdrop-blur">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+                  сегодня уместно
+                </p>
+                <h3 className="text-xl font-black leading-tight text-[#385144]">
+                  {todaySuggestedService.title}
+                </h3>
+              </div>
+              <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
+                {dailyCard.focus}
+              </span>
+            </div>
+            <p className="mb-4 text-sm leading-relaxed text-[#59645C]">
+              По карте дня сейчас лучше выбрать формат, который даст не шум, а понятный ближайший шаг.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setServiceDetails(todaySuggestedService)}
+                className="flex-1 rounded-2xl border border-[#385144]/10 bg-[#F8F3EC] px-4 py-3 text-sm font-black text-[#385144]"
+              >
+                Подробнее
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedService(todaySuggestedService);
+                  setShowBooking(true);
+                }}
+                className="flex-1 rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)]"
+              >
+                Записаться
+              </button>
+            </div>
+          </div>
+        )}
+
         {upcomingConsultation && (
           <button
             onClick={() => setShowHistory(true)}
@@ -1207,7 +1278,6 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </span>
         </button>
 
-        {/* Список услуг */}
         <div>
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
@@ -1216,12 +1286,22 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </p>
             <h3 className="mt-1 flex items-center text-2xl font-black text-[#385144]">
               <CalendarCheck className="mr-2 h-6 w-6" />
-              Услуги
+              {selectedServiceGroup ? selectedServiceGroup.title : 'Разделы услуг'}
             </h3>
           </div>
-          <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">
-            {services.length || 0} форматов
-          </span>
+          {selectedServiceGroup ? (
+            <button
+              onClick={() => setSelectedServiceGroupId(null)}
+              className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-xs font-black text-[#385144]"
+            >
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+              Разделы
+            </button>
+          ) : (
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">
+              {services.length || 0} форматов
+            </span>
+          )}
         </div>
 
         {loading ? (
@@ -1232,24 +1312,86 @@ export const Dashboard = ({ user }: DashboardProps) => {
           <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
             <p className="text-[#6C756C]">Услуги пока не добавлены</p>
           </div>
-        ) : (
+        ) : !selectedServiceGroup ? (
           <div className="space-y-5">
-            {serviceGroups.map((group, groupIndex) => (
-              <section key={group.id} className="space-y-3">
-                <div className="flex items-end justify-between gap-3 px-1">
+            {campaignServices.length > 0 && (
+              <div className="rounded-[1.5rem] border border-[#B8795C]/25 bg-[#FFF6EF] p-4 shadow-[0_12px_30px_rgba(184,121,92,0.10)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-lg font-black text-[#385144]">{group.title}</p>
-                    <p className="mt-0.5 text-xs leading-snug text-[#6C756C]">{group.subtitle}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#B8795C]">
+                      сейчас действует
+                    </p>
+                    <h4 className="text-lg font-black text-[#385144]">Акции и старые цены</h4>
                   </div>
-                  <span className="rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-black text-[#8A5A3F]">
-                    {group.services.length}
-                  </span>
+                  <Flame className="h-5 w-5 text-[#B8795C]" />
                 </div>
+                <div className="grid gap-2">
+                  {campaignServices.map((service) => {
+                    const priceState = getServicePriceState(service, clockNow);
+                    const countdown = formatCountdown(priceState.countdownTarget, clockNow);
 
-                {group.services.map((service, index) => {
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => setServiceDetails(service)}
+                        className="flex items-center justify-between rounded-2xl bg-white/70 p-3 text-left"
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-[#385144]">{service.title}</span>
+                          <span className="mt-0.5 block text-xs font-bold text-[#8A5A3F]">
+                            {priceState.isPromoActive ? 'Акция' : 'Успейте по текущей цене'}
+                          </span>
+                        </span>
+                        {countdown && (
+                          <span className="rounded-full bg-[#385144]/10 px-2.5 py-1 text-[11px] font-black text-[#385144]">
+                            {countdown}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-3">
+              {serviceGroups.map((group, groupIndex) => (
+                <button
+                  key={group.id}
+                  onClick={() => setSelectedServiceGroupId(group.id)}
+                  className={`overflow-hidden rounded-[1.6rem] border border-white/80 bg-gradient-to-br ${getServiceAccent(groupIndex)} p-5 text-left shadow-[0_12px_30px_rgba(56,81,68,0.09)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(56,81,68,0.13)]`}
+                >
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#8A5A3F]/65">
+                        подборка
+                      </p>
+                      <h4 className="text-xl font-black text-[#385144]">{group.title}</h4>
+                      <p className="mt-1 text-sm leading-snug text-[#6C756C]">{group.subtitle}</p>
+                    </div>
+                    <span className="shrink-0 rounded-2xl bg-white/75 px-3 py-2 text-center shadow-sm">
+                      <span className="block text-2xl font-black leading-none text-[#385144]">{group.services.length}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8FA092]">услуг</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[#385144]/10 pt-3">
+                    <span className="text-xs font-bold text-[#6C756C]">
+                      {group.services.slice(0, 2).map(service => service.title).join(' · ')}
+                    </span>
+                    <ChevronRight className="h-5 w-5 text-[#8FA092]" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <section className="space-y-3">
+            <p className="px-1 text-sm leading-relaxed text-[#6C756C]">{selectedServiceGroup.subtitle}</p>
+
+            {selectedServiceGroup.services.map((service, index) => {
               const priceState = getServicePriceState(service, clockNow);
               const countdown = formatCountdown(priceState.countdownTarget, clockNow);
-              const accentIndex = groupIndex + index;
+              const accentIndex = index;
 
               return (
                 <div
@@ -1304,53 +1446,109 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setSelectedService(service);
-                      setShowBooking(true);
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl border border-[#385144]/10 bg-white/75 px-4 py-3 font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
-                  >
-                    <span className="inline-flex items-center">
-                      <CalendarCheck className="mr-2 h-4 w-4" />
-                      Записаться
-                    </span>
-                    <span className="inline-flex items-center gap-2 text-xs font-bold text-[#6C756C]">
-                      {service.duration_minutes ? `${service.duration_minutes} мин` : 'Выбрать время'}
-                      <ChevronRight className="h-4 w-4 text-[#8FA092]" />
-                    </span>
-                  </button>
+                  <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
+                    <button
+                      onClick={() => setServiceDetails(service)}
+                      className="flex items-center justify-center rounded-2xl border border-[#385144]/10 bg-white/65 px-3 py-3 text-sm font-black text-[#385144] shadow-sm transition hover:border-[#385144]/25 hover:bg-white"
+                    >
+                      <Info className="mr-2 h-4 w-4" />
+                      Подробнее
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedService(service);
+                        setShowBooking(true);
+                      }}
+                      className="flex items-center justify-between rounded-2xl bg-[#385144] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)] transition hover:bg-[#2d4238]"
+                    >
+                      <span className="inline-flex items-center">
+                        <CalendarCheck className="mr-2 h-4 w-4" />
+                        Записаться
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-white/75">
+                        {service.duration_minutes ? `${service.duration_minutes} мин` : 'Время'}
+                        <ChevronRight className="h-4 w-4" />
+                      </span>
+                    </button>
+                  </div>
                 </div>
               );
             })}
-              </section>
-            ))}
-          </div>
+          </section>
         )}
         </div>
         </>
         )}
 
         {activeTab === 'cabinet' && (
-        <div className="mb-7 grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setShowHistory(true)}
-            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#385144]/25"
-          >
-            <ScrollText className="mb-4 h-6 w-6 text-[#385144]" />
-            <p className="font-black text-[#385144]">История</p>
-            <p className="mt-1 text-xs leading-snug text-[#6C756C]">Записи, статусы и рекомендации</p>
-          </button>
+        <>
+          {upcomingConsultation && (
+            <button
+              onClick={() => setShowHistory(true)}
+              className="mb-4 w-full overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/85 p-5 text-left shadow-[0_16px_40px_rgba(56,81,68,0.10)] transition hover:-translate-y-0.5 hover:border-[#385144]/25"
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-[#8A5A3F]/70">
+                    ближайшая запись
+                  </p>
+                  <h3 className="text-xl font-black leading-tight text-[#385144]">
+                    {upcomingConsultation.services?.title || 'Консультация'}
+                  </h3>
+                </div>
+                <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
+                  consultationStatusColors[upcomingConsultation.status] || 'bg-[#EAF1EA] text-[#385144]'
+                }`}>
+                  {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+                </span>
+              </div>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-[#F8F3EC] p-3">
+                  <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                    <CalendarCheck className="mr-1 h-3 w-3" />
+                    Дата
+                  </div>
+                  <p className="text-sm font-black text-[#385144]">
+                    {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#F8F3EC] p-3">
+                  <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                    <Clock className="mr-1 h-3 w-3" />
+                    Время
+                  </div>
+                  <p className="text-sm font-black text-[#385144]">
+                    {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white">
+                <span>Посмотреть детали</span>
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </button>
+          )}
 
-          <button
-            onClick={() => setShowReferral(true)}
-            className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#B8795C]/35"
-          >
-            <Gift className="mb-4 h-6 w-6 text-[#B8795C]" />
-            <p className="font-black text-[#385144]">Пригласить</p>
-            <p className="mt-1 text-xs leading-snug text-[#6C756C]">Бонусы за тёплые рекомендации</p>
-          </button>
-        </div>
+          <div className="mb-7 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setShowHistory(true)}
+              className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#385144]/25"
+            >
+              <ScrollText className="mb-4 h-6 w-6 text-[#385144]" />
+              <p className="font-black text-[#385144]">История</p>
+              <p className="mt-1 text-xs leading-snug text-[#6C756C]">Записи, статусы и рекомендации</p>
+            </button>
+
+            <button
+              onClick={() => setShowReferral(true)}
+              className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:border-[#B8795C]/35"
+            >
+              <Gift className="mb-4 h-6 w-6 text-[#B8795C]" />
+              <p className="font-black text-[#385144]">Пригласить</p>
+              <p className="mt-1 text-xs leading-snug text-[#6C756C]">Бонусы за тёплые рекомендации</p>
+            </button>
+          </div>
+        </>
         )}
 
         {activeTab === 'menu' && (
@@ -1444,6 +1642,67 @@ export const Dashboard = ({ user }: DashboardProps) => {
       )}
 
       {/* Модальные окна */}
+      {serviceDetails && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#1F2E27]/35 p-3 backdrop-blur-sm">
+          <div className="mx-auto w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/70 bg-[#FFFCF7] shadow-[0_24px_70px_rgba(31,46,39,0.28)]">
+            <div className="bg-gradient-to-br from-[#385144] to-[#6A7C69] p-5 text-white">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-white/60">
+                    формат консультации
+                  </p>
+                  <h3 className="text-2xl font-black leading-tight">{serviceDetails.title}</h3>
+                </div>
+                <button
+                  onClick={() => setServiceDetails(null)}
+                  className="rounded-2xl bg-white/12 px-3 py-2 text-lg font-black text-white"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
+                  {serviceDetails.duration_minutes ? `${serviceDetails.duration_minutes} минут` : 'Индивидуально'}
+                </span>
+                <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold">
+                  {getServicePriceState(serviceDetails, clockNow).currentPrice} ₽
+                </span>
+              </div>
+            </div>
+            <div className="space-y-4 p-4">
+              {serviceDetails.description && (
+                <p className="rounded-[1.35rem] bg-[#F8F3EC] p-4 text-sm leading-relaxed text-[#59645C]">
+                  {serviceDetails.description}
+                </p>
+              )}
+              <div className="rounded-[1.35rem] border border-[#385144]/10 bg-white/80 p-4">
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">
+                  что даст формат
+                </p>
+                <p className="text-sm leading-relaxed text-[#59645C]">{getServiceOutcome(serviceDetails)}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {getServiceBenefits(serviceDetails).map((benefit) => (
+                    <span key={benefit} className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
+                      {benefit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedService(serviceDetails);
+                  setServiceDetails(null);
+                  setShowBooking(true);
+                }}
+                className="w-full rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)]"
+              >
+                Записаться на этот формат
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPrivileges && (
         <PrivilegeCards
           currentStatus={currentStatus}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ScrollText, Clock, DollarSign, Calendar, Sparkles, FileText } from 'lucide-react';
+import { ScrollText, Clock, DollarSign, Sparkles, FileText, ChevronLeft } from 'lucide-react';
 
 interface ConsultationHistoryProps {
   user: any;
@@ -10,11 +10,11 @@ interface ConsultationHistoryProps {
 }
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
+  pending: 'bg-[#F4E7C8] text-[#7A5A21] border-[#E5CF91]',
+  confirmed: 'bg-[#DDE9E0] text-[#385144] border-[#C7D8CB]',
   in_progress: 'bg-[#E7D8C9] text-[#8A5A3F] border-[#D8C0AC]',
-  completed: 'bg-green-100 text-green-800 border-green-300',
-  cancelled: 'bg-red-100 text-red-800 border-red-300',
+  completed: 'bg-[#EAF1EA] text-[#385144] border-[#C7D8CB]',
+  cancelled: 'bg-red-50 text-red-700 border-red-200',
 };
 
 const statusLabels: Record<string, string> = {
@@ -50,97 +50,129 @@ export const ConsultationHistory = ({ user, onBack }: ConsultationHistoryProps) 
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F5F2] p-4">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-[#385144] flex items-center">
-          <ScrollText className="w-6 h-6 mr-2" />
-          История консультаций
-        </h2>
-        <button onClick={onBack} className="text-gray-500 hover:text-[#385144]">✕</button>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-10">
-          <p className="text-gray-500">Загрузка...</p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] p-4 text-[#2F463B]">
+      <div className="mx-auto max-w-xl">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <button
+            onClick={onBack}
+            className="rounded-2xl border border-white/80 bg-white/80 p-3 shadow-[0_12px_30px_rgba(56,81,68,0.10)]"
+          >
+            <ChevronLeft className="h-5 w-5 text-[#385144]" />
+          </button>
+          <div className="text-right">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+              consultation timeline
+            </p>
+            <h2 className="text-2xl font-black text-[#385144]">История</h2>
+          </div>
         </div>
-      ) : consultations.length === 0 ? (
-        <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-gray-100">
-          <div className="text-6xl mb-4">📭</div>
-          <p className="text-gray-500">У вас пока нет консультаций</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {consultations.map((consultation) => (
-            <div key={consultation.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-[#385144] font-bold text-lg flex-1">
-                  {consultation.services?.title || 'Консультация'}
-                </h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[consultation.status]}`}>
-                  {statusLabels[consultation.status]}
-                </span>
-              </div>
 
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center text-gray-600 text-sm">
-                  <Calendar className="w-4 h-4 mr-2 text-[#B8795C]" />
-                  {consultation.scheduled_at 
-                    ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy', { locale: ru })
-                    : 'Дата не указана'
-                  }
-                </div>
-                <div className="flex items-center text-gray-600 text-sm">
-                  <Clock className="w-4 h-4 mr-2 text-[#B8795C]" />
-                  {consultation.scheduled_at 
-                    ? format(new Date(consultation.scheduled_at), 'HH:mm')
-                    : ''
-                  }
-                </div>
-                <div className="flex items-center text-gray-600 text-sm">
-                  <DollarSign className="w-4 h-4 mr-2 text-[#B8795C]" />
-                  <span className="font-bold text-[#385144]">{consultation.price} ₽</span>
-                  {consultation.bonus_used > 0 && (
-                    <span className="ml-2 text-xs text-gray-500">
-                      (списано бонусов: {consultation.bonus_used} ₽)
+        <div className="mb-5 rounded-[1.75rem] border border-white/80 bg-white/80 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-[#6C756C]">Всего записей</p>
+              <p className="text-3xl font-black text-[#385144]">{consultations.length}</p>
+            </div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#385144] text-white">
+              <ScrollText className="h-6 w-6" />
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+            <p className="text-[#6C756C]">Загрузка...</p>
+          </div>
+        ) : consultations.length === 0 ? (
+          <div className="rounded-[1.75rem] border border-white/80 bg-white/80 p-8 text-center shadow-sm">
+            <div className="mb-4 text-5xl">📭</div>
+            <p className="font-black text-[#385144]">Пока нет консультаций</p>
+            <p className="mt-2 text-sm leading-relaxed text-[#6C756C]">
+              После записи здесь появится спокойная история встреч, статусов и рекомендаций.
+            </p>
+          </div>
+        ) : (
+          <div className="relative space-y-4 pl-4">
+            <div className="absolute left-[1.05rem] top-2 h-[calc(100%-1rem)] w-px bg-[#D8CFC4]" />
+            {consultations.map((consultation, index) => (
+              <div key={consultation.id} className="relative pl-6">
+                <span className={`absolute left-0 top-6 h-3 w-3 rounded-full border-2 border-white ${
+                  index === 0 ? 'bg-[#B8795C]' : 'bg-[#385144]'
+                } shadow-sm`} />
+                <div className="rounded-[1.6rem] border border-white/80 bg-white/85 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#8A5A3F]/65">
+                        {consultation.scheduled_at
+                          ? format(new Date(consultation.scheduled_at), 'd MMMM yyyy', { locale: ru })
+                          : 'Дата не указана'}
+                      </p>
+                      <h3 className="text-lg font-black leading-tight text-[#385144]">
+                        {consultation.services?.title || 'Консультация'}
+                      </h3>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-black ${
+                      statusColors[consultation.status] || 'bg-[#EAF1EA] text-[#385144] border-[#C7D8CB]'
+                    }`}>
+                      {statusLabels[consultation.status] || consultation.status}
                     </span>
+                  </div>
+
+                  <div className="mb-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl bg-[#F8F3EC] p-3">
+                      <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                        <Clock className="mr-1 h-3.5 w-3.5" />
+                        Время
+                      </div>
+                      <p className="font-black text-[#385144]">
+                        {consultation.scheduled_at ? format(new Date(consultation.scheduled_at), 'HH:mm') : '—'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-[#F8F3EC] p-3">
+                      <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                        <DollarSign className="mr-1 h-3.5 w-3.5" />
+                        Стоимость
+                      </div>
+                      <p className="font-black text-[#385144]">{consultation.price} ₽</p>
+                    </div>
+                  </div>
+
+                  {consultation.bonus_used > 0 && (
+                    <p className="mb-3 rounded-2xl bg-[#EAF1EA] px-3 py-2 text-xs font-bold text-[#385144]">
+                      Списано бонусов: {consultation.bonus_used} ₽
+                    </p>
+                  )}
+
+                  {consultation.admin_notes && consultation.status === 'completed' && (
+                    <div className="mb-3 rounded-[1.25rem] border border-[#B8795C]/20 bg-[#FFF6EF] p-4">
+                      <div className="mb-2 flex items-center text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Рекомендации
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#59645C]">{consultation.admin_notes}</p>
+                    </div>
+                  )}
+
+                  {consultation.notes && (
+                    <div className="rounded-[1.25rem] bg-[#F8F3EC] p-4">
+                      <p className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#8FA092]">Ваш комментарий</p>
+                      <p className="text-sm leading-relaxed text-[#59645C]">{consultation.notes}</p>
+                    </div>
+                  )}
+
+                  {consultation.bonus_paid > 0 && (
+                    <div className="mt-3 flex items-center text-sm">
+                      <Sparkles className="mr-1 h-4 w-4 text-[#B8795C]" />
+                      <span className="text-[#6C756C]">Начислено бонусов:</span>
+                      <span className="ml-1 font-black text-[#8A5A3F]">+{consultation.bonus_paid} ₽</span>
+                    </div>
                   )}
                 </div>
               </div>
-
-              {consultation.admin_notes && consultation.status === 'completed' && (
-                <div className="bg-[#F8F5F2] border-l-4 border-[#B8795C] p-4 rounded-r-xl mb-3">
-                  <div className="flex items-start">
-                    <FileText className="w-5 h-5 mr-2 text-[#B8795C] flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-[#385144] text-xs font-bold mb-1">Рекомендации:</p>
-                      <p className="text-gray-700 text-sm whitespace-pre-wrap">{consultation.admin_notes}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {consultation.notes && (
-                <div className="bg-gray-50 border-l-4 border-gray-300 p-4 rounded-r-xl">
-                  <p className="text-gray-500 text-xs mb-1">Ваш комментарий:</p>
-                  <p className="text-gray-600 text-sm">{consultation.notes}</p>
-                </div>
-              )}
-
-              {consultation.bonus_paid > 0 && (
-                <div className="mt-3 flex items-center text-sm">
-                  <Sparkles className="w-4 h-4 mr-1 text-[#B8795C]" />
-                  <span className="text-gray-600">Начислено бонусов:</span>
-                  <span className="text-[#8A5A3F] font-bold ml-1">+{consultation.bonus_paid} ₽</span>
-                </div>
-              )}
-
-              <div className="text-gray-400 text-xs mt-3 pt-3 border-t border-gray-100">
-                Создано: {format(new Date(consultation.created_at), 'dd.MM.yyyy HH:mm')}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

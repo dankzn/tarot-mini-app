@@ -10,6 +10,7 @@ import {
   TrendingUp,
   DollarSign,
   Clock,
+  Sparkles,
 } from 'lucide-react';
 
 export const AdminWebDashboard = () => {
@@ -19,6 +20,9 @@ export const AdminWebDashboard = () => {
     totalConsultations: 0,
     pendingConsultations: 0,
     totalRevenue: 0,
+    todayConsultations: 0,
+    newUsers: 0,
+    activeCampaigns: 0,
   });
   const [recentConsultations, setRecentConsultations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,25 +56,59 @@ export const AdminWebDashboard = () => {
     try {
       const { data: usersData } = await supabase
         .from('users')
-        .select('id');
+        .select('id, created_at');
       
       const { data: consultationsData } = await supabase
+        .from('consultations')
+        .select('status, price, scheduled_at, users(name)')
+        .order('scheduled_at', { ascending: false });
+
+      const { data: recentData } = await supabase
         .from('consultations')
         .select('status, price, scheduled_at, users(name)')
         .order('scheduled_at', { ascending: false })
         .limit(10);
 
+      const { data: servicesData } = await supabase
+        .from('services')
+        .select('id, promo_starts_at, promo_ends_at, price_increase_at');
+
       const totalRevenue = consultationsData?.reduce((sum, c) => sum + (c.price || 0), 0) || 0;
       const pendingCount = consultationsData?.filter(c => c.status === 'pending').length || 0;
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const todayCount = consultationsData?.filter(c => {
+        if (!c.scheduled_at) return false;
+        const scheduledAt = new Date(c.scheduled_at);
+        return scheduledAt >= startOfDay && scheduledAt <= endOfDay;
+      }).length || 0;
+      const newUsers = usersData?.filter(user => (
+        user.created_at && new Date(user.created_at) >= sevenDaysAgo
+      )).length || 0;
+      const activeCampaigns = servicesData?.filter(service => {
+        const promoActive = service.promo_starts_at && service.promo_ends_at
+          && new Date(service.promo_starts_at) <= now
+          && new Date(service.promo_ends_at) >= now;
+        const priceChangePlanned = service.price_increase_at && new Date(service.price_increase_at) > now;
+        return promoActive || priceChangePlanned;
+      }).length || 0;
 
       setStats({
         totalUsers: usersData?.length || 0,
         totalConsultations: consultationsData?.length || 0,
         pendingConsultations: pendingCount,
         totalRevenue,
+        todayConsultations: todayCount,
+        newUsers,
+        activeCampaigns,
       });
 
-      setRecentConsultations(consultationsData || []);
+      setRecentConsultations(recentData || []);
     } catch (error) {
       console.error('Ошибка загрузки:', error);
     } finally {
@@ -147,6 +185,48 @@ export const AdminWebDashboard = () => {
               <span className="text-white/70 text-sm">Общий доход</span>
             </div>
             <p className="text-3xl font-black">{stats.totalRevenue.toLocaleString()} ₽</p>
+          </div>
+        </div>
+
+        <div className="mb-8 overflow-hidden rounded-[2rem] border border-white/80 bg-[#385144] p-6 text-white shadow-[0_22px_55px_rgba(56,81,68,0.20)]">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/55">
+                control room
+              </p>
+              <h2 className="mt-1 text-3xl font-black">Пульт управления</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/70">
+                Всё важное на сегодня: заявки, клиенты, акции и ближайшие действия.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/admin-web/consultations')}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144]"
+            >
+              Открыть записи
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            {[
+              { label: 'Сегодня записей', value: stats.todayConsultations, hint: 'по расписанию', icon: CalendarDays },
+              { label: 'Новые клиенты', value: stats.newUsers, hint: 'за 7 дней', icon: Users },
+              { label: 'Активные акции', value: stats.activeCampaigns, hint: 'или будущие цены', icon: Sparkles },
+              { label: 'Очередь заявок', value: stats.pendingConsultations, hint: 'нужно подтвердить', icon: Clock },
+            ].map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <div key={item.label} className="rounded-[1.35rem] bg-white/10 p-4 ring-1 ring-white/10">
+                  <div className="mb-4 flex items-center justify-between">
+                    <Icon className="h-5 w-5 text-[#F4E7C8]" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">{item.hint}</span>
+                  </div>
+                  <p className="text-3xl font-black">{item.value}</p>
+                  <p className="mt-1 text-sm font-semibold text-white/72">{item.label}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
         {/* Новые карточки */}
