@@ -27,6 +27,12 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+const preparationStatuses = new Set(['pending', 'confirmed', 'in_progress']);
+const preparationQuestions = [
+  'Что сейчас важнее всего обсудить?',
+  'Какой результат хочется унести после консультации?',
+  'Какие детали ситуации точно нельзя упустить?',
+];
 
 export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHistoryProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
@@ -170,6 +176,23 @@ export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHist
                     </p>
                   )}
 
+                  {preparationStatuses.has(consultation.status) && (
+                    <div className="mb-3 rounded-[1.25rem] border border-[#385144]/10 bg-[#EAF1EA] p-4">
+                      <div className="mb-3 flex items-center text-xs font-black uppercase tracking-[0.14em] text-[#385144]">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Подготовка
+                      </div>
+                      <div className="space-y-2">
+                        {preparationQuestions.map((question) => (
+                          <div key={question} className="flex gap-2 rounded-2xl bg-white/65 px-3 py-2 text-sm font-semibold leading-snug text-[#59645C]">
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#B8795C]" />
+                            <span>{question}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {consultation.admin_notes && consultation.status === 'completed' && (
                     <div className="mb-3 rounded-[1.25rem] border border-[#B8795C]/20 bg-[#FFF6EF] p-4">
                       <div className="mb-2 flex items-center text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
@@ -192,6 +215,15 @@ export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHist
                       <Sparkles className="mr-1 h-4 w-4 text-[#B8795C]" />
                       <span className="text-[#6C756C]">Начислено бонусов:</span>
                       <span className="ml-1 font-black text-[#8A5A3F]">+{consultation.bonus_paid} ₽</span>
+                    </div>
+                  )}
+
+                  {consultation.status === 'completed' && (
+                    <div className="mt-3 rounded-[1.25rem] border border-[#D8CFC4] bg-white/65 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">Следующий шаг</p>
+                      <p className="mt-2 text-sm leading-relaxed text-[#59645C]">
+                        Можно вернуться к этому формату позже или выбрать новый запрос, если ситуация изменилась.
+                      </p>
                     </div>
                   )}
 

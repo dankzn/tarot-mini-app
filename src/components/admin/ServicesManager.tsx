@@ -293,6 +293,13 @@ export const ServicesManager = () => {
     const priceState = getServicePriceState(service);
     return Boolean(priceState.nextPrice && priceState.countdownTarget);
   }).length;
+  const campaignServices = services
+    .map(service => ({
+      service,
+      priceState: getServicePriceState(service),
+    }))
+    .filter(({ priceState }) => priceState.isPromoActive || Boolean(priceState.nextPrice && priceState.countdownTarget))
+    .slice(0, 4);
 
   return (
     <div className="space-y-4">
@@ -324,6 +331,59 @@ export const ServicesManager = () => {
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">Повышения цен</p>
           <p className="mt-2 text-3xl font-black text-[#385144]">{scheduledIncreasesCount}</p>
         </div>
+      </div>
+
+      <div className="rounded-[1.5rem] border border-[#B8795C]/20 bg-[#FFF9F0] p-5 shadow-sm">
+        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#B8795C]/70">promo center</p>
+            <h3 className="text-xl font-black text-[#385144]">Сейчас действует</h3>
+          </div>
+          <p className="text-sm font-semibold text-[#6C756C]">
+            Акции и будущие повышения видны клиентам как таймеры.
+          </p>
+        </div>
+
+        {campaignServices.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {campaignServices.map(({ service, priceState }) => {
+              const countdown = formatCountdown(priceState.countdownTarget);
+              const isPromo = priceState.isPromoActive;
+
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => handleEdit(service)}
+                  className="rounded-[1.25rem] border border-white/80 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
+                      isPromo ? 'bg-[#B8795C] text-white' : 'bg-[#EAF1EA] text-[#385144]'
+                    }`}>
+                      {isPromo ? 'Акция' : 'Повышение цены'}
+                    </span>
+                    {countdown && (
+                      <span className="rounded-full bg-[#F8F5F2] px-3 py-1 text-xs font-black text-[#385144]">
+                        {countdown}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-black text-[#385144]">{service.title}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                    {isPromo
+                      ? `${priceState.basePrice} ₽ → ${priceState.currentPrice} ₽`
+                      : `${priceState.basePrice} ₽ → ${priceState.nextPrice} ₽`}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-[1.25rem] border border-dashed border-[#B8795C]/30 bg-white/65 p-5 text-sm font-semibold text-[#6C756C]">
+            Активных акций нет. Можно открыть любую услугу и включить акцию или запланировать повышение цены.
+          </div>
+        )}
       </div>
 
       {showForm && (

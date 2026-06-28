@@ -20,6 +20,8 @@ export const AdminWebDashboard = () => {
     totalConsultations: 0,
     pendingConsultations: 0,
     totalRevenue: 0,
+    weekRevenue: 0,
+    conversionRate: 0,
     todayConsultations: 0,
     newUsers: 0,
     activeCampaigns: 0,
@@ -73,7 +75,8 @@ export const AdminWebDashboard = () => {
         .from('services')
         .select('id, promo_starts_at, promo_ends_at, price_increase_at');
 
-      const totalRevenue = consultationsData?.reduce((sum, c) => sum + (c.price || 0), 0) || 0;
+      const completedConsultations = consultationsData?.filter(c => c.status === 'completed') || [];
+      const totalRevenue = completedConsultations.reduce((sum, c) => sum + (c.price || 0), 0) || 0;
       const pendingCount = consultationsData?.filter(c => c.status === 'pending').length || 0;
       const now = new Date();
       const startOfDay = new Date(now);
@@ -82,6 +85,12 @@ export const AdminWebDashboard = () => {
       endOfDay.setHours(23, 59, 59, 999);
       const sevenDaysAgo = new Date(now);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const weekRevenue = completedConsultations
+        .filter(c => c.scheduled_at && new Date(c.scheduled_at) >= sevenDaysAgo)
+        .reduce((sum, c) => sum + (c.price || 0), 0);
+      const conversionRate = consultationsData?.length
+        ? Math.round((completedConsultations.length / consultationsData.length) * 100)
+        : 0;
       const todayCount = consultationsData?.filter(c => {
         if (!c.scheduled_at) return false;
         const scheduledAt = new Date(c.scheduled_at);
@@ -103,6 +112,8 @@ export const AdminWebDashboard = () => {
         totalConsultations: consultationsData?.length || 0,
         pendingConsultations: pendingCount,
         totalRevenue,
+        weekRevenue,
+        conversionRate,
         todayConsultations: todayCount,
         newUsers,
         activeCampaigns,
@@ -182,7 +193,7 @@ export const AdminWebDashboard = () => {
           <div className="rounded-[1.5rem] border border-white/80 bg-[#385144] p-5 text-white shadow-[0_18px_44px_rgba(56,81,68,0.18)]">
             <div className="flex items-center mb-3">
               <DollarSign className="w-6 h-6 text-[#F4E7C8] mr-3" />
-              <span className="text-white/70 text-sm">Общий доход</span>
+              <span className="text-white/70 text-sm">Доход завершённых</span>
             </div>
             <p className="text-3xl font-black">{stats.totalRevenue.toLocaleString()} ₽</p>
           </div>
@@ -207,12 +218,14 @@ export const AdminWebDashboard = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
             {[
               { label: 'Сегодня записей', value: stats.todayConsultations, hint: 'по расписанию', icon: CalendarDays },
               { label: 'Новые клиенты', value: stats.newUsers, hint: 'за 7 дней', icon: Users },
               { label: 'Активные акции', value: stats.activeCampaigns, hint: 'или будущие цены', icon: Sparkles },
               { label: 'Очередь заявок', value: stats.pendingConsultations, hint: 'нужно подтвердить', icon: Clock },
+              { label: 'Доход недели', value: `${stats.weekRevenue.toLocaleString()} ₽`, hint: 'завершённые', icon: DollarSign },
+              { label: 'Конверсия', value: `${stats.conversionRate}%`, hint: 'в завершение', icon: TrendingUp },
             ].map((item) => {
               const Icon = item.icon;
 
