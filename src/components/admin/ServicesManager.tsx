@@ -136,6 +136,40 @@ const buildServicePayload = (formData: ServiceFormData, includeDisplayControls =
   };
 };
 
+const saveServiceThroughApi = async ({
+  action,
+  id,
+  payload,
+}: {
+  action: 'insert' | 'update';
+  id?: string;
+  payload: Record<string, any>;
+}) => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    throw new Error('Админ-сессия не найдена. Перезайдите в админку.');
+  }
+
+  const response = await fetch('/api/admin/services', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, id, payload }),
+  });
+
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok || !body?.ok) {
+    throw new Error(body?.error || 'Не удалось сохранить услугу через сервер');
+  }
+
+  return body;
+};
+
 export const ServicesManager = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -197,29 +231,59 @@ export const ServicesManager = () => {
     console.log('📝 Сохранение услуги:', editingId ? 'UPDATE' : 'INSERT');
     console.log('Данные формы:', formData);
 
+    try {
     if (editingId) {
       const updateData = buildServicePayload(formData);
 
       console.log('Обновляем услугу ID:', editingId);
       console.log('Данные для обновления:', updateData);
 
-      let { data, error } = await supabase
-        .from('services')
-        .update(updateData)
-        .eq('id', editingId)
-        .select();
+      let data = null;
+      let error = null;
+
+      try {
+        const result = await supabase
+          .from('services')
+          .update(updateData)
+          .eq('id', editingId)
+          .select();
+
+        data = result.data;
+        error = result.error;
+      } catch (directError) {
+        console.warn('Браузерное сохранение услуги недоступно, пробуем серверный API:', directError);
+        const apiResult = await saveServiceThroughApi({ action: 'update', id: editingId, payload: updateData });
+        data = apiResult.data;
+        error = null;
+
+        if (apiResult.mode === 'base') {
+          setLoadWarning('Базовые поля услуги сохранены. Для категорий, бейджей и сортировки примените миграцию 20260628_service_control_and_client_notes.sql.');
+        }
+      }
 
       if (error) {
         console.warn('Не удалось сохранить расширенные поля услуги, пробуем базовое сохранение:', error);
 
-        const fallbackResult = await supabase
-          .from('services')
-          .update(buildServicePayload(formData, false))
-          .eq('id', editingId)
-          .select();
+        try {
+          const fallbackResult = await supabase
+            .from('services')
+            .update(buildServicePayload(formData, false))
+            .eq('id', editingId)
+            .select();
 
-        data = fallbackResult.data;
-        error = fallbackResult.error;
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        } catch (fallbackError) {
+          console.warn('Базовое браузерное сохранение недоступно, пробуем серверный API:', fallbackError);
+          const apiResult = await saveServiceThroughApi({
+            action: 'update',
+            id: editingId,
+            payload: buildServicePayload(formData, false),
+          });
+
+          data = apiResult.data;
+          error = null;
+        }
 
         if (error) {
           console.error('❌ Ошибка обновления услуги:', error);
@@ -236,21 +300,49 @@ export const ServicesManager = () => {
 
       console.log('Создаем новую услугу:', insertData);
 
-      let { data, error } = await supabase
-        .from('services')
-        .insert([insertData])
-        .select();
+      let data = null;
+      let error = null;
+
+      try {
+        const result = await supabase
+          .from('services')
+          .insert([insertData])
+          .select();
+
+        data = result.data;
+        error = result.error;
+      } catch (directError) {
+        console.warn('Браузерное создание услуги недоступно, пробуем серверный API:', directError);
+        const apiResult = await saveServiceThroughApi({ action: 'insert', payload: insertData });
+        data = apiResult.data;
+        error = null;
+
+        if (apiResult.mode === 'base') {
+          setLoadWarning('Услуга создана в базовом режиме. Для категорий, бейджей и сортировки примените миграцию 20260628_service_control_and_client_notes.sql.');
+        }
+      }
 
       if (error) {
         console.warn('Не удалось создать услугу с расширенными полями, пробуем базовое создание:', error);
 
-        const fallbackResult = await supabase
-          .from('services')
-          .insert([buildServicePayload(formData, false)])
-          .select();
+        try {
+          const fallbackResult = await supabase
+            .from('services')
+            .insert([buildServicePayload(formData, false)])
+            .select();
 
-        data = fallbackResult.data;
-        error = fallbackResult.error;
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        } catch (fallbackError) {
+          console.warn('Базовое браузерное создание недоступно, пробуем серверный API:', fallbackError);
+          const apiResult = await saveServiceThroughApi({
+            action: 'insert',
+            payload: buildServicePayload(formData, false),
+          });
+
+          data = apiResult.data;
+          error = null;
+        }
 
         if (error) {
           console.error('❌ Ошибка создания услуги:', error);
@@ -262,6 +354,11 @@ export const ServicesManager = () => {
       }
 
       console.log('✅ Услуга создана:', data);
+    }
+    } catch (error) {
+      console.error('❌ Ошибка сохранения услуги:', error);
+      alert(`Ошибка при ${editingId ? 'обновлении' : 'создании'}: ${error instanceof Error ? error.message : 'не удалось сохранить услугу'}`);
+      return;
     }
 
     setShowForm(false);
