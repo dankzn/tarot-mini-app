@@ -92,8 +92,7 @@ const sendViaLegacyClientToken = async (
     body: JSON.stringify({
       chat_id: chatId,
       photo: options.photoUrl,
-      caption: message,
-      parse_mode: 'HTML',
+      ...(message.trim() ? { caption: message, parse_mode: 'HTML' } : {}),
       ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     }),
   });
@@ -101,7 +100,7 @@ const sendViaLegacyClientToken = async (
   let response = options.photoUrl ? await sendPhoto() : await sendMessage();
   let payload = await response.json().catch(() => null);
 
-  if (!response.ok && options.photoUrl) {
+  if (!response.ok && options.photoUrl && message.trim()) {
     response = await sendMessage();
     payload = await response.json().catch(() => null);
   }
@@ -278,16 +277,7 @@ export const notifyClientBonusUpdate = async (
   newBalance: number,
   consultationTitle = 'Консультация'
 ) => {
-  const message = `
-✨ <b>Бонусы начислены</b>
-
-💎 <b>Начислено:</b> +${bonusAmount} ₽
-💰 <b>Баланс:</b> ${newBalance} ₽
-
-Спасибо за доверие. Бонусы можно использовать при следующей записи.
-  `.trim();
-
-  return sendTelegramNotification(clientTelegramId, message, {
+  return sendTelegramNotification(clientTelegramId, '', {
     photoUrl: getTelegramCardUrl('bonus', {
       title: consultationTitle,
       amount: bonusAmount,

@@ -68,8 +68,7 @@ const sendPhoto = async ({ botToken, chatId, message, parseMode = 'HTML', photoU
     body: {
       chat_id: chatId,
       photo: photoUrl,
-      caption: message,
-      parse_mode: parseMode,
+      ...(message ? { caption: message, parse_mode: parseMode } : {}),
       ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     },
   })
@@ -102,12 +101,15 @@ export default async function handler(request, response) {
     return;
   }
 
-  if (!chatId || typeof message !== 'string' || message.trim().length === 0) {
+  const trimmedMessage = typeof message === 'string' ? message.trim() : '';
+
+  if (!chatId || (!photoUrl && trimmedMessage.length === 0)) {
     response.status(400).json({
-      error: 'chatId and message are required',
+      error: 'chatId and message or photoUrl are required',
       code: 'BAD_REQUEST',
       hasChatId: Boolean(chatId),
-      hasMessage: typeof message === 'string' && message.trim().length > 0,
+      hasMessage: trimmedMessage.length > 0,
+      hasPhotoUrl: Boolean(photoUrl),
       tokenSource,
     });
     return;
@@ -116,13 +118,14 @@ export default async function handler(request, response) {
   try {
     if (photoUrl) {
       try {
-        await sendPhoto({ botToken, chatId, message: message.trim(), parseMode, photoUrl, replyMarkup });
+        await sendPhoto({ botToken, chatId, message: trimmedMessage, parseMode, photoUrl, replyMarkup });
       } catch (photoError) {
         console.error('Telegram sendPhoto failed, fallback to sendMessage:', photoError);
-        await sendMessage({ botToken, chatId, message: message.trim(), parseMode, replyMarkup });
+        if (!trimmedMessage) throw photoError;
+        await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode, replyMarkup });
       }
     } else {
-      await sendMessage({ botToken, chatId, message: message.trim(), parseMode, replyMarkup });
+      await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode, replyMarkup });
     }
     response.status(200).json({ ok: true, tokenSource });
   } catch (error) {
