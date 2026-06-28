@@ -293,6 +293,7 @@ export const notifyClientBonusUpdate = async (
       amount: bonusAmount,
       spent: 0,
       total: newBalance,
+      version: Date.now(),
     }),
   });
 };

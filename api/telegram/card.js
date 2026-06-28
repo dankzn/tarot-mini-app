@@ -12,11 +12,11 @@ const NOTO_SANS_SEMIBOLD_PATH = join(__dirname, '../../public/telegram/fonts/Not
 const NOTO_SANS_EXTRABOLD_PATH = join(__dirname, '../../public/telegram/fonts/NotoSans-ExtraBold.ttf');
 const TITLE_X = 238;
 const TITLE_Y = 326;
-const ACCRUED_X = 612;
+const ACCRUED_X = 650;
 const ACCRUED_Y = 552;
-const SPENT_X = 570;
+const SPENT_X = 650;
 const SPENT_Y = 650;
-const TOTAL_X = 600;
+const TOTAL_X = 650;
 const TOTAL_Y = 746;
 
 const FONT = {
