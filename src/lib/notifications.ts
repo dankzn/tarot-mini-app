@@ -12,6 +12,16 @@ interface NotificationResult {
   error?: string;
 }
 
+interface TelegramButton {
+  text: string;
+  url: string;
+}
+
+interface NotificationOptions {
+  photoUrl?: string;
+  buttons?: TelegramButton[];
+}
+
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -20,9 +30,11 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 
 const sendViaServerEndpoint = async (
   chatId: string | number,
-  message: string
+  message: string,
+  options: NotificationOptions = {}
 ): Promise<void> => {
   const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  const replyMarkup = buildReplyMarkup(options.buttons);
 
   const response = await fetch('/api/telegram/send', {
     method: 'POST',
@@ -34,6 +46,8 @@ const sendViaServerEndpoint = async (
       message,
       parseMode: 'HTML',
       botToken,
+      photoUrl: options.photoUrl,
+      replyMarkup,
     }),
   });
 
@@ -46,7 +60,8 @@ const sendViaServerEndpoint = async (
 
 const sendViaLegacyClientToken = async (
   chatId: string | number,
-  message: string
+  message: string,
+  options: NotificationOptions = {}
 ): Promise<void> => {
   const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
 
@@ -54,7 +69,8 @@ const sendViaLegacyClientToken = async (
     throw new Error('Legacy Telegram bot token is not configured');
   }
 
-  const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
+  const replyMarkup = buildReplyMarkup(options.buttons);
+  const sendMessage = async () => fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -64,30 +80,81 @@ const sendViaLegacyClientToken = async (
       text: message,
       parse_mode: 'HTML',
       disable_web_page_preview: true,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     }),
   });
 
-  const payload = await response.json().catch(() => null);
+  const sendPhoto = async () => fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendPhoto`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: options.photoUrl,
+      caption: message,
+      parse_mode: 'HTML',
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    }),
+  });
+
+  let response = options.photoUrl ? await sendPhoto() : await sendMessage();
+  let payload = await response.json().catch(() => null);
+
+  if (!response.ok && options.photoUrl) {
+    response = await sendMessage();
+    payload = await response.json().catch(() => null);
+  }
 
   if (!response.ok) {
     throw new Error(payload?.description || 'Telegram API request failed');
   }
 };
 
+const buildReplyMarkup = (buttons?: TelegramButton[]) => {
+  if (!buttons || buttons.length === 0) return undefined;
+
+  return {
+    inline_keyboard: [
+      buttons.map(button => ({
+        text: button.text,
+        url: button.url,
+      })),
+    ],
+  };
+};
+
+const getPublicAssetUrl = (path: string) => (
+  typeof window === 'undefined'
+    ? path
+    : new URL(path, window.location.origin).toString()
+);
+
+const getAppUrl = (path = '/') => (
+  typeof window === 'undefined'
+    ? path
+    : new URL(path, window.location.origin).toString()
+);
+
+const getTelegramVisual = (name: 'booking-client' | 'booking-admin' | 'bonus-update' | 'status-update') => (
+  getPublicAssetUrl(`/telegram/${name}.png`)
+);
+
 // Старая схема: сначала прямой клиентский токен, затем server endpoint fallback
 export const sendTelegramNotification = async (
   chatId: string | number,
-  message: string
+  message: string,
+  options: NotificationOptions = {}
 ): Promise<NotificationResult> => {
   const hasLegacyClientToken = Boolean(import.meta.env.VITE_TELEGRAM_BOT_TOKEN);
 
   if (hasLegacyClientToken) {
     try {
-      await sendViaLegacyClientToken(chatId, message);
+      await sendViaLegacyClientToken(chatId, message, options);
       return { ok: true };
     } catch (fallbackError) {
       try {
-        await sendViaServerEndpoint(chatId, message);
+        await sendViaServerEndpoint(chatId, message, options);
         return { ok: true };
       } catch (serverError) {
         const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
@@ -101,11 +168,11 @@ export const sendTelegramNotification = async (
   }
 
   try {
-    await sendViaServerEndpoint(chatId, message);
+    await sendViaServerEndpoint(chatId, message, options);
     return { ok: true };
   } catch (serverError) {
     try {
-      await sendViaLegacyClientToken(chatId, message);
+      await sendViaLegacyClientToken(chatId, message, options);
       return { ok: true };
     } catch (fallbackError) {
       const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
@@ -146,8 +213,15 @@ export const notifyAdminNewBooking = async (
 
 Проверь время и подтверди запись в админке.
   `.trim();
+  const options: NotificationOptions = {
+    photoUrl: getTelegramVisual('booking-admin'),
+    buttons: [
+      { text: 'Открыть записи', url: getAppUrl('/admin-web/consultations') },
+      { text: 'Админ-пульт', url: getAppUrl('/admin-web/dashboard') },
+    ],
+  };
 
-  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message, options)));
   const failed = results.filter(result => !result.ok);
 
   return failed.length === results.length
@@ -177,7 +251,12 @@ export const notifyClientBookingCreated = async (
 4) рекомендации после встречи
   `.trim();
 
-  return sendTelegramNotification(clientTelegramId, message);
+  return sendTelegramNotification(clientTelegramId, message, {
+    photoUrl: getTelegramVisual('booking-client'),
+    buttons: [
+      { text: 'Открыть мини-приложение', url: getAppUrl('/') },
+    ],
+  });
 };
 
 // Уведомление клиенту об изменении баланса
@@ -195,7 +274,12 @@ export const notifyClientBonusUpdate = async (
 Спасибо за доверие. Бонусы можно использовать при следующей записи.
   `.trim();
 
-  return sendTelegramNotification(clientTelegramId, message);
+  return sendTelegramNotification(clientTelegramId, message, {
+    photoUrl: getTelegramVisual('bonus-update'),
+    buttons: [
+      { text: 'Посмотреть кабинет', url: getAppUrl('/') },
+    ],
+  });
 };
 
 // Уведомление клиенту об изменении статуса
@@ -211,7 +295,12 @@ export const notifyClientStatusChange = async (
 Это открывает дополнительные преимущества в личном кабинете.
   `.trim();
 
-  return sendTelegramNotification(clientTelegramId, message);
+  return sendTelegramNotification(clientTelegramId, message, {
+    photoUrl: getTelegramVisual('status-update'),
+    buttons: [
+      { text: 'Открыть кабинет', url: getAppUrl('/') },
+    ],
+  });
 };
 
 // Массовая рассылка

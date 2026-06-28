@@ -28,18 +28,13 @@ const parseBody = (body) => {
   }
 };
 
-const sendMessage = async ({ botToken, chatId, message, parseMode = 'HTML' }) => {
-  const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
+const requestTelegram = async ({ botToken, method, body }) => {
+  const response = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/${method}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: message,
-      parse_mode: parseMode,
-      disable_web_page_preview: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   const payload = await response.json().catch(() => null);
@@ -52,6 +47,34 @@ const sendMessage = async ({ botToken, chatId, message, parseMode = 'HTML' }) =>
   return payload;
 };
 
+const sendMessage = async ({ botToken, chatId, message, parseMode = 'HTML', replyMarkup }) => (
+  requestTelegram({
+    botToken,
+    method: 'sendMessage',
+    body: {
+      chat_id: chatId,
+      text: message,
+      parse_mode: parseMode,
+      disable_web_page_preview: true,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    },
+  })
+);
+
+const sendPhoto = async ({ botToken, chatId, message, parseMode = 'HTML', photoUrl, replyMarkup }) => (
+  requestTelegram({
+    botToken,
+    method: 'sendPhoto',
+    body: {
+      chat_id: chatId,
+      photo: photoUrl,
+      caption: message,
+      parse_mode: parseMode,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    },
+  })
+);
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -59,7 +82,14 @@ export default async function handler(request, response) {
     return;
   }
 
-  const { chatId, message, parseMode, botToken: requestBotToken } = parseBody(request.body);
+  const {
+    chatId,
+    message,
+    parseMode,
+    photoUrl,
+    replyMarkup,
+    botToken: requestBotToken,
+  } = parseBody(request.body);
   const botToken = getBotToken(requestBotToken);
   const tokenSource = getTokenSource(requestBotToken);
 
@@ -84,7 +114,16 @@ export default async function handler(request, response) {
   }
 
   try {
-    await sendMessage({ botToken, chatId, message: message.trim(), parseMode });
+    if (photoUrl) {
+      try {
+        await sendPhoto({ botToken, chatId, message: message.trim(), parseMode, photoUrl, replyMarkup });
+      } catch (photoError) {
+        console.error('Telegram sendPhoto failed, fallback to sendMessage:', photoError);
+        await sendMessage({ botToken, chatId, message: message.trim(), parseMode, replyMarkup });
+      }
+    } else {
+      await sendMessage({ botToken, chatId, message: message.trim(), parseMode, replyMarkup });
+    }
     response.status(200).json({ ok: true, tokenSource });
   } catch (error) {
     response.status(502).json({
