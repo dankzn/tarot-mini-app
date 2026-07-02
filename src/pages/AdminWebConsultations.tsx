@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
+import { notifyClientBonusUpdate } from '../lib/notifications';
 
 export const AdminWebConsultations = () => {
   const navigate = useNavigate();
@@ -162,7 +163,6 @@ export const AdminWebConsultations = () => {
 
       // Отправляем уведомление клиенту
       if (!isEdit && selectedConsultation.users?.telegram_id) {
-        const { notifyClientBonusUpdate } = await import('../lib/notifications');
         await notifyClientBonusUpdate(
           selectedConsultation.users.telegram_id,
           bonusEarned,

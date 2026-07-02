@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
+import { sendBulkNotification } from '../lib/notifications';
 
 const EMOJI_PRESETS = ['✨', '🔮', '🕯️', '🪄', '🌙', '💫', '❤️', '🫶', '🔥', '🎁', '⏳', '✅'];
 
@@ -175,8 +176,6 @@ export const AdminWebMailings = () => {
     setSending(true);
 
     try {
-      const { sendBulkNotification } = await import('../lib/notifications');
-      
       const telegramIds = recipients.map(u => u.telegram_id.toString());
       const results = await sendBulkNotification(telegramIds, message);
 
