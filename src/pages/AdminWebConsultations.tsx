@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { 
-  ArrowLeft, 
   CheckCircle, 
   XCircle, 
   Clock, 
@@ -16,6 +15,7 @@ import {
   FileText,
   Sparkles
 } from 'lucide-react';
+import { AdminBackButton } from '../components/admin/AdminBackButton';
 
 export const AdminWebConsultations = () => {
   const navigate = useNavigate();
@@ -214,10 +214,7 @@ export const AdminWebConsultations = () => {
       <div className="min-h-screen bg-[#F8F5F2]">
         <div className="bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <button onClick={() => setShowCompleteForm(false)} className="flex items-center text-gray-600 hover:text-[#385144]">
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Назад
-            </button>
+            <AdminBackButton onClick={() => setShowCompleteForm(false)} />
             <h1 className="text-2xl font-bold text-[#385144]">
               {isEdit ? 'Редактирование консультации' : 'Завершение консультации'}
             </h1>
@@ -332,10 +329,7 @@ export const AdminWebConsultations = () => {
       {/* Шапка */}
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <button onClick={() => navigate('/admin-web/dashboard')} className="flex items-center text-gray-600 hover:text-[#385144]">
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Назад
-          </button>
+          <AdminBackButton onClick={() => navigate('/admin-web/dashboard')} label="В dashboard" />
           <h1 className="text-2xl font-bold text-[#385144]">Управление записями</h1>
           <div></div>
         </div>

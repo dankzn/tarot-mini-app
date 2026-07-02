@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { 
-  ArrowLeft, 
   Send, 
   Users, 
   Calendar,
@@ -13,9 +12,39 @@ import {
   MessageSquare,
   Trash2
 } from 'lucide-react';
+import { AdminBackButton } from '../components/admin/AdminBackButton';
+
+const EMOJI_PRESETS = ['✨', '🔮', '🕯️', '🪄', '🌙', '💫', '❤️', '🫶', '🔥', '🎁', '⏳', '✅'];
+
+const escapeHtml = (value: string) => (
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+);
+
+const renderTelegramPreview = (value: string) => (
+  escapeHtml(value)
+    .replace(/&lt;(\/?)(b|strong)&gt;/g, '<$1b>')
+    .replace(/&lt;(\/?)(i|em)&gt;/g, '<$1i>')
+    .replace(/&lt;(\/?)(u|ins)&gt;/g, '<$1u>')
+    .replace(/&lt;(\/?)(s|strike|del)&gt;/g, '<$1s>')
+    .replace(/&lt;(\/?)(code)&gt;/g, '<$1code>')
+    .replace(/&lt;(\/?)(pre)&gt;/g, '<$1pre>')
+    .replace(/&lt;blockquote&gt;/g, '<blockquote>')
+    .replace(/&lt;\/blockquote&gt;/g, '</blockquote>')
+    .replace(/&lt;tg-spoiler&gt;/g, '<span class="rounded bg-[#385144]/10 px-1 text-[#385144]">')
+    .replace(/&lt;\/tg-spoiler&gt;/g, '</span>')
+    .replace(/&lt;a href=&quot;([^"]+)&quot;&gt;/g, '<a href="$1" class="font-bold text-[#385144] underline" target="_blank" rel="noreferrer">')
+    .replace(/&lt;\/a&gt;/g, '</a>')
+    .replace(/\n/g, '<br />')
+);
 
 export const AdminWebMailings = () => {
   const navigate = useNavigate();
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
   const [mailings, setMailings] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +57,39 @@ export const AdminWebMailings = () => {
   const [recipientFilter, setRecipientFilter] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [previewMode, setPreviewMode] = useState(false);
+
+  const insertIntoMessage = (before: string, after = '', placeholder = 'текст') => {
+    const textarea = messageRef.current;
+
+    if (!textarea) {
+      setMessage(prev => `${prev}${before}${placeholder}${after}`);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = message.slice(start, end) || placeholder;
+    const nextMessage = `${message.slice(0, start)}${before}${selectedText}${after}${message.slice(end)}`;
+    const nextCursor = start + before.length + selectedText.length + after.length;
+
+    setMessage(nextMessage);
+
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const insertLink = () => {
+    const url = window.prompt('Ссылка для Telegram-кнопки в тексте:', 'https://');
+    if (!url) return;
+
+    insertIntoMessage(`<a href="${url}">`, '</a>', 'текст ссылки');
+  };
+
+  const insertEmoji = (emoji: string) => {
+    insertIntoMessage(emoji, '', '');
+  };
 
   useEffect(() => {
     checkAuth();
@@ -159,10 +221,7 @@ export const AdminWebMailings = () => {
       <div className="min-h-screen bg-[#F8F5F2]">
         <div className="bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <button onClick={() => setShowCreateForm(false)} className="flex items-center text-gray-600 hover:text-[#385144]">
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Назад
-            </button>
+            <AdminBackButton onClick={() => setShowCreateForm(false)} />
             <h1 className="text-2xl font-bold text-[#385144]">Новая рассылка</h1>
             <div></div>
           </div>
@@ -233,12 +292,54 @@ export const AdminWebMailings = () => {
                 Текст сообщения
               </label>
               <p className="text-gray-500 text-xs mb-2">
-                Поддерживается HTML: &lt;b&gt;, &lt;i&gt;, &lt;a href="..."&gt;
+                Поддерживается Telegram HTML: жирный, курсив, подчёркивание, зачёркивание, код, цитаты, спойлеры и ссылки.
               </p>
+              <div className="mb-3 rounded-2xl border border-[#385144]/10 bg-[#F8F5F2] p-3">
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {[
+                    { label: 'Жирный', before: '<b>', after: '</b>', sample: 'важно' },
+                    { label: 'Курсив', before: '<i>', after: '</i>', sample: 'мягко' },
+                    { label: 'Подчеркнуть', before: '<u>', after: '</u>', sample: 'акцент' },
+                    { label: 'Зачеркнуть', before: '<s>', after: '</s>', sample: 'неактуально' },
+                    { label: 'Код', before: '<code>', after: '</code>', sample: 'код' },
+                    { label: 'Цитата', before: '<blockquote>', after: '</blockquote>', sample: 'цитата' },
+                    { label: 'Спойлер', before: '<tg-spoiler>', after: '</tg-spoiler>', sample: 'секрет' },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => insertIntoMessage(item.before, item.after, item.sample)}
+                      className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#385144] shadow-sm transition hover:bg-[#EAF1EA]"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={insertLink}
+                    className="rounded-full bg-[#385144] px-3 py-1.5 text-xs font-black text-white shadow-sm transition hover:bg-[#2d4238]"
+                  >
+                    Ссылка
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {EMOJI_PRESETS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => insertEmoji(emoji)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg shadow-sm transition hover:-translate-y-0.5"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea
+                ref={messageRef}
                 rows={10}
                 className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144] font-mono text-sm"
-                placeholder="Введите текст сообщения..."
+                placeholder={'Например:\\n<b>Новая акция</b> ✨\\nЗапись открыта до конца недели.'}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
@@ -258,9 +359,10 @@ export const AdminWebMailings = () => {
                 {previewMode && (
                   <div className="bg-[#F8F5F2] p-4 rounded-xl border border-[#385144]/20">
                     <p className="text-gray-500 text-xs mb-2">Так будет выглядеть сообщение:</p>
-                    <div className="bg-white p-4 rounded-lg shadow-sm whitespace-pre-wrap text-gray-700">
-                      {message}
-                    </div>
+                    <div
+                      className="bg-white p-4 rounded-lg shadow-sm text-gray-700 [&_blockquote]:border-l-4 [&_blockquote]:border-[#385144]/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-[#F8F5F2] [&_code]:px-1 [&_pre]:rounded-xl [&_pre]:bg-[#F8F5F2] [&_pre]:p-3"
+                      dangerouslySetInnerHTML={{ __html: renderTelegramPreview(message) }}
+                    />
                   </div>
                 )}
               </div>
@@ -302,10 +404,7 @@ export const AdminWebMailings = () => {
     <div className="min-h-screen bg-[#F8F5F2]">
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <button onClick={() => navigate('/admin-web/dashboard')} className="flex items-center text-gray-600 hover:text-[#385144]">
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Назад
-          </button>
+          <AdminBackButton onClick={() => navigate('/admin-web/dashboard')} label="В dashboard" />
           <h1 className="text-2xl font-bold text-[#385144]">Рассылка акций</h1>
           <button
             onClick={() => setShowCreateForm(true)}

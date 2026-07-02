@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { format, addMinutes, parse } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { 
-  ArrowLeft, 
   Clock, 
   Calendar, 
   Plus, 
@@ -12,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
+import { AdminBackButton } from '../components/admin/AdminBackButton';
 
 export const AdminWebSlots = () => {
   const navigate = useNavigate();
@@ -154,10 +154,7 @@ export const AdminWebSlots = () => {
       <div className="min-h-screen bg-[#F8F5F2]">
         <div className="bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <button onClick={() => setShowCreateForm(false)} className="flex items-center text-gray-600 hover:text-[#385144]">
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Назад
-            </button>
+            <AdminBackButton onClick={() => setShowCreateForm(false)} />
             <h1 className="text-2xl font-bold text-[#385144]">Создание слотов</h1>
             <div></div>
           </div>
@@ -265,10 +262,7 @@ export const AdminWebSlots = () => {
     <div className="min-h-screen bg-[#F8F5F2]">
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <button onClick={() => navigate('/admin-web/dashboard')} className="flex items-center text-gray-600 hover:text-[#385144]">
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Назад
-          </button>
+          <AdminBackButton onClick={() => navigate('/admin-web/dashboard')} label="В dashboard" />
           <h1 className="text-2xl font-bold text-[#385144]">Управление окнами</h1>
           <button
             onClick={() => setShowCreateForm(true)}

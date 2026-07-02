@@ -526,8 +526,8 @@ export const ServicesManager = () => {
                   <p className="font-black text-[#385144]">{service.title}</p>
                   <p className="mt-1 text-sm font-semibold text-[#6C756C]">
                     {isPromo
-                      ? `${priceState.basePrice} ₽ → ${priceState.currentPrice} ₽`
-                      : `${priceState.basePrice} ₽ → ${priceState.nextPrice} ₽`}
+                      ? `Акционная цена: ${priceState.currentPrice} ₽`
+                      : 'Плановое изменение цены'}
                   </p>
                 </button>
               );
@@ -878,7 +878,7 @@ export const ServicesManager = () => {
                 <div className="flex flex-wrap gap-3 mt-2 text-sm">
                   {priceState.currentPrice !== priceState.basePrice ? (
                     <span className="font-bold text-[#B8795C]">
-                      {priceState.currentPrice} ₽ <span className="text-gray-400 line-through">{priceState.basePrice} ₽</span>
+                      {priceState.currentPrice} ₽
                     </span>
                   ) : (
                     <span className="text-[#8A5A3F] font-bold">{service.price} ₽</span>
@@ -891,7 +891,7 @@ export const ServicesManager = () => {
                   )}
                   {priceState.nextPrice && !countdown && (
                     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-500">
-                      Новая цена: {priceState.nextPrice} ₽
+                      Плановое изменение цены
                     </span>
                   )}
                   {(service.request_tags || []).map(tag => (

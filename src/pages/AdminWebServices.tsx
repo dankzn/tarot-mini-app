@@ -1,4 +1,5 @@
 import { ServicesManager } from '../components/admin/ServicesManager';
+import { AdminBackButton } from '../components/admin/AdminBackButton';
 
 export const AdminWebServices = () => {
   return (
@@ -6,9 +7,7 @@ export const AdminWebServices = () => {
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
-            <a href="/admin-web/dashboard" className="text-[#385144] hover:underline">
-            ← Назад к dashboard
-            </a>
+            <AdminBackButton href="/admin-web/dashboard" label="В dashboard" />
             <h1 className="mt-4 text-4xl font-black text-[#385144]">Услуги и кампании</h1>
             <p className="mt-2 max-w-2xl text-gray-600">
               Управление витриной, акциями, таймерами и плановым повышением цен в одном месте.

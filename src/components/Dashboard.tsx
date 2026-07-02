@@ -1495,7 +1495,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8FA092]">цена</p>
                         {priceState.currentPrice !== priceState.basePrice ? (
                           <div>
-                            <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#B8795C]">акция</p>
                             <p className="text-lg font-black text-[#8A5A3F]">{priceState.currentPrice} ₽</p>
                           </div>
                         ) : (

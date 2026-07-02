@@ -288,12 +288,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           <div className="text-right ml-3">
             {useBonuses && bonusAmount > 0 ? (
               <div className="flex flex-col items-end">
-                <span className="text-gray-400 line-through text-sm">{originalPrice} ₽</span>
+                <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#8FA092]">с бонусами</span>
                 <span className="text-[#8A5A3F] font-bold text-xl">{finalPrice} ₽</span>
               </div>
             ) : priceState.currentPrice !== priceState.basePrice ? (
               <div className="flex flex-col items-end">
-                <span className="text-gray-400 line-through text-sm">{priceState.basePrice} ₽</span>
+                <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#B8795C]">акция</span>
                 <span className="text-[#8A5A3F] font-bold text-xl">{originalPrice} ₽</span>
               </div>
             ) : (
@@ -339,12 +339,12 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               <div className="text-right">
                 {priceState.isPromoActive ? (
                   <>
-                    <p className="text-xs font-bold text-[#8FA092] line-through">{priceState.basePrice} ₽</p>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#B8795C]">успейте записаться</p>
                     <p className="text-xl font-black text-[#B8795C]">{priceState.currentPrice} ₽</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-bold text-[#385144]">Старая цена пока действует</p>
+                    <p className="text-xs font-bold text-[#385144]">Цена скоро изменится</p>
                     <p className="text-[11px] font-semibold text-[#6C756C]">Лучше записаться заранее</p>
                   </>
                 )}
@@ -495,8 +495,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                         setBonusAmount(val);
                       }}
                     />
-                    <div className="flex justify-between mt-2 text-sm">
-                      <span className="text-gray-400 line-through">Итого: {originalPrice} ₽</span>
+                    <div className="flex justify-end mt-2 text-sm">
                       <span className="text-[#4ADE80] font-bold">К оплате: {finalPrice} ₽</span>
                     </div>
                   </div>
