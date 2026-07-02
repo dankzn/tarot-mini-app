@@ -1,5 +1,6 @@
 import { ServicesManager } from '../components/admin/ServicesManager';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
+import { PromoCodesManager } from '../components/admin/PromoCodesManager';
 
 export const AdminWebServices = () => {
   return (
@@ -19,6 +20,7 @@ export const AdminWebServices = () => {
           </div>
         </div>
         <ServicesManager />
+        <PromoCodesManager />
       </div>
     </div>
   );

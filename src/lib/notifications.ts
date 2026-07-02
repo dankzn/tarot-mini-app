@@ -187,6 +187,58 @@ export const notifyClientBookingCreated = async (
   });
 };
 
+export const notifyClientTimeProposal = async (
+  clientTelegramId: string | number,
+  serviceName: string,
+  dateTime: string
+) => {
+  const message = `
+🗓 <b>Я предложил время консультации</b>
+
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+⏰ <b>Время:</b> ${escapeHtml(dateTime)}
+
+Пожалуйста, зайдите в личный кабинет: можно подтвердить это время или предложить своё.
+  `.trim();
+
+  return sendTelegramNotification(clientTelegramId, message);
+};
+
+export const notifyAdminClientTimeResponse = async (
+  adminTelegramIds: Array<string | number>,
+  clientName: string,
+  serviceName: string,
+  responseType: 'accepted' | 'countered',
+  dateTime: string
+) => {
+  if (adminTelegramIds.length === 0) {
+    return { ok: false, error: 'Admin Telegram ID was not found in users table' };
+  }
+
+  const message = responseType === 'accepted'
+    ? `
+✅ <b>Клиент подтвердил время</b>
+
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+⏰ <b>Время:</b> ${escapeHtml(dateTime)}
+    `.trim()
+    : `
+🔁 <b>Клиент предложил другое время</b>
+
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+💬 <b>Предложение:</b> ${escapeHtml(dateTime)}
+    `.trim();
+
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const failed = results.filter(result => !result.ok);
+
+  return failed.length === results.length
+    ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
+    : { ok: true };
+};
+
 // Уведомление клиенту об изменении баланса
 export const notifyClientBonusUpdate = async (
   clientTelegramId: string | number,

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { ScrollText, Clock, DollarSign, Sparkles, FileText, ChevronLeft, CalendarCheck } from 'lucide-react';
+import { notifyAdminClientTimeResponse } from '../lib/notifications';
 
 interface ConsultationHistoryProps {
   user: any;
@@ -21,6 +22,9 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
   confirmed: 'Подтверждена',
+  needs_admin_time: 'Подбираем время',
+  awaiting_client_confirmation: 'Нужно подтвердить время',
+  client_countered: 'Вы предложили время',
   in_progress: 'В процессе',
   completed: 'Завершена',
   cancelled: 'Отменена',
@@ -56,6 +60,74 @@ export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHist
       setConsultations(data);
     }
     setLoading(false);
+  };
+
+  const getAdminTelegramIds = async () => {
+    const { data } = await supabase
+      .from('users')
+      .select('telegram_id')
+      .eq('role', 'admin')
+      .not('telegram_id', 'is', null);
+
+    return Array.from(new Set((data || []).map(admin => admin.telegram_id).filter(Boolean)));
+  };
+
+  const respondToTimeProposal = async (consultation: any, accepted: boolean) => {
+    if (accepted) {
+      const { error } = await supabase
+        .from('consultations')
+        .update({
+          status: 'confirmed',
+          scheduling_status: 'confirmed',
+        })
+        .eq('id', consultation.id);
+
+      if (error) {
+        alert('Ошибка: ' + error.message);
+        return;
+      }
+
+      const adminTelegramIds = await getAdminTelegramIds();
+      await notifyAdminClientTimeResponse(
+        adminTelegramIds,
+        user.name || 'Клиент',
+        consultation.services?.title || 'Консультация',
+        'accepted',
+        consultation.scheduled_at ? format(new Date(consultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru }) : 'без даты'
+      );
+
+      await loadConsultations();
+      alert('✅ Время подтверждено');
+      return;
+    }
+
+    const counterproposal = window.prompt('Напишите удобное время или диапазон', '');
+    if (!counterproposal?.trim()) return;
+
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        scheduling_status: 'client_countered',
+        client_time_counterproposal: counterproposal.trim(),
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    const adminTelegramIds = await getAdminTelegramIds();
+    await notifyAdminClientTimeResponse(
+      adminTelegramIds,
+      user.name || 'Клиент',
+      consultation.services?.title || 'Консультация',
+      'countered',
+      counterproposal.trim()
+    );
+
+    await loadConsultations();
+    alert('✅ Ваше время отправлено админу');
   };
 
   return (
@@ -123,7 +195,7 @@ export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHist
                     <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-black ${
                       statusColors[consultation.status] || 'bg-[#EAF1EA] text-[#385144] border-[#C7D8CB]'
                     }`}>
-                      {statusLabels[consultation.status] || consultation.status}
+                      {statusLabels[consultation.scheduling_status] || statusLabels[consultation.status] || consultation.status}
                     </span>
                   </div>
 
@@ -174,6 +246,38 @@ export const ConsultationHistory = ({ user, onBack, onRebook }: ConsultationHist
                     <p className="mb-3 rounded-2xl bg-[#EAF1EA] px-3 py-2 text-xs font-bold text-[#385144]">
                       Списано бонусов: {consultation.bonus_used} ₽
                     </p>
+                  )}
+
+                  {consultation.scheduling_status === 'awaiting_client_confirmation' && consultation.scheduled_at && (
+                    <div className="mb-3 rounded-[1.25rem] border border-[#B8795C]/20 bg-[#FFF6EF] p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                        Предложенное время
+                      </p>
+                      <p className="mt-2 font-black text-[#385144]">
+                        {format(new Date(consultation.scheduled_at), 'd MMMM yyyy HH:mm', { locale: ru })}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => respondToTimeProposal(consultation, true)}
+                          className="rounded-2xl bg-[#385144] px-3 py-3 text-sm font-black text-white"
+                        >
+                          Подтвердить
+                        </button>
+                        <button
+                          onClick={() => respondToTimeProposal(consultation, false)}
+                          className="rounded-2xl bg-white px-3 py-3 text-sm font-black text-[#385144]"
+                        >
+                          Своё время
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {consultation.scheduling_status === 'client_countered' && (
+                    <div className="mb-3 rounded-[1.25rem] border border-[#385144]/10 bg-[#EAF1EA] p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#385144]">Ваше предложение отправлено</p>
+                      <p className="mt-2 text-sm font-bold text-[#59645C]">{consultation.client_time_counterproposal}</p>
+                    </div>
                   )}
 
                   {preparationStatuses.has(consultation.status) && (

@@ -92,9 +92,13 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const [mainQuestion, setMainQuestion] = useState('');
   const [desiredResult, setDesiredResult] = useState('');
   const [step, setStep] = useState(1);
+  const [isPriorityRequest, setIsPriorityRequest] = useState(false);
 
   const [useBonuses, setUseBonuses] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [promoError, setPromoError] = useState('');
 
   const duration = service.duration_minutes || 60;
   const priceState = getServicePriceState(service);
@@ -102,14 +106,22 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const userBalance = user.bonus_balance || 0;
   const campaignCountdown = formatCountdown(priceState.countdownTarget);
 
-  const maxBonusUsable = Math.min(userBalance, originalPrice);
-  const finalPrice = useBonuses ? originalPrice - bonusAmount : originalPrice;
+  const promoDiscount = appliedPromo?.discount || 0;
+  const priceAfterPromo = Math.max(0, originalPrice - promoDiscount);
+  const maxBonusUsable = Math.min(userBalance, Math.floor(priceAfterPromo * 0.5));
+  const finalPrice = Math.max(0, (useBonuses ? priceAfterPromo - bonusAmount : priceAfterPromo));
 
   useEffect(() => {
     if (selectedDate) {
       loadAllSlots();
     }
   }, [selectedDate, service.id]);
+
+  useEffect(() => {
+    if (bonusAmount > maxBonusUsable) {
+      setBonusAmount(maxBonusUsable);
+    }
+  }, [bonusAmount, maxBonusUsable]);
 
   const loadAllSlots = async () => {
     const startOfDayDate = startOfDay(selectedDate!);
@@ -137,36 +149,114 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   };
 
   const handleTimeSelect = (slotOption: SlotOption) => {
+    setIsPriorityRequest(false);
     setSelectedTime(slotOption.time);
     setSelectedSlotIds(slotOption.slotIds);
     setStep(3);
   };
 
+  const handlePriorityRequest = () => {
+    setIsPriorityRequest(true);
+    setSelectedTime(null);
+    setSelectedSlotIds([]);
+    setStep(3);
+  };
+
+  const applyPromoCode = async () => {
+    const normalizedCode = promoCode.trim().toUpperCase();
+    setPromoError('');
+    setAppliedPromo(null);
+
+    if (!normalizedCode) return;
+
+    const { data: promo, error } = await supabase
+      .from('promo_codes')
+      .select('*')
+      .ilike('code', normalizedCode)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error || !promo) {
+      setPromoError('Промокод не найден или уже не действует');
+      return;
+    }
+
+    const now = new Date();
+    if (promo.starts_at && new Date(promo.starts_at) > now) {
+      setPromoError('Промокод ещё не начал действовать');
+      return;
+    }
+    if (promo.expires_at && new Date(promo.expires_at) < now) {
+      setPromoError('Срок действия промокода закончился');
+      return;
+    }
+
+    const { data: usedByUser } = await supabase
+      .from('promo_code_redemptions')
+      .select('id')
+      .eq('promo_code_id', promo.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (usedByUser) {
+      setPromoError('Этот промокод уже использован');
+      return;
+    }
+
+    if (promo.max_uses) {
+      const { count } = await supabase
+        .from('promo_code_redemptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('promo_code_id', promo.id);
+
+      if ((count || 0) >= promo.max_uses) {
+        setPromoError('Лимит использований промокода закончился');
+        return;
+      }
+    }
+
+    const discount = promo.discount_type === 'percent'
+      ? Math.floor(originalPrice * (promo.discount_value / 100))
+      : promo.discount_value;
+
+    setAppliedPromo({
+      ...promo,
+      code: normalizedCode,
+      discount: Math.max(0, Math.min(originalPrice, discount)),
+    });
+    setBonusAmount(current => Math.min(current, maxBonusUsable));
+  };
+
   const handleSubmit = async () => {
-    if (!selectedDate || !selectedTime || selectedSlotIds.length === 0) return;
+    if (!selectedDate) return;
+    if (!isPriorityRequest && (!selectedTime || selectedSlotIds.length === 0)) return;
 
     setLoading(true);
 
     try {
-      const [hours, minutes] = selectedTime.split(':').map(Number);
-      const bookingDateTime = new Date(selectedDate);
-      bookingDateTime.setHours(hours, minutes, 0, 0);
+      let bookingDateTime: Date | null = null;
 
-      const { data: bookedSlotsData, error: slotError } = await supabase
-        .from('time_slots')
-        .update({
-          is_booked: true,
-          booked_by: user.id,
-        })
-        .in('id', selectedSlotIds)
-        .eq('is_booked', false)
-        .select('id');
+      if (!isPriorityRequest && selectedTime) {
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        bookingDateTime = new Date(selectedDate);
+        bookingDateTime.setHours(hours, minutes, 0, 0);
 
-      if (slotError) throw slotError;
+        const { data: bookedSlotsData, error: slotError } = await supabase
+          .from('time_slots')
+          .update({
+            is_booked: true,
+            booked_by: user.id,
+          })
+          .in('id', selectedSlotIds)
+          .eq('is_booked', false)
+          .select('id');
 
-      if (!bookedSlotsData || bookedSlotsData.length !== selectedSlotIds.length) {
-        await loadAllSlots();
-        throw new Error('Это окно только что заняли. Выберите другое время.');
+        if (slotError) throw slotError;
+
+        if (!bookedSlotsData || bookedSlotsData.length !== selectedSlotIds.length) {
+          await loadAllSlots();
+          throw new Error('Это окно только что заняли. Выберите другое время.');
+        }
       }
 
       const preparedNotes = [
@@ -175,30 +265,56 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         notes.trim() ? `Комментарий: ${notes.trim()}` : '',
       ].filter(Boolean).join('\n\n');
 
-      const { error: consultError } = await supabase
+      const { data: consultationData, error: consultError } = await supabase
         .from('consultations')
         .insert([
           {
             user_id: user.id,
             service_id: service.id,
-            scheduled_at: bookingDateTime.toISOString(),
+            scheduled_at: bookingDateTime?.toISOString() || null,
+            requested_date: selectedDate.toISOString().slice(0, 10),
+            requested_time_text: isPriorityRequest ? 'Приоритетная заявка без окна' : selectedTime,
+            scheduling_status: isPriorityRequest ? 'needs_admin_time' : 'scheduled',
             notes: preparedNotes,
             price: finalPrice,
             bonus_used: useBonuses ? bonusAmount : 0,
+            promo_code_id: appliedPromo?.id || null,
+            promo_code: appliedPromo?.code || null,
+            promo_discount: promoDiscount,
             status: 'pending',
           }
-        ]);
+        ])
+        .select('id')
+        .single();
 
       if (consultError) {
-        await supabase
-          .from('time_slots')
-          .update({
-            is_booked: false,
-            booked_by: null,
-          })
-          .in('id', selectedSlotIds);
+        if (!isPriorityRequest && selectedSlotIds.length > 0) {
+          await supabase
+            .from('time_slots')
+            .update({
+              is_booked: false,
+              booked_by: null,
+            })
+            .in('id', selectedSlotIds);
+        }
 
         throw consultError;
+      }
+
+      if (appliedPromo?.id && consultationData?.id) {
+        const { error: promoUseError } = await supabase
+          .from('promo_code_redemptions')
+          .insert([
+            {
+              promo_code_id: appliedPromo.id,
+              user_id: user.id,
+              consultation_id: consultationData.id,
+            },
+          ]);
+
+        if (promoUseError) {
+          console.error('❌ Не удалось отметить промокод использованным:', promoUseError);
+        }
       }
 
       // Отправляем уведомление всем админам с Telegram ID, но не блокируем запись
@@ -221,7 +337,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         user.name || 'Клиент',
         user.username || null,
         service.title,
-        format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru }),
+        bookingDateTime
+          ? format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru })
+          : `${format(selectedDate, 'dd MMMM yyyy', { locale: ru })} • приоритетная заявка без окна`,
         finalPrice
       );
 
@@ -408,33 +526,55 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           </div>
 
           {availableSlotOptions.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-gray-500">На эту дату нет доступных окон</p>
-              <p className="text-gray-400 text-sm mt-2">Выберите другую дату</p>
+            <div className="space-y-4 text-center py-6">
+              <div className="rounded-[1.5rem] border border-[#B8795C]/20 bg-[#FFF6EF] p-5">
+                <Sparkles className="mx-auto mb-3 h-7 w-7 text-[#B8795C]" />
+                <p className="font-black text-[#385144]">На эту дату свободных окон нет</p>
+                <p className="mt-2 text-sm leading-relaxed text-[#6C756C]">
+                  Можно оставить приоритетную заявку — я предложу время лично в личном кабинете.
+                </p>
+              </div>
+              <button
+                onClick={handlePriorityRequest}
+                className="w-full rounded-2xl bg-[#385144] px-4 py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.18)]"
+              >
+                Записаться приоритетно
+              </button>
+              <button onClick={() => setStep(1)} className="w-full rounded-2xl bg-white px-4 py-3 font-black text-[#385144] shadow-sm">
+                Выбрать другую дату
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {availableSlotOptions.map((slotOption) => (
-                <button
-                  key={slotOption.id}
-                  onClick={() => handleTimeSelect(slotOption)}
-                  className="p-3 rounded-2xl font-bold transition bg-[#385144] text-white hover:bg-[#2d4238] shadow-sm"
-                >
-                  {slotOption.time}
-                </button>
-              ))}
-              {bookedSlots.map((slot) => {
-                const slotTime = format(new Date(slot.start_time), 'HH:mm');
-                return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                {availableSlotOptions.map((slotOption) => (
                   <button
-                    key={slot.id}
-                    disabled
-                    className="p-3 rounded-2xl font-bold bg-gray-200 text-gray-400 cursor-not-allowed"
+                    key={slotOption.id}
+                    onClick={() => handleTimeSelect(slotOption)}
+                    className="p-3 rounded-2xl font-bold transition bg-[#385144] text-white hover:bg-[#2d4238] shadow-sm"
                   >
-                    {slotTime}
+                    {slotOption.time}
                   </button>
-                );
-              })}
+                ))}
+                {bookedSlots.map((slot) => {
+                  const slotTime = format(new Date(slot.start_time), 'HH:mm');
+                  return (
+                    <button
+                      key={slot.id}
+                      disabled
+                      className="p-3 rounded-2xl font-bold bg-gray-200 text-gray-400 cursor-not-allowed"
+                    >
+                      {slotTime}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handlePriorityRequest}
+                className="w-full rounded-2xl border border-[#385144]/15 bg-white px-4 py-3 text-sm font-black text-[#385144] shadow-sm"
+              >
+                Не подходит время — оставить приоритетную заявку
+              </button>
             </div>
           )}
         </div>
@@ -458,12 +598,45 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               </div>
               <div className="flex items-center text-gray-700">
                 <Clock className="w-5 h-5 mr-3 text-[#385144]" />
-                <span>{selectedTime}</span>
+                <span>{isPriorityRequest ? 'Время предложит администратор' : selectedTime}</span>
               </div>
               <div className="flex items-center text-gray-700">
                 <span className="text-[#8A5A3F]">₽</span>
                 <span className="font-bold">{finalPrice} ₽</span>
               </div>
+            </div>
+
+            <div className="mb-4 rounded-[1.25rem] border border-[#385144]/10 bg-[#F8F5F2] p-4">
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
+                Промокод
+              </label>
+              <div className="flex gap-2">
+                <input
+                  className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold uppercase text-[#385144] outline-none focus:border-[#385144]"
+                  placeholder="Введите код"
+                  value={promoCode}
+                  onChange={(event) => {
+                    setPromoCode(event.target.value);
+                    setAppliedPromo(null);
+                    setPromoError('');
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={applyPromoCode}
+                  className="rounded-xl bg-[#385144] px-4 py-2 text-sm font-black text-white"
+                >
+                  ОК
+                </button>
+              </div>
+              {appliedPromo && (
+                <p className="mt-2 text-sm font-bold text-[#385144]">
+                  Промокод применён: −{promoDiscount} ₽
+                </p>
+              )}
+              {promoError && (
+                <p className="mt-2 text-sm font-bold text-red-600">{promoError}</p>
+              )}
             </div>
 
             {userBalance > 0 && (
@@ -489,7 +662,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                     <p className="text-gray-700 text-sm mb-2">
                       Ваш баланс: <span className="text-[#8A5A3F] font-bold">{userBalance} ₽</span>
                     </p>
-                    <label className="text-gray-700 text-xs mb-1 block">Списать бонусов (макс. {maxBonusUsable}):</label>
+                    <label className="text-gray-700 text-xs mb-1 block">
+                      Списать бонусов: максимум 50% стоимости ({maxBonusUsable} ₽)
+                    </label>
                     <input
                       type="number"
                       min="0"
