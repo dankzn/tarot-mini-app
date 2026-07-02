@@ -1355,10 +1355,12 @@ export const Dashboard = ({ user }: DashboardProps) => {
           {selectedServiceGroup ? (
             <button
               onClick={() => setSelectedServiceGroupId(null)}
-              className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-xs font-black text-[#385144]"
+              className="inline-flex shrink-0 items-center rounded-2xl border border-[#385144]/15 bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.22)] transition active:scale-[0.98]"
             >
-              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-              Разделы
+              <span className="mr-2 flex h-7 w-7 items-center justify-center rounded-xl bg-white/15">
+                <ArrowLeft className="h-4 w-4" />
+              </span>
+              К разделам
             </button>
           ) : (
             <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-[#6C756C]">

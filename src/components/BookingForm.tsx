@@ -5,7 +5,7 @@ import 'react-calendar/dist/Calendar.css';
 import './CalendarStyles.css';
 import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
 import { notifyAdminNewBooking } from '../lib/notifications';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 
@@ -79,6 +79,8 @@ const buildSlotOptions = (slots: TimeSlot[], duration: number): SlotOption[] => 
 
   return Array.from(optionsByTime.values()).sort((a, b) => a.time.localeCompare(b.time));
 };
+
+const backButtonClassName = 'inline-flex items-center rounded-2xl border border-[#385144]/15 bg-white px-4 py-2.5 text-sm font-black text-[#385144] shadow-[0_10px_24px_rgba(56,81,68,0.12)] transition hover:bg-[#EAF1EA] active:scale-[0.98]';
 
 export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormProps) => {
   const [loading, setLoading] = useState(false);
@@ -399,7 +401,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
               <Clock className="w-5 h-5 mr-2" />
               {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: ru }) : ''}
             </h3>
-            <button onClick={() => setStep(1)} className="text-gray-500 text-sm hover:text-[#385144]">← Назад</button>
+            <button onClick={() => setStep(1)} className={backButtonClassName}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Назад
+            </button>
           </div>
 
           {availableSlotOptions.length === 0 ? (
@@ -440,7 +445,10 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           <div className="bg-white/85 rounded-[1.75rem] p-5 shadow-sm border border-white/80">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[#385144] font-bold">Подтверждение</h3>
-              <button onClick={() => setStep(2)} className="text-gray-500 text-sm">← Назад</button>
+              <button onClick={() => setStep(2)} className={backButtonClassName}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Назад
+              </button>
             </div>
 
             <div className="space-y-3 mb-4">
@@ -547,7 +555,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="flex-1 bg-gray-200 text-gray-700 p-4 rounded-xl font-bold hover:bg-gray-300 transition">Назад</button>
+            <button onClick={() => setStep(2)} className="flex-1 rounded-2xl border border-[#385144]/15 bg-white p-4 font-black text-[#385144] shadow-[0_10px_24px_rgba(56,81,68,0.10)] transition hover:bg-[#EAF1EA]">
+              Назад
+            </button>
             <button
               onClick={handleSubmit}
               disabled={loading}
