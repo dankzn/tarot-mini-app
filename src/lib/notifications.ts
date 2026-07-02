@@ -31,6 +31,7 @@ const sendViaServerEndpoint = async (
   message: string,
   options: NotificationOptions = {}
 ): Promise<void> => {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
   const replyMarkup = buildReplyMarkup(options.buttons);
 
   const response = await fetch('/api/telegram/send', {
@@ -44,6 +45,7 @@ const sendViaServerEndpoint = async (
       parseMode: 'HTML',
       photoUrl: options.photoUrl,
       replyMarkup,
+      botToken,
     }),
   });
 

@@ -6,17 +6,19 @@ const ALLOWED_PARSE_MODES = new Set(['HTML', 'Markdown', 'MarkdownV2']);
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
-const getTokenSource = () => {
+const getTokenSource = (requestBotToken) => {
   if (process.env.TELEGRAM_BOT_TOKEN) return 'TELEGRAM_BOT_TOKEN';
   if (process.env.BOT_TOKEN) return 'BOT_TOKEN';
   if (process.env.VITE_TELEGRAM_BOT_TOKEN) return 'VITE_TELEGRAM_BOT_TOKEN_SERVER_LEGACY';
+  if (requestBotToken) return 'request_legacy';
   return null;
 };
 
-const getBotToken = () => (
+const getBotToken = (requestBotToken) => (
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
   process.env.VITE_TELEGRAM_BOT_TOKEN ||
+  requestBotToken ||
   ''
 );
 
@@ -117,9 +119,10 @@ export default async function handler(request, response) {
     parseMode,
     photoUrl,
     replyMarkup,
+    botToken: requestBotToken,
   } = parseBody(request.body);
-  const botToken = getBotToken();
-  const tokenSource = getTokenSource();
+  const botToken = getBotToken(requestBotToken);
+  const tokenSource = getTokenSource(requestBotToken);
 
   if (!botToken) {
     response.status(400).json({
