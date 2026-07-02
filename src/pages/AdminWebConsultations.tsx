@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
-import { notifyClientBonusUpdate, notifyClientTimeProposal } from '../lib/notifications';
+import { notifyClientBonusUpdate, notifyClientTimeConfirmed, notifyClientTimeProposal } from '../lib/notifications';
 
 const parseAdminDateTime = (value: string) => {
   const normalized = value.trim().replace(' ', 'T');
@@ -27,6 +27,16 @@ const parseAdminDateTime = (value: string) => {
 
 const formatDateTime = (value: string | null | undefined) => (
   value ? format(new Date(value), 'dd MMMM yyyy HH:mm', { locale: ru }) : 'Дата не указана'
+);
+
+const manualSchedulingStatuses = new Set([
+  'needs_admin_time',
+  'awaiting_client_confirmation',
+  'client_countered',
+]);
+
+const isManualScheduling = (consultation: any) => (
+  manualSchedulingStatuses.has(consultation?.scheduling_status)
 );
 
 export const AdminWebConsultations = () => {
@@ -158,6 +168,47 @@ export const AdminWebConsultations = () => {
 
     await loadConsultations();
     alert('Предложение клиента отклонено. Можно предложить новое время.');
+  };
+
+  const confirmClientCounter = async (consultation: any) => {
+    const value = window.prompt(
+      'Подтвердите дату и время для записи в формате YYYY-MM-DD HH:mm',
+      consultation.client_time_counterproposal || ''
+    );
+    if (!value) return;
+
+    const confirmedDate = parseAdminDateTime(value);
+    if (!confirmedDate) {
+      alert('Не получилось распознать дату. Пример: 2026-07-05 19:30');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        scheduled_at: confirmedDate.toISOString(),
+        proposed_at: confirmedDate.toISOString(),
+        status: 'confirmed',
+        scheduling_status: 'confirmed',
+        client_time_counterproposal: null,
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    if (consultation.users?.telegram_id) {
+      await notifyClientTimeConfirmed(
+        consultation.users.telegram_id,
+        consultation.services?.title || 'Консультация',
+        format(confirmedDate, 'dd MMMM yyyy HH:mm', { locale: ru })
+      );
+    }
+
+    await loadConsultations();
+    alert('✅ Время клиента подтверждено');
   };
 
   const openCompleteForm = (consultation: any) => {
@@ -600,7 +651,7 @@ export const AdminWebConsultations = () => {
                   )}
 
                   <div className="flex gap-2 flex-wrap">
-                    {(consultation.scheduling_status === 'needs_admin_time' || !consultation.scheduled_at) && (
+                    {(consultation.scheduling_status === 'needs_admin_time' || (!consultation.scheduled_at && consultation.scheduling_status !== 'client_countered')) && (
                       <button
                         onClick={() => proposeTime(consultation)}
                         className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
@@ -613,11 +664,18 @@ export const AdminWebConsultations = () => {
                     {consultation.scheduling_status === 'client_countered' && (
                       <>
                         <button
-                          onClick={() => proposeTime(consultation, consultation.client_time_counterproposal || '')}
+                          onClick={() => confirmClientCounter(consultation)}
                           className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center"
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
-                          Принять/назначить
+                          Подтвердить время
+                        </button>
+                        <button
+                          onClick={() => proposeTime(consultation, consultation.client_time_counterproposal || '')}
+                          className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+                        >
+                          <Clock className="w-4 h-4 mr-1" />
+                          Предложить другое
                         </button>
                         <button
                           onClick={() => rejectClientCounter(consultation)}
@@ -629,7 +687,7 @@ export const AdminWebConsultations = () => {
                       </>
                     )}
 
-                    {consultation.status === 'pending' && (
+                    {consultation.status === 'pending' && !isManualScheduling(consultation) && (
                       <>
                         <button
                           onClick={() => updateStatus(consultation.id, 'confirmed')}
@@ -648,7 +706,13 @@ export const AdminWebConsultations = () => {
                       </>
                     )}
 
-                    {consultation.status === 'confirmed' && (
+                    {consultation.scheduling_status === 'awaiting_client_confirmation' && (
+                      <div className="flex-1 rounded-xl bg-blue-50 px-4 py-2 text-center text-sm font-bold text-blue-700">
+                        Ждём подтверждение клиента
+                      </div>
+                    )}
+
+                    {consultation.status === 'confirmed' && !isManualScheduling(consultation) && (
                       <button
                         onClick={() => openCompleteForm(consultation)}
                         className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"

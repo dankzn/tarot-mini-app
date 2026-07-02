@@ -204,6 +204,23 @@ export const notifyClientTimeProposal = async (
   return sendTelegramNotification(clientTelegramId, message);
 };
 
+export const notifyClientTimeConfirmed = async (
+  clientTelegramId: string | number,
+  serviceName: string,
+  dateTime: string
+) => {
+  const message = `
+✅ <b>Время консультации подтверждено</b>
+
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+⏰ <b>Время:</b> ${escapeHtml(dateTime)}
+
+Запись подтверждена. До встречи!
+  `.trim();
+
+  return sendTelegramNotification(clientTelegramId, message);
+};
+
 export const notifyAdminClientTimeResponse = async (
   adminTelegramIds: Array<string | number>,
   clientName: string,
