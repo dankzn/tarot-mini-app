@@ -20,7 +20,9 @@ import {
 } from 'lucide-react';
 import { 
   notifyClientBonusUpdate,
-  notifyClientStatusChange 
+  notifyClientStatusChange,
+  notifyClientTimeConfirmed,
+  notifyClientTimeProposal
 } from '../lib/notifications';
 import { getBonusPercent } from '../lib/bonusLogic';
 
@@ -40,10 +42,33 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
   confirmed: 'Подтверждена',
+  needs_admin_time: 'Нужно предложить время',
+  awaiting_client_confirmation: 'Ждём ответ клиента',
+  client_countered: 'Клиент предложил время',
   in_progress: 'В процессе',
   completed: 'Завершена',
   cancelled: 'Отменена',
 };
+
+const manualSchedulingStatuses = new Set([
+  'needs_admin_time',
+  'awaiting_client_confirmation',
+  'client_countered',
+]);
+
+const isManualScheduling = (consultation: any) => (
+  manualSchedulingStatuses.has(consultation?.scheduling_status)
+);
+
+const parseAdminDateTime = (value: string) => {
+  const normalized = value.trim().replace(' ', 'T');
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDateTime = (value: string | null | undefined) => (
+  value ? format(new Date(value), 'dd MMMM yyyy HH:mm', { locale: ru }) : 'Дата не указана'
+);
 
 const calculateClientStatus = (consultationCount: number): string => {
   if (consultationCount === 0) return 'Первое знакомство';
@@ -106,7 +131,10 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     try {
       const { error } = await supabase
         .from('consultations')
-        .update({ status: newStatus })
+        .update({
+          status: newStatus,
+          ...(newStatus === 'confirmed' ? { scheduling_status: 'confirmed' } : {}),
+        })
         .eq('id', consultationId);
 
       if (error) throw error;
@@ -116,6 +144,105 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
     }
+  };
+
+  const proposeTime = async (consultation: any, suggestedValue = '') => {
+    const value = window.prompt(
+      'Введите дату и время в формате YYYY-MM-DD HH:mm',
+      suggestedValue
+    );
+    if (!value) return;
+
+    const proposedDate = parseAdminDateTime(value);
+    if (!proposedDate) {
+      alert('Не получилось распознать дату. Пример: 2026-07-05 19:30');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        scheduled_at: proposedDate.toISOString(),
+        proposed_at: proposedDate.toISOString(),
+        scheduling_status: 'awaiting_client_confirmation',
+        client_time_counterproposal: null,
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    if (consultation.users?.telegram_id) {
+      await notifyClientTimeProposal(
+        consultation.users.telegram_id,
+        consultation.services?.title || 'Консультация',
+        format(proposedDate, 'dd MMMM yyyy HH:mm', { locale: ru })
+      );
+    }
+
+    await loadConsultations();
+    alert('✅ Время предложено клиенту');
+  };
+
+  const rejectClientCounter = async (consultation: any) => {
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        scheduling_status: 'needs_admin_time',
+        client_time_counterproposal: null,
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    await loadConsultations();
+    alert('Предложение клиента отклонено. Можно предложить новое время.');
+  };
+
+  const confirmClientCounter = async (consultation: any) => {
+    const value = window.prompt(
+      'Подтвердите дату и время для записи в формате YYYY-MM-DD HH:mm',
+      consultation.client_time_counterproposal || ''
+    );
+    if (!value) return;
+
+    const confirmedDate = parseAdminDateTime(value);
+    if (!confirmedDate) {
+      alert('Не получилось распознать дату. Пример: 2026-07-05 19:30');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        scheduled_at: confirmedDate.toISOString(),
+        proposed_at: confirmedDate.toISOString(),
+        status: 'confirmed',
+        scheduling_status: 'confirmed',
+        client_time_counterproposal: null,
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    if (consultation.users?.telegram_id) {
+      await notifyClientTimeConfirmed(
+        consultation.users.telegram_id,
+        consultation.services?.title || 'Консультация',
+        format(confirmedDate, 'dd MMMM yyyy HH:mm', { locale: ru })
+      );
+    }
+
+    await loadConsultations();
+    alert('✅ Время клиента подтверждено');
   };
 
   const openCompleteForm = (consultation: any) => {
@@ -332,7 +459,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
             {selectedConsultation.users?.name || 'Клиент'}
           </h3>
           <p className="text-gray-600 text-sm">
-            {selectedConsultation.services?.title} • {format(new Date(selectedConsultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru })}
+            {selectedConsultation.services?.title} • {formatDateTime(selectedConsultation.scheduled_at)}
           </p>
         </div>
 
@@ -453,7 +580,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
         <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
           <h3 className="text-[#385144] font-bold mb-2">{selectedConsultation.users?.name}</h3>
           <p className="text-gray-600 text-sm">
-            {selectedConsultation.services?.title} • {format(new Date(selectedConsultation.scheduled_at), 'dd MMMM yyyy HH:mm', { locale: ru })}
+            {selectedConsultation.services?.title} • {formatDateTime(selectedConsultation.scheduled_at)}
           </p>
         </div>
 
@@ -594,8 +721,8 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                       </p>
                     )}
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[consultation.status]}`}>
-                    {statusLabels[consultation.status]}
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[consultation.status] || statusColors.pending}`}>
+                    {statusLabels[consultation.scheduling_status] || statusLabels[consultation.status]}
                   </span>
                 </div>
 
@@ -627,7 +754,36 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                       Списано бонусов: {consultation.bonus_used} ₽
                     </p>
                   )}
+                  {consultation.promo_discount > 0 && (
+                    <p className="text-gray-500 text-xs mt-2 flex items-center">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Промокод {consultation.promo_code}: −{consultation.promo_discount} ₽
+                    </p>
+                  )}
                 </div>
+
+                {consultation.scheduling_status === 'needs_admin_time' && (
+                  <div className="bg-[#FFF6EF] border border-[#B8795C]/20 p-3 rounded-xl mb-3">
+                    <p className="text-[#8A5A3F] text-sm font-bold">
+                      Приоритетная заявка без окна. Клиент ждёт предложенное время.
+                    </p>
+                  </div>
+                )}
+
+                {consultation.scheduling_status === 'awaiting_client_confirmation' && (
+                  <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-3">
+                    <p className="text-blue-700 text-sm font-bold">
+                      Клиенту предложено: {formatDateTime(consultation.proposed_at || consultation.scheduled_at)}
+                    </p>
+                  </div>
+                )}
+
+                {consultation.scheduling_status === 'client_countered' && (
+                  <div className="bg-[#EAF1EA] border border-[#385144]/15 p-3 rounded-xl mb-3">
+                    <p className="text-[#385144] text-xs font-black uppercase tracking-[0.12em]">Клиент предложил</p>
+                    <p className="mt-1 text-sm font-bold text-[#59645C]">{consultation.client_time_counterproposal}</p>
+                  </div>
+                )}
 
                 {consultation.notes && (
                   <div className="bg-gray-50 p-3 rounded-xl mb-3">
@@ -650,7 +806,43 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                 )}
 
                 <div className="flex gap-2 flex-wrap mt-3">
-                  {consultation.status === 'pending' && (
+                  {(consultation.scheduling_status === 'needs_admin_time' || (!consultation.scheduled_at && consultation.scheduling_status !== 'client_countered')) && (
+                    <button
+                      onClick={() => proposeTime(consultation)}
+                      className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+                    >
+                      <Clock className="w-4 h-4 mr-1" />
+                      Предложить время
+                    </button>
+                  )}
+
+                  {consultation.scheduling_status === 'client_countered' && (
+                    <>
+                      <button
+                        onClick={() => confirmClientCounter(consultation)}
+                        className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Подтвердить время
+                      </button>
+                      <button
+                        onClick={() => proposeTime(consultation, consultation.client_time_counterproposal || '')}
+                        className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+                      >
+                        <Clock className="w-4 h-4 mr-1" />
+                        Предложить другое
+                      </button>
+                      <button
+                        onClick={() => rejectClientCounter(consultation)}
+                        className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-300 transition flex items-center justify-center"
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Отклонить
+                      </button>
+                    </>
+                  )}
+
+                  {consultation.status === 'pending' && !isManualScheduling(consultation) && (
                     <>
                       <button
                         onClick={() => updateConsultationStatus(consultation.id, 'confirmed')}
@@ -669,7 +861,13 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                     </>
                   )}
 
-                  {consultation.status === 'confirmed' && (
+                  {consultation.scheduling_status === 'awaiting_client_confirmation' && (
+                    <div className="flex-1 rounded-xl bg-blue-50 px-4 py-2 text-center text-sm font-bold text-blue-700">
+                      Ждём подтверждение клиента
+                    </div>
+                  )}
+
+                  {consultation.status === 'confirmed' && !isManualScheduling(consultation) && (
                     <button
                       onClick={() => openCompleteForm(consultation)}
                       className="flex-1 bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
