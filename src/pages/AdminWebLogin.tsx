@@ -20,15 +20,18 @@ export const AdminWebLogin = () => {
       });
 
       if (error) throw error;
+      if (!data.user?.id) throw new Error('Не удалось получить пользователя');
 
       // Проверяем что это админ
-      const { data: adminData } = await supabase
+      const { data: adminData, error: adminError } = await supabase
         .from('admin_users')
         .select('id')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (!adminData) {
+      if (adminError || !adminData) {
+        await supabase.auth.signOut();
+        localStorage.removeItem('admin_session');
         throw new Error('У вас нет доступа к админ-панели');
       }
 

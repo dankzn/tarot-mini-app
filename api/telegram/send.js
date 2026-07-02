@@ -1,18 +1,20 @@
-const TELEGRAM_API_BASE = 'https://api.telegram.org';
+import { createClient } from '@supabase/supabase-js';
 
-const getTokenSource = (requestBotToken) => {
+const TELEGRAM_API_BASE = 'https://api.telegram.org';
+const MAX_MESSAGE_LENGTH = 4096;
+const ALLOWED_PARSE_MODES = new Set(['HTML', 'Markdown', 'MarkdownV2']);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+const getTokenSource = () => {
   if (process.env.TELEGRAM_BOT_TOKEN) return 'TELEGRAM_BOT_TOKEN';
   if (process.env.BOT_TOKEN) return 'BOT_TOKEN';
-  if (process.env.VITE_TELEGRAM_BOT_TOKEN) return 'VITE_TELEGRAM_BOT_TOKEN';
-  if (requestBotToken) return 'request';
   return null;
 };
 
-const getBotToken = (requestBotToken) => (
+const getBotToken = () => (
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
-  process.env.VITE_TELEGRAM_BOT_TOKEN ||
-  requestBotToken ||
   ''
 );
 
@@ -45,6 +47,32 @@ const requestTelegram = async ({ botToken, method, body }) => {
   }
 
   return payload;
+};
+
+const isKnownTelegramRecipient = async (chatId) => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return true;
+  }
+
+  const numericChatId = Number(chatId);
+  if (!Number.isFinite(numericChatId)) {
+    return false;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .eq('telegram_id', numericChatId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Telegram recipient check failed:', error);
+    return true;
+  }
+
+  return Boolean(data);
 };
 
 const sendMessage = async ({ botToken, chatId, message, parseMode = 'HTML', replyMarkup }) => (
@@ -87,10 +115,9 @@ export default async function handler(request, response) {
     parseMode,
     photoUrl,
     replyMarkup,
-    botToken: requestBotToken,
   } = parseBody(request.body);
-  const botToken = getBotToken(requestBotToken);
-  const tokenSource = getTokenSource(requestBotToken);
+  const botToken = getBotToken();
+  const tokenSource = getTokenSource();
 
   if (!botToken) {
     response.status(400).json({
@@ -102,6 +129,7 @@ export default async function handler(request, response) {
   }
 
   const trimmedMessage = typeof message === 'string' ? message.trim() : '';
+  const safeParseMode = ALLOWED_PARSE_MODES.has(parseMode) ? parseMode : 'HTML';
 
   if (!chatId || (!photoUrl && trimmedMessage.length === 0)) {
     response.status(400).json({
@@ -115,17 +143,45 @@ export default async function handler(request, response) {
     return;
   }
 
+  if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+    response.status(400).json({
+      error: 'Telegram message is too long',
+      code: 'MESSAGE_TOO_LONG',
+      tokenSource,
+    });
+    return;
+  }
+
+  if (replyMarkup && JSON.stringify(replyMarkup).length > 2048) {
+    response.status(400).json({
+      error: 'Telegram reply markup is too large',
+      code: 'REPLY_MARKUP_TOO_LARGE',
+      tokenSource,
+    });
+    return;
+  }
+
+  const recipientAllowed = await isKnownTelegramRecipient(chatId);
+  if (!recipientAllowed) {
+    response.status(403).json({
+      error: 'Telegram recipient is not registered in the app',
+      code: 'UNKNOWN_RECIPIENT',
+      tokenSource,
+    });
+    return;
+  }
+
   try {
     if (photoUrl) {
       try {
-        await sendPhoto({ botToken, chatId, message: trimmedMessage, parseMode, photoUrl, replyMarkup });
+        await sendPhoto({ botToken, chatId, message: trimmedMessage, parseMode: safeParseMode, photoUrl, replyMarkup });
       } catch (photoError) {
         console.error('Telegram sendPhoto failed, fallback to sendMessage:', photoError);
         if (!trimmedMessage) throw photoError;
-        await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode, replyMarkup });
+        await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode: safeParseMode, replyMarkup });
       }
     } else {
-      await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode, replyMarkup });
+      await sendMessage({ botToken, chatId, message: trimmedMessage, parseMode: safeParseMode, replyMarkup });
     }
     response.status(200).json({ ok: true, tokenSource });
   } catch (error) {

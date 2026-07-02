@@ -13,6 +13,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
+import { ensureAdminSession } from '../lib/adminAuth';
 
 const EMOJI_PRESETS = ['✨', '🔮', '🕯️', '🪄', '🌙', '💫', '❤️', '🫶', '🔥', '🎁', '⏳', '✅'];
 
@@ -25,6 +26,15 @@ const escapeHtml = (value: string) => (
     .replace(/'/g, '&#39;')
 );
 
+const isSafePreviewUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:', 'tg:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+};
+
 const renderTelegramPreview = (value: string) => (
   escapeHtml(value)
     .replace(/&lt;(\/?)(b|strong)&gt;/g, '<$1b>')
@@ -35,10 +45,13 @@ const renderTelegramPreview = (value: string) => (
     .replace(/&lt;(\/?)(pre)&gt;/g, '<$1pre>')
     .replace(/&lt;blockquote&gt;/g, '<blockquote>')
     .replace(/&lt;\/blockquote&gt;/g, '</blockquote>')
+    .replace(/&lt;a href=&quot;([^"]+)&quot;&gt;([\s\S]*?)&lt;\/a&gt;/g, (_, url, label) => (
+      isSafePreviewUrl(url)
+        ? `<a href="${url}" class="font-bold text-[#385144] underline" target="_blank" rel="noreferrer">${label}</a>`
+        : `<span class="font-bold text-[#385144] underline">${label}</span>`
+    ))
     .replace(/&lt;tg-spoiler&gt;/g, '<span class="rounded bg-[#385144]/10 px-1 text-[#385144]">')
     .replace(/&lt;\/tg-spoiler&gt;/g, '</span>')
-    .replace(/&lt;a href=&quot;([^"]+)&quot;&gt;/g, '<a href="$1" class="font-bold text-[#385144] underline" target="_blank" rel="noreferrer">')
-    .replace(/&lt;\/a&gt;/g, '</a>')
     .replace(/\n/g, '<br />')
 );
 
@@ -97,8 +110,8 @@ export const AdminWebMailings = () => {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { ok } = await ensureAdminSession();
+    if (!ok) {
       navigate('/admin-web');
     }
   };

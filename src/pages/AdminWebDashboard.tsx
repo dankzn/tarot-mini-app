@@ -12,6 +12,7 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react';
+import { ensureAdminSession } from '../lib/adminAuth';
 
 export const AdminWebDashboard = () => {
   const navigate = useNavigate();
@@ -35,21 +36,8 @@ export const AdminWebDashboard = () => {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      navigate('/admin-web');
-      return;
-    }
-
-    // Проверяем что это админ
-    const { data: adminData } = await supabase
-      .from('admin_users')
-      .select('id')
-      .eq('id', session.user.id)
-      .single();
-
-    if (!adminData) {
+    const { ok } = await ensureAdminSession();
+    if (!ok) {
       navigate('/admin-web');
     }
   };

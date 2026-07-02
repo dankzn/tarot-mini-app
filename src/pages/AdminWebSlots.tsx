@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
+import { ensureAdminSession } from '../lib/adminAuth';
 
 export const AdminWebSlots = () => {
   const navigate = useNavigate();
@@ -40,8 +41,8 @@ export const AdminWebSlots = () => {
   }, [selectedDate, startTime, endTime]);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { ok } = await ensureAdminSession();
+    if (!ok) {
       navigate('/admin-web');
     }
   };

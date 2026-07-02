@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
+import { ensureAdminSession } from '../lib/adminAuth';
 
 export const AdminWebConsultations = () => {
   const navigate = useNavigate();
@@ -36,8 +37,8 @@ export const AdminWebConsultations = () => {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { ok } = await ensureAdminSession();
+    if (!ok) {
       navigate('/admin-web');
     }
   };

@@ -24,17 +24,47 @@ const getAuthToken = (request) => {
 };
 
 const getBasePayload = (payload = {}) => ({
-  title: payload.title,
-  description: payload.description,
-  price: payload.price,
-  duration_minutes: payload.duration_minutes,
-  next_price: payload.next_price,
-  price_increase_at: payload.price_increase_at,
-  promo_title: payload.promo_title,
-  promo_price: payload.promo_price,
-  promo_starts_at: payload.promo_starts_at,
-  promo_ends_at: payload.promo_ends_at,
+  ...(typeof payload.title === 'string' ? { title: payload.title } : {}),
+  ...(typeof payload.description === 'string' ? { description: payload.description } : {}),
+  ...(Number.isFinite(Number(payload.price)) ? { price: Number(payload.price) } : {}),
+  ...(Number.isFinite(Number(payload.duration_minutes)) ? { duration_minutes: Number(payload.duration_minutes) } : {}),
+  ...(payload.next_price === null || Number.isFinite(Number(payload.next_price)) ? { next_price: payload.next_price === null ? null : Number(payload.next_price) } : {}),
+  ...(typeof payload.price_increase_at === 'string' || payload.price_increase_at === null ? { price_increase_at: payload.price_increase_at } : {}),
+  ...(typeof payload.promo_title === 'string' || payload.promo_title === null ? { promo_title: payload.promo_title } : {}),
+  ...(payload.promo_price === null || Number.isFinite(Number(payload.promo_price)) ? { promo_price: payload.promo_price === null ? null : Number(payload.promo_price) } : {}),
+  ...(typeof payload.promo_starts_at === 'string' || payload.promo_starts_at === null ? { promo_starts_at: payload.promo_starts_at } : {}),
+  ...(typeof payload.promo_ends_at === 'string' || payload.promo_ends_at === null ? { promo_ends_at: payload.promo_ends_at } : {}),
 });
+
+const getFullPayload = (payload = {}) => ({
+  ...getBasePayload(payload),
+  ...(typeof payload.category_id === 'string' || payload.category_id === null ? { category_id: payload.category_id } : {}),
+  ...(typeof payload.display_badge === 'string' || payload.display_badge === null ? { display_badge: payload.display_badge } : {}),
+  ...(Array.isArray(payload.request_tags) ? { request_tags: payload.request_tags.filter(tag => typeof tag === 'string').slice(0, 20) } : {}),
+  ...(typeof payload.short_description === 'string' || payload.short_description === null ? { short_description: payload.short_description } : {}),
+  ...(Number.isFinite(Number(payload.sort_order)) ? { sort_order: Number(payload.sort_order) } : {}),
+});
+
+const assertAdmin = async (supabase) => {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData?.user?.id) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('id', authData.user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Admin verification failed:', error);
+    return false;
+  }
+
+  return Boolean(data);
+};
 
 const saveService = async ({ supabase, action, id, payload }) => {
   if (action === 'update') {
@@ -87,7 +117,14 @@ export default async function handler(request, response) {
   });
 
   try {
-    let result = await saveService({ supabase, action, id, payload });
+    const isAdmin = await assertAdmin(supabase);
+
+    if (!isAdmin) {
+      response.status(403).json({ error: 'Admin access is required' });
+      return;
+    }
+
+    let result = await saveService({ supabase, action, id, payload: getFullPayload(payload) });
     let mode = 'full';
 
     if (result.error) {

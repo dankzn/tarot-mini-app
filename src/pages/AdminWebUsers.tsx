@@ -15,6 +15,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
+import { ensureAdminSession } from '../lib/adminAuth';
 
 export const AdminWebUsers = () => {
   const navigate = useNavigate();
@@ -29,8 +30,8 @@ export const AdminWebUsers = () => {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { ok } = await ensureAdminSession();
+    if (!ok) {
       navigate('/admin-web');
     }
   };

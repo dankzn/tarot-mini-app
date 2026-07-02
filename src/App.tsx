@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { SplashScreen } from './components/SplashScreen';
 import { RegistrationForm } from './components/RegistrationForm';
+import { AdminWebGuard } from './components/admin/AdminWebGuard';
 // import { ErrorBoundary } from './components/ErrorBoundary'; // Временно закомментировано
 
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
@@ -23,6 +25,10 @@ const AppLoader = () => (
       Загрузка...
     </div>
   </div>
+);
+
+const adminRoute = (children: ReactNode) => (
+  <AdminWebGuard>{children}</AdminWebGuard>
 );
 
 export const App = () => {
@@ -97,14 +103,14 @@ export const App = () => {
         <Routes>
           {/* Веб-портал для админа */}
           <Route path="/admin-web" element={<AdminWebLogin />} />
-          <Route path="/admin-web/dashboard" element={<AdminWebDashboard />} />
-          <Route path="/admin-web/consultations" element={<AdminWebConsultations />} />
-          <Route path="/admin-web/slots" element={<AdminWebSlots />} />
-          <Route path="/admin-web/users" element={<AdminWebUsers />} />
-          <Route path="/admin-web/mailings" element={<AdminWebMailings />} />
-          <Route path="/admin-web/services" element={<AdminWebServices />} />
-          <Route path="/admin-web/analytics" element={<AdminWebAnalytics />} />
-          <Route path="/admin-web/clients" element={<AdminWebClients />} />
+          <Route path="/admin-web/dashboard" element={adminRoute(<AdminWebDashboard />)} />
+          <Route path="/admin-web/consultations" element={adminRoute(<AdminWebConsultations />)} />
+          <Route path="/admin-web/slots" element={adminRoute(<AdminWebSlots />)} />
+          <Route path="/admin-web/users" element={adminRoute(<AdminWebUsers />)} />
+          <Route path="/admin-web/mailings" element={adminRoute(<AdminWebMailings />)} />
+          <Route path="/admin-web/services" element={adminRoute(<AdminWebServices />)} />
+          <Route path="/admin-web/analytics" element={adminRoute(<AdminWebAnalytics />)} />
+          <Route path="/admin-web/clients" element={adminRoute(<AdminWebClients />)} />
 
           {/* Telegram Mini App */}
           <Route path="/*" element={

@@ -22,8 +22,6 @@ interface NotificationOptions {
   buttons?: TelegramButton[];
 }
 
-const TELEGRAM_API_BASE = 'https://api.telegram.org';
-
 const getErrorMessage = (error: unknown, fallback: string): string => {
   return error instanceof Error ? error.message : fallback;
 };
@@ -33,7 +31,6 @@ const sendViaServerEndpoint = async (
   message: string,
   options: NotificationOptions = {}
 ): Promise<void> => {
-  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
   const replyMarkup = buildReplyMarkup(options.buttons);
 
   const response = await fetch('/api/telegram/send', {
@@ -45,7 +42,6 @@ const sendViaServerEndpoint = async (
       chatId,
       message,
       parseMode: 'HTML',
-      botToken,
       photoUrl: options.photoUrl,
       replyMarkup,
     }),
@@ -55,58 +51,6 @@ const sendViaServerEndpoint = async (
 
   if (!response.ok || payload?.ok !== true) {
     throw new Error(payload?.error || 'Telegram notification endpoint did not confirm delivery');
-  }
-};
-
-const sendViaLegacyClientToken = async (
-  chatId: string | number,
-  message: string,
-  options: NotificationOptions = {}
-): Promise<void> => {
-  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-
-  if (!botToken) {
-    throw new Error('Legacy Telegram bot token is not configured');
-  }
-
-  const replyMarkup = buildReplyMarkup(options.buttons);
-  const sendMessage = async () => fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: message,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
-  });
-
-  const sendPhoto = async () => fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendPhoto`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      photo: options.photoUrl,
-      ...(message.trim() ? { caption: message, parse_mode: 'HTML' } : {}),
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
-  });
-
-  let response = options.photoUrl ? await sendPhoto() : await sendMessage();
-  let payload = await response.json().catch(() => null);
-
-  if (!response.ok && options.photoUrl && message.trim()) {
-    response = await sendMessage();
-    payload = await response.json().catch(() => null);
-  }
-
-  if (!response.ok) {
-    throw new Error(payload?.description || 'Telegram API request failed');
   }
 };
 
@@ -152,48 +96,19 @@ const getTelegramCardUrl = (
   return getPublicAssetUrl(`/api/telegram/card?${searchParams.toString()}`);
 };
 
-// Старая схема: сначала прямой клиентский токен, затем server endpoint fallback
 export const sendTelegramNotification = async (
   chatId: string | number,
   message: string,
   options: NotificationOptions = {}
 ): Promise<NotificationResult> => {
-  const hasLegacyClientToken = Boolean(import.meta.env.VITE_TELEGRAM_BOT_TOKEN);
-
-  if (hasLegacyClientToken) {
-    try {
-      await sendViaLegacyClientToken(chatId, message, options);
-      return { ok: true };
-    } catch (fallbackError) {
-      try {
-        await sendViaServerEndpoint(chatId, message, options);
-        return { ok: true };
-      } catch (serverError) {
-        const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
-        const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
-        const errorMessage = `${fallbackMessage}; server: ${serverMessage}`;
-
-        console.error('❌ Ошибка отправки уведомления:', errorMessage);
-        return { ok: false, error: errorMessage };
-      }
-    }
-  }
-
   try {
     await sendViaServerEndpoint(chatId, message, options);
     return { ok: true };
   } catch (serverError) {
-    try {
-      await sendViaLegacyClientToken(chatId, message, options);
-      return { ok: true };
-    } catch (fallbackError) {
-      const serverMessage = getErrorMessage(serverError, 'Unknown server notification error');
-      const fallbackMessage = getErrorMessage(fallbackError, 'Unknown fallback notification error');
-      const errorMessage = `${serverMessage}; fallback: ${fallbackMessage}`;
+    const errorMessage = getErrorMessage(serverError, 'Unknown server notification error');
 
-      console.error('❌ Ошибка отправки уведомления:', errorMessage);
-      return { ok: false, error: errorMessage };
-    }
+    console.error('❌ Ошибка отправки уведомления:', errorMessage);
+    return { ok: false, error: errorMessage };
   }
 };
 
