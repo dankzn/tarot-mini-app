@@ -9,12 +9,14 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABA
 const getTokenSource = () => {
   if (process.env.TELEGRAM_BOT_TOKEN) return 'TELEGRAM_BOT_TOKEN';
   if (process.env.BOT_TOKEN) return 'BOT_TOKEN';
+  if (process.env.VITE_TELEGRAM_BOT_TOKEN) return 'VITE_TELEGRAM_BOT_TOKEN_SERVER_LEGACY';
   return null;
 };
 
 const getBotToken = () => (
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
+  process.env.VITE_TELEGRAM_BOT_TOKEN ||
   ''
 );
 

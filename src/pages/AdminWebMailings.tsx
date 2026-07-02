@@ -197,7 +197,8 @@ export const AdminWebMailings = () => {
         `✅ Рассылка завершена!\n\n` +
         `Отправлено: ${results.success}\n` +
         `Ошибок: ${results.failed}\n` +
-        `Всего: ${recipients.length}`
+        `Всего: ${recipients.length}` +
+        (results.errors.length > 0 ? `\n\nОшибки:\n${results.errors.slice(0, 3).join('\n')}` : '')
       );
 
       // Сброс формы
