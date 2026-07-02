@@ -78,6 +78,9 @@ type DashboardTab = 'home' | 'services' | 'cabinet' | 'menu';
 const consultationStatusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
   confirmed: 'Подтверждена',
+  needs_admin_time: 'Подбираем время',
+  awaiting_client_confirmation: 'Подтвердите время',
+  client_countered: 'Время предложено',
   in_progress: 'В процессе',
 };
 
@@ -86,6 +89,33 @@ const consultationStatusColors: Record<string, string> = {
   confirmed: 'bg-[#DDE9E0] text-[#385144]',
   in_progress: 'bg-[#E7D8C9] text-[#8A5A3F]',
 };
+
+const getSafeDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getConsultationDateText = (consultation: any) => {
+  const date = getSafeDate(consultation?.scheduled_at);
+  if (date) return format(date, 'd MMMM', { locale: ru });
+  if (consultation?.requested_date) return 'Подбирается';
+  return 'Не назначена';
+};
+
+const getConsultationTimeText = (consultation: any) => {
+  const date = getSafeDate(consultation?.scheduled_at);
+  if (date) return format(date, 'HH:mm');
+  if (consultation?.scheduling_status === 'awaiting_client_confirmation') return 'Ждёт ответа';
+  if (consultation?.scheduling_status === 'client_countered') return 'Предложено';
+  return 'Ждём предложения';
+};
+
+const getConsultationStatusText = (consultation: any) => (
+  consultationStatusLabels[consultation?.scheduling_status] ||
+  consultationStatusLabels[consultation?.status] ||
+  consultation?.status
+);
 
 const STATUS_MILESTONES = [
   { name: 'Первое знакомство', consultations: 0 },
@@ -591,7 +621,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const loadUpcomingConsultation = async () => {
     const { data, error } = await supabase
       .from('consultations')
-      .select('id, scheduled_at, status, price, bonus_used, services(title, duration_minutes)')
+      .select('id, scheduled_at, requested_date, scheduling_status, client_time_counterproposal, status, price, bonus_used, services(title, duration_minutes)')
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed', 'in_progress'])
       .order('scheduled_at', { ascending: true })
@@ -1235,7 +1265,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
               <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
                 consultationStatusColors[upcomingConsultation.status] || 'bg-white/15 text-white'
               }`}>
-                {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+                {getConsultationStatusText(upcomingConsultation)}
               </span>
             </div>
 
@@ -1246,7 +1276,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   Дата
                 </div>
                 <p className="text-sm font-black">
-                  {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
+                  {getConsultationDateText(upcomingConsultation)}
                 </p>
               </div>
               <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
@@ -1255,7 +1285,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   Время
                 </div>
                 <p className="text-sm font-black">
-                  {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
+                  {getConsultationTimeText(upcomingConsultation)}
                 </p>
               </div>
             </div>
@@ -1577,7 +1607,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
                   consultationStatusColors[upcomingConsultation.status] || 'bg-[#EAF1EA] text-[#385144]'
                 }`}>
-                  {consultationStatusLabels[upcomingConsultation.status] || upcomingConsultation.status}
+                  {getConsultationStatusText(upcomingConsultation)}
                 </span>
               </div>
               <div className="mb-4 grid grid-cols-2 gap-3">
@@ -1587,7 +1617,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     Дата
                   </div>
                   <p className="text-sm font-black text-[#385144]">
-                    {format(new Date(upcomingConsultation.scheduled_at), 'd MMMM', { locale: ru })}
+                    {getConsultationDateText(upcomingConsultation)}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-[#F8F3EC] p-3">
@@ -1596,7 +1626,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
                     Время
                   </div>
                   <p className="text-sm font-black text-[#385144]">
-                    {format(new Date(upcomingConsultation.scheduled_at), 'HH:mm')}
+                    {getConsultationTimeText(upcomingConsultation)}
                   </p>
                 </div>
               </div>
