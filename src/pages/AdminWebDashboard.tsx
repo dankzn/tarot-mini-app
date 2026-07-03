@@ -14,6 +14,34 @@ import {
 } from 'lucide-react';
 import { ensureAdminSession } from '../lib/adminAuth';
 import { PaymentMethodsManager } from '../components/admin/PaymentMethodsManager';
+import { PromoCodesManager } from '../components/admin/PromoCodesManager';
+
+const statusLabels: Record<string, string> = {
+  pending: 'Ожидает',
+  confirmed: 'Подтверждена',
+  in_progress: 'В процессе',
+  awaiting_payment: 'Ждёт оплату',
+  completed: 'Завершена',
+  cancelled: 'Отменена',
+};
+
+const schedulingLabels: Record<string, string> = {
+  needs_admin_time: 'Нужно предложить время',
+  awaiting_client_confirmation: 'Ждём ответ клиента',
+  client_countered: 'Клиент предложил время',
+};
+
+const getConsultationLabel = (consultation: any) => (
+  schedulingLabels[consultation.scheduling_status] ||
+  statusLabels[consultation.status] ||
+  consultation.status ||
+  'Запись'
+);
+
+const getConsultationDate = (consultation: any) => {
+  if (!consultation.scheduled_at) return 'Дата не назначена';
+  return new Date(consultation.scheduled_at).toLocaleDateString('ru-RU');
+};
 
 export const AdminWebDashboard = () => {
   const navigate = useNavigate();
@@ -27,13 +55,29 @@ export const AdminWebDashboard = () => {
     todayConsultations: 0,
     newUsers: 0,
     activeCampaigns: 0,
+    awaitingPayment: 0,
+    markedPaid: 0,
+    needsAdminTime: 0,
+    awaitingClientConfirmation: 0,
+    clientCountered: 0,
+    moneyInWork: 0,
   });
   const [recentConsultations, setRecentConsultations] = useState<any[]>([]);
+  const [paymentQueue, setPaymentQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     checkAuth();
     loadData();
+
+    const refreshOnFocus = () => loadData();
+    const intervalId = window.setInterval(loadData, 30000);
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
   }, []);
 
   const checkAuth = async () => {
@@ -47,26 +91,31 @@ export const AdminWebDashboard = () => {
     try {
       const { data: usersData } = await supabase
         .from('users')
-        .select('id, created_at');
+        .select('id, name, created_at');
       
-      const { data: consultationsData } = await supabase
+      const { data: consultationsData, error: consultationsError } = await supabase
         .from('consultations')
-        .select('status, price, scheduled_at, users(name)')
+        .select('id, user_id, status, scheduling_status, payment_status, price, payment_amount, scheduled_at, requested_date, created_at')
         .order('scheduled_at', { ascending: false });
 
-      const { data: recentData } = await supabase
-        .from('consultations')
-        .select('status, price, scheduled_at, users(name)')
-        .order('scheduled_at', { ascending: false })
-        .limit(10);
+      if (consultationsError) throw consultationsError;
 
       const { data: servicesData } = await supabase
         .from('services')
         .select('id, promo_starts_at, promo_ends_at, price_increase_at');
 
+      const usersById = new Map((usersData || []).map((user: any) => [user.id, user]));
+      const enrichedConsultations = (consultationsData || []).map((consultation: any) => ({
+        ...consultation,
+        users: usersById.get(consultation.user_id) || null,
+      }));
+
       const completedConsultations = consultationsData?.filter(c => c.status === 'completed') || [];
-      const totalRevenue = completedConsultations.reduce((sum, c) => sum + (c.price || 0), 0) || 0;
-      const pendingCount = consultationsData?.filter(c => c.status === 'pending').length || 0;
+      const awaitingPaymentConsultations = consultationsData?.filter(c => c.status === 'awaiting_payment') || [];
+      const totalRevenue = completedConsultations.reduce((sum, c) => sum + (c.payment_amount || c.price || 0), 0) || 0;
+      const pendingCount = consultationsData?.filter(c => (
+        c.status === 'pending' || ['needs_admin_time', 'client_countered'].includes(c.scheduling_status)
+      )).length || 0;
       const now = new Date();
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
@@ -76,7 +125,7 @@ export const AdminWebDashboard = () => {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const weekRevenue = completedConsultations
         .filter(c => c.scheduled_at && new Date(c.scheduled_at) >= sevenDaysAgo)
-        .reduce((sum, c) => sum + (c.price || 0), 0);
+        .reduce((sum, c) => sum + (c.payment_amount || c.price || 0), 0);
       const conversionRate = consultationsData?.length
         ? Math.round((completedConsultations.length / consultationsData.length) * 100)
         : 0;
@@ -95,6 +144,8 @@ export const AdminWebDashboard = () => {
         const priceChangePlanned = service.price_increase_at && new Date(service.price_increase_at) > now;
         return promoActive || priceChangePlanned;
       }).length || 0;
+      const markedPaid = awaitingPaymentConsultations.filter(c => c.payment_status === 'marked_paid').length;
+      const moneyInWork = awaitingPaymentConsultations.reduce((sum, c) => sum + (c.payment_amount || c.price || 0), 0);
 
       setStats({
         totalUsers: usersData?.length || 0,
@@ -106,9 +157,18 @@ export const AdminWebDashboard = () => {
         todayConsultations: todayCount,
         newUsers,
         activeCampaigns,
+        awaitingPayment: awaitingPaymentConsultations.length,
+        markedPaid,
+        needsAdminTime: consultationsData?.filter(c => c.scheduling_status === 'needs_admin_time').length || 0,
+        awaitingClientConfirmation: consultationsData?.filter(c => c.scheduling_status === 'awaiting_client_confirmation').length || 0,
+        clientCountered: consultationsData?.filter(c => c.scheduling_status === 'client_countered').length || 0,
+        moneyInWork,
       });
 
-      setRecentConsultations(recentData || []);
+      setRecentConsultations(enrichedConsultations.slice(0, 10));
+      setPaymentQueue(enrichedConsultations.filter(c => (
+        c.status === 'awaiting_payment' || ['payment_requested', 'opened', 'marked_paid'].includes(c.payment_status)
+      )).slice(0, 6));
     } catch (error) {
       console.error('Ошибка загрузки:', error);
     } finally {
@@ -239,8 +299,8 @@ export const AdminWebDashboard = () => {
               { label: 'Сегодня записей', value: stats.todayConsultations, hint: 'по расписанию', icon: CalendarDays },
               { label: 'Новые клиенты', value: stats.newUsers, hint: 'за 7 дней', icon: Users },
               { label: 'Активные акции', value: stats.activeCampaigns, hint: 'или будущие цены', icon: Sparkles },
-              { label: 'Очередь заявок', value: stats.pendingConsultations, hint: 'нужно подтвердить', icon: Clock },
-              { label: 'Доход недели', value: `${stats.weekRevenue.toLocaleString()} ₽`, hint: 'завершённые', icon: DollarSign },
+              { label: 'Ждут оплаты', value: stats.awaitingPayment, hint: `${stats.markedPaid} отметили`, icon: DollarSign },
+              { label: 'Деньги в работе', value: `${stats.moneyInWork.toLocaleString()} ₽`, hint: 'до подтверждения', icon: DollarSign },
               { label: 'Конверсия', value: `${stats.conversionRate}%`, hint: 'в завершение', icon: TrendingUp },
             ].map((item) => {
               const Icon = item.icon;
@@ -257,6 +317,81 @@ export const AdminWebDashboard = () => {
               );
             })}
           </div>
+        </div>
+
+        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-4">
+          {[
+            { label: 'Без времени', value: stats.needsAdminTime, hint: 'нужно предложить слот', tone: 'bg-[#FFF7E8] text-[#8A5A3F]' },
+            { label: 'Ждут клиента', value: stats.awaitingClientConfirmation, hint: 'клиент подтверждает время', tone: 'bg-[#EAF1EA] text-[#385144]' },
+            { label: 'Предложили своё', value: stats.clientCountered, hint: 'нужно принять или отклонить', tone: 'bg-[#F8EDE7] text-[#8A5A3F]' },
+            { label: 'Оплату отметили', value: stats.markedPaid, hint: 'подтвердить и начислить бонусы', tone: 'bg-[#385144] text-white' },
+          ].map((item) => (
+            <button
+              key={item.label}
+              onClick={() => navigate('/admin-web/consultations')}
+              className={`rounded-[1.45rem] p-5 text-left shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 ${item.tone}`}
+            >
+              <p className="text-xs font-black uppercase tracking-[0.18em] opacity-70">{item.hint}</p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-lg font-black">{item.label}</p>
+                <p className="text-4xl font-black">{item.value}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="mb-8 rounded-[1.75rem] border border-white/80 bg-white/85 p-6 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="luxury-kicker mb-1">payment desk</p>
+              <h3 className="text-2xl font-black text-[#385144]">Оплаты и незачисленные бонусы</h3>
+              <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                Здесь видны консультации, которые завершены по смыслу, но ещё ждут оплаты или твоего подтверждения.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/admin-web/consultations')}
+              className="rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white"
+            >
+              Открыть оплату
+            </button>
+          </div>
+
+          {paymentQueue.length === 0 ? (
+            <div className="rounded-[1.35rem] border border-dashed border-[#D8CFC4] bg-[#F8F5F2] p-5 text-sm font-bold text-[#6C756C]">
+              Очередь оплат чистая: нет консультаций, где деньги или бонусы зависли между статусами.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {paymentQueue.map((consultation) => (
+                <button
+                  key={consultation.id}
+                  onClick={() => navigate('/admin-web/consultations')}
+                  className="rounded-[1.35rem] bg-[#F8F5F2] p-4 text-left ring-1 ring-[#385144]/8 transition hover:bg-white"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-[#385144]">{consultation.users?.name || 'Клиент'}</p>
+                      <p className="text-xs font-bold text-[#8FA092]">{getConsultationDate(consultation)}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                      consultation.payment_status === 'marked_paid'
+                        ? 'bg-[#385144] text-white'
+                        : 'bg-[#FFF1E8] text-[#8A5A3F]'
+                    }`}>
+                      {consultation.payment_status === 'marked_paid' ? 'Клиент оплатил' : 'Ждёт оплаты'}
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#6C756C]">{getConsultationLabel(consultation)}</p>
+                    <p className="text-xl font-black text-[#8A5A3F]">
+                      {(consultation.payment_amount || consultation.price || 0).toLocaleString()} ₽
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="premium-surface mb-8 rounded-[2rem] p-6">
@@ -297,6 +432,8 @@ export const AdminWebDashboard = () => {
         <div className="mb-8">
           <PaymentMethodsManager />
         </div>
+
+        <PromoCodesManager />
 
         {/* Новые карточки */}
 		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
@@ -406,21 +543,18 @@ export const AdminWebDashboard = () => {
                 <div key={consultation.id} className="flex justify-between items-center p-4 bg-[#F8F5F2] rounded-2xl">
                   <div>
                     <p className="text-[#385144] font-bold">{consultation.users?.name || 'Клиент'}</p>
-                    <p className="text-gray-500 text-sm">
-                      {new Date(consultation.scheduled_at).toLocaleDateString('ru-RU')}
-                    </p>
+                    <p className="text-gray-500 text-sm">{getConsultationDate(consultation)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[#8A5A3F] font-bold">{consultation.price} ₽</p>
+                    <p className="text-[#8A5A3F] font-bold">{consultation.payment_amount || consultation.price} ₽</p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       consultation.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                       consultation.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                      consultation.status === 'awaiting_payment' ? 'bg-orange-100 text-orange-700' :
                       consultation.status === 'completed' ? 'bg-green-100 text-green-700' :
                       'bg-red-100 text-red-700'
                     }`}>
-                      {consultation.status === 'pending' ? 'Ожидает' :
-                       consultation.status === 'confirmed' ? 'Подтверждена' :
-                       consultation.status === 'completed' ? 'Завершена' : 'Отменена'}
+                      {getConsultationLabel(consultation)}
                     </span>
                   </div>
                 </div>

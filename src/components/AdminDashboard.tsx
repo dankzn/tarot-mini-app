@@ -6,6 +6,7 @@ import { ServicesManager } from './admin/ServicesManager';
 import { Analytics } from './admin/Analytics';
 import { ClientsManager } from './admin/ClientsManager';
 import { PaymentMethodsManager } from './admin/PaymentMethodsManager';
+import { PromoCodesManager } from './admin/PromoCodesManager';
 import {
   Crown,
   CalendarDays,
@@ -16,7 +17,8 @@ import {
   Settings,
   BarChart3,
   UserCog,
-  CreditCard
+  CreditCard,
+  TicketPercent
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -28,16 +30,31 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showSlotsManager, setShowSlotsManager] = useState(false);
   const [showConsultationsManager, setShowConsultationsManager] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients' | 'payments'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients' | 'payments' | 'promo'>('dashboard');
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalConsultations: 0,
     pendingConsultations: 0,
     totalRevenue: 0,
+    awaitingPayment: 0,
+    markedPaid: 0,
+    needsAdminTime: 0,
+    awaitingClientConfirmation: 0,
+    clientCountered: 0,
+    moneyInWork: 0,
   });
 
   useEffect(() => {
     loadData();
+
+    const intervalId = window.setInterval(loadData, 30000);
+    const refreshOnFocus = () => loadData();
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
   }, []);
 
   const loadData = async () => {
@@ -51,17 +68,27 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
 
       const { data: consultationsData } = await supabase
         .from('consultations')
-        .select('status, price');
+        .select('status, scheduling_status, payment_status, price, payment_amount');
 
       const totalConsultations = consultationsData?.length || 0;
-      const pendingConsultations = consultationsData?.filter(c => c.status === 'pending').length || 0;
-      const totalRevenue = consultationsData?.reduce((sum, c) => sum + (c.price || 0), 0) || 0;
+      const pendingConsultations = consultationsData?.filter(c => (
+        c.status === 'pending' || ['needs_admin_time', 'client_countered'].includes(c.scheduling_status)
+      )).length || 0;
+      const completedConsultations = consultationsData?.filter(c => c.status === 'completed') || [];
+      const awaitingPaymentConsultations = consultationsData?.filter(c => c.status === 'awaiting_payment') || [];
+      const totalRevenue = completedConsultations.reduce((sum, c) => sum + (c.payment_amount || c.price || 0), 0) || 0;
 
       setStats({
         totalUsers: usersData?.length || 0,
         totalConsultations,
         pendingConsultations,
         totalRevenue,
+        awaitingPayment: awaitingPaymentConsultations.length,
+        markedPaid: awaitingPaymentConsultations.filter(c => c.payment_status === 'marked_paid').length,
+        needsAdminTime: consultationsData?.filter(c => c.scheduling_status === 'needs_admin_time').length || 0,
+        awaitingClientConfirmation: consultationsData?.filter(c => c.scheduling_status === 'awaiting_client_confirmation').length || 0,
+        clientCountered: consultationsData?.filter(c => c.scheduling_status === 'client_countered').length || 0,
+        moneyInWork: awaitingPaymentConsultations.reduce((sum, c) => sum + (c.payment_amount || c.price || 0), 0),
       });
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
@@ -152,6 +179,17 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
           Клиенты
         </button>
         <button
+          onClick={() => setActiveTab('promo')}
+          className={`rounded-xl px-4 py-2 font-bold whitespace-nowrap transition ${
+            activeTab === 'promo'
+              ? 'bg-[#385144] text-white shadow-sm'
+              : 'text-gray-500'
+          }`}
+        >
+          <TicketPercent className="w-4 h-4 inline mr-1" />
+          Промо
+        </button>
+        <button
           onClick={() => setActiveTab('payments')}
           className={`rounded-xl px-4 py-2 font-bold whitespace-nowrap transition ${
             activeTab === 'payments'
@@ -193,10 +231,29 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
             <div className="rounded-[1.4rem] border border-white/80 bg-[#385144] p-4 text-white shadow-[0_16px_40px_rgba(56,81,68,0.16)] col-span-2">
               <div className="flex items-center mb-2">
                 <Sparkles className="w-5 h-5 text-[#F4E7C8] mr-2" />
-                <span className="text-white/70 text-xs">Общий доход</span>
+                <span className="text-white/70 text-xs">Доход подтверждённых</span>
               </div>
               <p className="font-black text-2xl">{stats.totalRevenue.toLocaleString()} ₽</p>
             </div>
+          </div>
+
+          <div className="mb-6 grid grid-cols-2 gap-3">
+            {[
+              { label: 'Ждут оплаты', value: stats.awaitingPayment, hint: `${stats.markedPaid} отметили оплату` },
+              { label: 'В работе', value: `${stats.moneyInWork.toLocaleString()} ₽`, hint: 'до подтверждения оплаты' },
+              { label: 'Без времени', value: stats.needsAdminTime, hint: 'предложить слот' },
+              { label: 'Ответ клиента', value: stats.awaitingClientConfirmation + stats.clientCountered, hint: 'подтвердить/разобрать' },
+            ].map((item) => (
+              <button
+                key={item.label}
+                onClick={() => setShowConsultationsManager(true)}
+                className="rounded-[1.3rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)]"
+              >
+                <p className="text-2xl font-black text-[#385144]">{item.value}</p>
+                <p className="mt-1 text-sm font-black text-[#385144]">{item.label}</p>
+                <p className="mt-1 text-xs font-semibold text-[#6C756C]">{item.hint}</p>
+              </button>
+            ))}
           </div>
 
           <div className="premium-surface mb-6 rounded-[1.75rem] p-5">
@@ -332,6 +389,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
       {activeTab === 'analytics' && <Analytics />}
       {activeTab === 'clients' && <ClientsManager />}
       {activeTab === 'payments' && <PaymentMethodsManager />}
+      {activeTab === 'promo' && <PromoCodesManager />}
     </div>
   );
 };

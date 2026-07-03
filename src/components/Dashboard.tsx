@@ -122,6 +122,13 @@ const getConsultationStatusText = (consultation: any) => (
   consultation?.status
 );
 
+const getPaymentStatusText = (consultation: any) => {
+  if (consultation?.payment_status === 'marked_paid') return 'Оплата на проверке';
+  if (consultation?.payment_status === 'opened') return 'Ссылка открыта';
+  if (consultation?.status === 'awaiting_payment') return 'Ожидает оплаты';
+  return 'Можно оплатить заранее';
+};
+
 const STATUS_MILESTONES = [
   { name: 'Первое знакомство', consultations: 0 },
   { name: 'Basic', consultations: 1 },
@@ -679,10 +686,10 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const loadPaymentDueConsultation = async () => {
     const { data, error } = await supabase
       .from('consultations')
-      .select('id, scheduled_at, requested_date, requested_time_text, status, payment_status, payment_amount, price, services(title)')
+      .select('id, scheduled_at, requested_date, requested_time_text, scheduling_status, status, payment_status, payment_amount, price, services(title)')
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed', 'awaiting_payment'])
-      .in('payment_status', ['unpaid', 'payment_requested', 'opened'])
+      .in('payment_status', ['unpaid', 'payment_requested', 'opened', 'marked_paid'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -694,7 +701,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
     }
 
     setPaymentDueConsultation(data || null);
-    setShowPaymentModal(Boolean(data?.status === 'awaiting_payment'));
+    setShowPaymentModal(Boolean(data?.status === 'awaiting_payment' && data?.payment_status !== 'marked_paid'));
   };
 
   const primaryPaymentMethod = paymentMethods[0] || null;
@@ -1803,6 +1810,72 @@ export const Dashboard = ({ user }: DashboardProps) => {
 
         {activeTab === 'cabinet' && (
         <>
+          {paymentDueConsultation && (
+            <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-[#D9B8A4] bg-gradient-to-br from-[#FFF4EA] via-white to-[#F8EDE7] p-5 shadow-[0_18px_44px_rgba(138,90,63,0.14)]">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs font-black uppercase tracking-[0.2em] text-[#B8795C]">
+                    payment focus
+                  </p>
+                  <h3 className="text-xl font-black leading-tight text-[#385144]">
+                    {getPaymentStatusText(paymentDueConsultation)}
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                    {paymentDueConsultation.services?.title || 'Консультация'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8FA092]">к оплате</p>
+                  <p className="text-xl font-black text-[#8A5A3F]">
+                    {(paymentDueConsultation.payment_amount || paymentDueConsultation.price || 0).toLocaleString()} ₽
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-white/65 p-3">
+                  <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                    <CalendarCheck className="mr-1 h-3 w-3" />
+                    Дата
+                  </div>
+                  <p className="text-sm font-black text-[#385144]">
+                    {getConsultationDateText(paymentDueConsultation)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/65 p-3">
+                  <div className="mb-1 flex items-center text-xs font-bold text-[#8A5A3F]">
+                    <Clock className="mr-1 h-3 w-3" />
+                    Время
+                  </div>
+                  <p className="text-sm font-black text-[#385144]">
+                    {getConsultationTimeText(paymentDueConsultation)}
+                  </p>
+                </div>
+              </div>
+
+              {paymentDueConsultation.payment_status === 'marked_paid' ? (
+                <div className="rounded-2xl bg-[#385144]/10 px-4 py-3 text-sm font-black text-[#385144]">
+                  Я уже вижу отметку об оплате. После проверки бонусы и консультация зачтутся автоматически.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => openPaymentLink(paymentDueConsultation)}
+                    className="rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white"
+                  >
+                    Оплатить
+                  </button>
+                  <button
+                    onClick={() => markPaymentSent(paymentDueConsultation)}
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144] shadow-sm"
+                  >
+                    Я оплатил
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {upcomingConsultation && (
             <button
               onClick={() => setShowHistory(true)}

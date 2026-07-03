@@ -7,6 +7,7 @@ const emptyForm = {
   title: '',
   discount_type: 'fixed',
   discount_value: 0,
+  starts_at: '',
   expires_at: '',
   max_uses: 1,
 };
@@ -35,7 +36,19 @@ export const PromoCodesManager = () => {
       return;
     }
 
-    setPromoCodes(data || []);
+    const { data: redemptionsData } = await supabase
+      .from('promo_code_redemptions')
+      .select('promo_code_id');
+
+    const usedCountByPromo = (redemptionsData || []).reduce((acc: Record<string, number>, redemption: any) => {
+      acc[redemption.promo_code_id] = (acc[redemption.promo_code_id] || 0) + 1;
+      return acc;
+    }, {});
+
+    setPromoCodes((data || []).map((promoCode: any) => ({
+      ...promoCode,
+      used_count: usedCountByPromo[promoCode.id] || 0,
+    })));
   };
 
   const createPromoCode = async () => {
@@ -54,6 +67,7 @@ export const PromoCodesManager = () => {
           title: form.title.trim() || null,
           discount_type: form.discount_type,
           discount_value: Number(form.discount_value),
+          starts_at: fromDateTimeLocal(form.starts_at),
           expires_at: fromDateTimeLocal(form.expires_at),
           max_uses: form.max_uses ? Number(form.max_uses) : null,
           is_active: true,
@@ -146,16 +160,32 @@ export const PromoCodesManager = () => {
           value={form.max_uses}
           onChange={(event) => setForm({ ...form, max_uses: Number(event.target.value) })}
         />
-        <input
-          type="datetime-local"
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[#385144] md:col-span-2"
-          value={form.expires_at}
-          onChange={(event) => setForm({ ...form, expires_at: event.target.value })}
-        />
+        <label className="md:col-span-2">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">
+            Старт действия
+          </span>
+          <input
+            type="datetime-local"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-[#385144]"
+            value={form.starts_at}
+            onChange={(event) => setForm({ ...form, starts_at: event.target.value })}
+          />
+        </label>
+        <label className="md:col-span-2">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">
+            Конец действия
+          </span>
+          <input
+            type="datetime-local"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-[#385144]"
+            value={form.expires_at}
+            onChange={(event) => setForm({ ...form, expires_at: event.target.value })}
+          />
+        </label>
         <button
           onClick={createPromoCode}
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-xl bg-[#385144] px-4 py-2 font-black text-white disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-xl bg-[#385144] px-4 py-2 font-black text-white disabled:opacity-50 md:col-span-2"
         >
           <Plus className="mr-2 h-4 w-4" />
           Создать
@@ -173,7 +203,12 @@ export const PromoCodesManager = () => {
               <p className="font-black text-[#385144]">{promoCode.code}</p>
               <p className="text-sm text-[#6C756C]">
                 {promoCode.title || 'Без названия'} • {promoCode.discount_value}{promoCode.discount_type === 'percent' ? '%' : ' ₽'}
-                {promoCode.max_uses ? ` • лимит ${promoCode.max_uses}` : ''}
+                {promoCode.max_uses ? ` • использовано ${promoCode.used_count}/${promoCode.max_uses}` : ` • использовано ${promoCode.used_count}`}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-[#8FA092]">
+                {promoCode.starts_at ? `с ${new Date(promoCode.starts_at).toLocaleString('ru-RU')}` : 'без даты старта'}
+                {' · '}
+                {promoCode.expires_at ? `до ${new Date(promoCode.expires_at).toLocaleString('ru-RU')}` : 'без срока окончания'}
               </p>
             </div>
             <div className="flex items-center gap-2">
