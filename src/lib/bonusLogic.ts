@@ -12,9 +12,21 @@ export const getBonusPercent = (status: string): number => {
     'Silver': 5,
     'Gold': 7,
     'Platinum': 9,
-    'Личное ведение': 5, // Индивидуально
   };
   return percentages[status] || 5;
+};
+
+export const getLoyaltyStatusByCompletedConsultations = (consultationCount: number): string => {
+  if (consultationCount <= 0) return 'Первое знакомство';
+  if (consultationCount <= 2) return 'Basic';
+  if (consultationCount <= 5) return 'Silver';
+  if (consultationCount <= 10) return 'Gold';
+  return 'Platinum';
+};
+
+export const isPersonalTarologistService = (serviceTitle: string | null | undefined): boolean => {
+  const normalizedTitle = serviceTitle?.toLowerCase() || '';
+  return normalizedTitle.includes('личный таролог') || normalizedTitle.includes('личное ведение');
 };
 
 // Процент после 30 дней для "Первое знакомство"

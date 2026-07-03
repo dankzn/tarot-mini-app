@@ -8,6 +8,7 @@ import { ReferralProgram } from './ReferralProgram';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
+import { getLoyaltyStatusByCompletedConsultations } from '../lib/bonusLogic';
 import {
   Crown,
   Sparkles,
@@ -688,12 +689,15 @@ export const Dashboard = ({ user }: DashboardProps) => {
     'Silver': 'bg-[#ECEFF0] text-[#5B6464]',
     'Gold': 'bg-[#F1E3C4] text-[#7A5A21]',
     'Platinum': 'bg-[#E8DED2] text-[#8A5A3F]',
-    'Личное ведение': 'bg-[#DDE9E0] text-[#385144]',
   };
 
-  const currentStatus = user.status || 'Первое знакомство';
+  const currentStatus = user.status === 'Личное ведение'
+    ? getLoyaltyStatusByCompletedConsultations(totalConsultations)
+    : user.status || 'Первое знакомство';
   const statusColor = statusColors[currentStatus] || statusColors['Первое знакомство'];
   const statusProgress = getStatusProgress(currentStatus, totalConsultations);
+  const personalTarologistUntil = user.personal_tarologist_until ? new Date(user.personal_tarologist_until) : null;
+  const hasActivePersonalTarologist = Boolean(personalTarologistUntil && personalTarologistUntil >= new Date());
   const selectedQuizOptions = Object.values(quizAnswers);
   const recommendedServices = getServiceRecommendations(services, selectedQuizOptions);
   const recommendedService = recommendedServices[0] || null;
@@ -1132,6 +1136,11 @@ export const Dashboard = ({ user }: DashboardProps) => {
                   <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-black ${statusColor}`}>
                     {currentStatus}
                   </span>
+                  {hasActivePersonalTarologist && (
+                    <span className="mt-2 ml-2 inline-flex rounded-full bg-[#DDE9E0] px-3 py-1 text-sm font-black text-[#385144]">
+                      Личное ведение
+                    </span>
+                  )}
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#DDE9E0] text-[#385144]">
                   <Crown className="h-5 w-5" />

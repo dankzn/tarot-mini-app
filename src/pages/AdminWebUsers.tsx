@@ -87,7 +87,6 @@ export const AdminWebUsers = () => {
     'Silver': 'bg-gray-200 text-gray-800',
     'Gold': 'bg-yellow-100 text-yellow-800',
     'Platinum': 'bg-purple-100 text-purple-800',
-    'Личное ведение': 'bg-[#D4AF37] text-white',
   };
 
   return (
@@ -127,7 +126,7 @@ export const AdminWebUsers = () => {
             >
               Все ({users.length})
             </button>
-            {['Первое знакомство', 'Basic', 'Silver', 'Gold', 'Platinum', 'Личное ведение'].map(status => (
+            {['Первое знакомство', 'Basic', 'Silver', 'Gold', 'Platinum'].map(status => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
@@ -153,7 +152,11 @@ export const AdminWebUsers = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredUsers.map((user) => (
+            {filteredUsers.map((user) => {
+              const personalTarologistUntil = user.personal_tarologist_until ? new Date(user.personal_tarologist_until) : null;
+              const hasActivePersonalTarologist = Boolean(personalTarologistUntil && personalTarologistUntil >= new Date());
+
+              return (
               <div key={user.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-start gap-4">
@@ -166,6 +169,11 @@ export const AdminWebUsers = () => {
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColors[user.status] || 'bg-gray-100 text-gray-800'}`}>
                           {user.status}
                         </span>
+                        {hasActivePersonalTarologist && (
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-[#D4AF37] text-white">
+                            Личное ведение
+                          </span>
+                        )}
                       </h3>
                       <div className="flex gap-4 mt-2 text-sm text-gray-600 flex-wrap">
                         {user.telegram_id && (
@@ -238,7 +246,8 @@ export const AdminWebUsers = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

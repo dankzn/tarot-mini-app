@@ -18,6 +18,7 @@ import {
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
 import { notifyClientBonusUpdate, notifyClientTimeConfirmed, notifyClientTimeProposal } from '../lib/notifications';
+import { getBonusPercent, getLoyaltyStatusByCompletedConsultations, isPersonalTarologistService } from '../lib/bonusLogic';
 
 const parseAdminDateTime = (value: string) => {
   const normalized = value.trim().replace(' ', 'T');
@@ -231,18 +232,13 @@ export const AdminWebConsultations = () => {
       );
       
       const totalCompleted = completedConsultations.length + 1;
-      let newStatus = 'Первое знакомство';
-      
-      if (totalCompleted === 0) newStatus = 'Первое знакомство';
-      else if (totalCompleted <= 2) newStatus = 'Basic';
-      else if (totalCompleted <= 5) newStatus = 'Silver';
-      else if (totalCompleted <= 10) newStatus = 'Gold';
-      else if (totalCompleted <= 20) newStatus = 'Platinum';
-      else newStatus = 'Личное ведение';
+      const newStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
+      const isPersonalTarologist = isPersonalTarologistService(selectedConsultation.services?.title);
       
       const bonusUsed = selectedConsultation.bonus_used || 0;
       const finalPrice = completeData.new_price;
-      const bonusEarned = Math.floor(finalPrice * 0.05);
+      const bonusPercent = getBonusPercent(newStatus);
+      const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
       
       const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
       const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
@@ -267,12 +263,20 @@ export const AdminWebConsultations = () => {
 
       // Обновляем статус и баланс пользователя только при первом завершении
       if (selectedConsultation.status !== 'completed') {
+        const userUpdateData: any = {
+          status: newStatus,
+          bonus_balance: newBonusBalance,
+        };
+
+        if (isPersonalTarologist) {
+          const untilDate = new Date();
+          untilDate.setDate(untilDate.getDate() + 30);
+          userUpdateData.personal_tarologist_until = untilDate.toISOString();
+        }
+
         await supabase
           .from('users')
-          .update({
-            status: newStatus,
-            bonus_balance: newBonusBalance,
-          })
+          .update(userUpdateData)
           .eq('id', selectedConsultation.user_id);
       }
 
@@ -331,7 +335,14 @@ export const AdminWebConsultations = () => {
 
   if (showCompleteForm && selectedConsultation) {
     const isEdit = selectedConsultation.status === 'completed';
-    const bonusEarned = Math.floor(completeData.new_price * 0.05);
+    const completedConsultations = consultations.filter(c =>
+      c.user_id === selectedConsultation.user_id &&
+      c.status === 'completed' &&
+      c.id !== selectedConsultation.id
+    );
+    const previewNewStatus = getLoyaltyStatusByCompletedConsultations(completedConsultations.length + 1);
+    const bonusPercent = getBonusPercent(previewNewStatus);
+    const bonusEarned = Math.floor(completeData.new_price * (bonusPercent / 100));
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
     const bonusUsed = selectedConsultation.bonus_used || 0;
     const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
@@ -413,7 +424,7 @@ export const AdminWebConsultations = () => {
                     <span className="text-[#385144] font-bold">{completeData.new_price} ₽</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Кэшбэк (5% от оплаты):</span>
+                    <span className="text-gray-600">Кэшбэк ({bonusPercent}% от оплаты):</span>
                     <span className="text-green-600 font-bold">+{bonusEarned} ₽</span>
                   </div>
                   <div className="h-px bg-gray-200 my-2" />

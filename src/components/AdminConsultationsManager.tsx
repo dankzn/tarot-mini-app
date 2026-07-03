@@ -24,7 +24,7 @@ import {
   notifyClientTimeConfirmed,
   notifyClientTimeProposal
 } from '../lib/notifications';
-import { getBonusPercent } from '../lib/bonusLogic';
+import { getBonusPercent, getLoyaltyStatusByCompletedConsultations, isPersonalTarologistService } from '../lib/bonusLogic';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -69,15 +69,6 @@ const parseAdminDateTime = (value: string) => {
 const formatDateTime = (value: string | null | undefined) => (
   value ? format(new Date(value), 'dd MMMM yyyy HH:mm', { locale: ru }) : 'Дата не указана'
 );
-
-const calculateClientStatus = (consultationCount: number): string => {
-  if (consultationCount === 0) return 'Первое знакомство';
-  if (consultationCount <= 2) return 'Basic';
-  if (consultationCount <= 5) return 'Silver';
-  if (consultationCount <= 10) return 'Gold';
-  if (consultationCount <= 20) return 'Platinum';
-  return 'Личное ведение';
-};
 
 export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerProps) => {
   const [consultations, setConsultations] = useState<any[]>([]);
@@ -268,27 +259,23 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   if (!selectedConsultation) return;
 
   try {
-    const isPersonalTarologist = selectedConsultation.services?.title?.toLowerCase().includes('личный таролог') || 
-                                  selectedConsultation.services?.title?.toLowerCase().includes('личное ведение');
-    
-    let newStatus = '';
+    const isPersonalTarologist = isPersonalTarologistService(selectedConsultation.services?.title);
     let personalTarologistUntil = null;
-    
+
+    const completedConsultations = consultations.filter(c => 
+      c.user_id === selectedConsultation.user_id && 
+      c.status === 'completed' &&
+      c.id !== selectedConsultation.id
+    );
+
+    const totalCompleted = completedConsultations.length + 1;
+    const newStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
+
     if (isPersonalTarologist) {
-      newStatus = 'Личное ведение';
       const untilDate = new Date();
       untilDate.setDate(untilDate.getDate() + 30);
       personalTarologistUntil = untilDate.toISOString();
-      console.log('🎯 Устанавливаю статус "Личное ведение" до:', personalTarologistUntil);
-    } else {
-      const completedConsultations = consultations.filter(c => 
-        c.user_id === selectedConsultation.user_id && 
-        c.status === 'completed' &&
-        c.id !== selectedConsultation.id
-      );
-      
-      const totalCompleted = completedConsultations.length + 1;
-      newStatus = calculateClientStatus(totalCompleted);
+      console.log('🎯 Устанавливаю срок личного ведения до:', personalTarologistUntil);
     }
     
     const bonusUsed = selectedConsultation.bonus_used || 0;
@@ -420,21 +407,13 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
     // Предварительно вычисляем новый статус
-    const isPersonalTarologist = selectedConsultation.services?.title?.toLowerCase().includes('личный таролог') || 
-                                  selectedConsultation.services?.title?.toLowerCase().includes('личное ведение');
-
-    let previewNewStatus = '';
-    if (isPersonalTarologist) {
-      previewNewStatus = 'Личное ведение';
-    } else {
-      const completedConsultations = consultations.filter(c => 
-        c.user_id === selectedConsultation.user_id && 
-        c.status === 'completed' &&
-        c.id !== selectedConsultation.id
-      );
-      const totalCompleted = completedConsultations.length + 1;
-      previewNewStatus = calculateClientStatus(totalCompleted);
-    }
+    const completedConsultations = consultations.filter(c => 
+      c.user_id === selectedConsultation.user_id && 
+      c.status === 'completed' &&
+      c.id !== selectedConsultation.id
+    );
+    const totalCompleted = completedConsultations.length + 1;
+    const previewNewStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
 
     // Используем новый статус для расчёта бонусов
     const bonusPercent = getBonusPercent(previewNewStatus);
