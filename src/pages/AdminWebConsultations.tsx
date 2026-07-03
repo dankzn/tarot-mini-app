@@ -18,7 +18,7 @@ import {
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
 import { notifyClientBonusUpdate, notifyClientTimeConfirmed, notifyClientTimeProposal } from '../lib/notifications';
-import { getBonusPercent, getLoyaltyStatusByCompletedConsultations, isPersonalTarologistService } from '../lib/bonusLogic';
+import { getBonusPercent, getConsultationCycleDate, getCurrentLoyaltyCycleStart, getNextLoyaltyStatus, isPersonalTarologistService } from '../lib/bonusLogic';
 
 const parseAdminDateTime = (value: string) => {
   const normalized = value.trim().replace(' ', 'T');
@@ -225,14 +225,20 @@ export const AdminWebConsultations = () => {
     if (!selectedConsultation) return;
 
     try {
-      const completedConsultations = consultations.filter(c => 
-        c.user_id === selectedConsultation.user_id && 
-        c.status === 'completed' &&
-        c.id !== selectedConsultation.id
-      );
+      const cycleStart = getCurrentLoyaltyCycleStart();
+      const completedConsultationsInCycle = consultations.filter(c => {
+        const consultationDate = getConsultationCycleDate(c);
+        return (
+          c.user_id === selectedConsultation.user_id &&
+          c.status === 'completed' &&
+          c.id !== selectedConsultation.id &&
+          consultationDate &&
+          consultationDate >= cycleStart
+        );
+      });
       
-      const totalCompleted = completedConsultations.length + 1;
-      const newStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
+      const totalCompletedInCycle = completedConsultationsInCycle.length + 1;
+      const newStatus = getNextLoyaltyStatus(selectedConsultation.users?.status, totalCompletedInCycle);
       const isPersonalTarologist = isPersonalTarologistService(selectedConsultation.services?.title);
       
       const bonusUsed = selectedConsultation.bonus_used || 0;
@@ -335,12 +341,18 @@ export const AdminWebConsultations = () => {
 
   if (showCompleteForm && selectedConsultation) {
     const isEdit = selectedConsultation.status === 'completed';
-    const completedConsultations = consultations.filter(c =>
-      c.user_id === selectedConsultation.user_id &&
-      c.status === 'completed' &&
-      c.id !== selectedConsultation.id
-    );
-    const previewNewStatus = getLoyaltyStatusByCompletedConsultations(completedConsultations.length + 1);
+    const cycleStart = getCurrentLoyaltyCycleStart();
+    const completedConsultationsInCycle = consultations.filter(c => {
+      const consultationDate = getConsultationCycleDate(c);
+      return (
+        c.user_id === selectedConsultation.user_id &&
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id &&
+        consultationDate &&
+        consultationDate >= cycleStart
+      );
+    });
+    const previewNewStatus = getNextLoyaltyStatus(selectedConsultation.users?.status, completedConsultationsInCycle.length + 1);
     const bonusPercent = getBonusPercent(previewNewStatus);
     const bonusEarned = Math.floor(completeData.new_price * (bonusPercent / 100));
     const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;

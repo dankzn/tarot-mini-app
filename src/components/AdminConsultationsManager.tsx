@@ -24,7 +24,7 @@ import {
   notifyClientTimeConfirmed,
   notifyClientTimeProposal
 } from '../lib/notifications';
-import { getBonusPercent, getLoyaltyStatusByCompletedConsultations, isPersonalTarologistService } from '../lib/bonusLogic';
+import { getBonusPercent, getConsultationCycleDate, getCurrentLoyaltyCycleStart, getNextLoyaltyStatus, isPersonalTarologistService } from '../lib/bonusLogic';
 
 interface AdminConsultationsManagerProps {
   admin: any;
@@ -262,14 +262,20 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     const isPersonalTarologist = isPersonalTarologistService(selectedConsultation.services?.title);
     let personalTarologistUntil = null;
 
-    const completedConsultations = consultations.filter(c => 
-      c.user_id === selectedConsultation.user_id && 
-      c.status === 'completed' &&
-      c.id !== selectedConsultation.id
-    );
+    const cycleStart = getCurrentLoyaltyCycleStart();
+    const completedConsultationsInCycle = consultations.filter(c => {
+      const consultationDate = getConsultationCycleDate(c);
+      return (
+        c.user_id === selectedConsultation.user_id &&
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id &&
+        consultationDate &&
+        consultationDate >= cycleStart
+      );
+    });
 
-    const totalCompleted = completedConsultations.length + 1;
-    const newStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
+    const totalCompletedInCycle = completedConsultationsInCycle.length + 1;
+    const newStatus = getNextLoyaltyStatus(selectedConsultation.users?.status, totalCompletedInCycle);
 
     if (isPersonalTarologist) {
       const untilDate = new Date();
@@ -407,13 +413,18 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   // Форма завершения консультации
   if (showCompleteForm && selectedConsultation) {
     // Предварительно вычисляем новый статус
-    const completedConsultations = consultations.filter(c => 
-      c.user_id === selectedConsultation.user_id && 
-      c.status === 'completed' &&
-      c.id !== selectedConsultation.id
-    );
-    const totalCompleted = completedConsultations.length + 1;
-    const previewNewStatus = getLoyaltyStatusByCompletedConsultations(totalCompleted);
+    const cycleStart = getCurrentLoyaltyCycleStart();
+    const completedConsultationsInCycle = consultations.filter(c => {
+      const consultationDate = getConsultationCycleDate(c);
+      return (
+        c.user_id === selectedConsultation.user_id &&
+        c.status === 'completed' &&
+        c.id !== selectedConsultation.id &&
+        consultationDate &&
+        consultationDate >= cycleStart
+      );
+    });
+    const previewNewStatus = getNextLoyaltyStatus(selectedConsultation.users?.status, completedConsultationsInCycle.length + 1);
 
     // Используем новый статус для расчёта бонусов
     const bonusPercent = getBonusPercent(previewNewStatus);

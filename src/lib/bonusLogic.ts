@@ -24,6 +24,46 @@ export const getLoyaltyStatusByCompletedConsultations = (consultationCount: numb
   return 'Platinum';
 };
 
+const loyaltyRank: Record<string, number> = {
+  'Первое знакомство': 0,
+  'Basic': 1,
+  'Silver': 2,
+  'Gold': 3,
+  'Platinum': 4,
+};
+
+export const normalizeLoyaltyStatus = (status: string | null | undefined): string => (
+  status && loyaltyRank[status] !== undefined ? status : 'Первое знакомство'
+);
+
+export const getNextLoyaltyStatus = (
+  currentStatus: string | null | undefined,
+  completedConsultationsInCycle: number
+): string => {
+  const normalizedCurrentStatus = normalizeLoyaltyStatus(currentStatus);
+  const earnedStatus = getLoyaltyStatusByCompletedConsultations(completedConsultationsInCycle);
+
+  return loyaltyRank[earnedStatus] > loyaltyRank[normalizedCurrentStatus]
+    ? earnedStatus
+    : normalizedCurrentStatus;
+};
+
+export const getCurrentLoyaltyCycleStart = (referenceDate = new Date()): Date => {
+  const cycleStart = new Date(referenceDate.getFullYear(), 1, 1);
+
+  if (referenceDate < cycleStart) {
+    cycleStart.setFullYear(cycleStart.getFullYear() - 1);
+  }
+
+  cycleStart.setHours(0, 0, 0, 0);
+  return cycleStart;
+};
+
+export const getConsultationCycleDate = (consultation: any): Date | null => {
+  const value = consultation.completed_at || consultation.scheduled_at || consultation.created_at;
+  return value ? new Date(value) : null;
+};
+
 export const isPersonalTarologistService = (serviceTitle: string | null | undefined): boolean => {
   const normalizedTitle = serviceTitle?.toLowerCase() || '';
   return normalizedTitle.includes('личный таролог') || normalizedTitle.includes('личное ведение');

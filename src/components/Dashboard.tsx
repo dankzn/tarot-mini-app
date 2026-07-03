@@ -8,7 +8,7 @@ import { ReferralProgram } from './ReferralProgram';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
-import { getLoyaltyStatusByCompletedConsultations } from '../lib/bonusLogic';
+import { getConsultationCycleDate, getCurrentLoyaltyCycleStart, getLoyaltyStatusByCompletedConsultations } from '../lib/bonusLogic';
 import {
   Crown,
   Sparkles,
@@ -610,13 +610,19 @@ export const Dashboard = ({ user }: DashboardProps) => {
   };
 
   const loadTotalConsultations = async () => {
-    const { count } = await supabase
+    const cycleStart = getCurrentLoyaltyCycleStart();
+    const { data } = await supabase
       .from('consultations')
-      .select('*', { count: 'exact', head: true })
+      .select('completed_at, scheduled_at, created_at')
       .eq('user_id', user.id)
       .eq('status', 'completed');
 
-    setTotalConsultations(count || 0);
+    const count = (data || []).filter((consultation) => {
+      const consultationDate = getConsultationCycleDate(consultation);
+      return consultationDate && consultationDate >= cycleStart;
+    }).length;
+
+    setTotalConsultations(count);
   };
 
   const loadUpcomingConsultation = async () => {
