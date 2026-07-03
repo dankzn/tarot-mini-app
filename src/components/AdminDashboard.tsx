@@ -5,6 +5,7 @@ import { AdminConsultationsManager } from './AdminConsultationsManager';
 import { ServicesManager } from './admin/ServicesManager';
 import { Analytics } from './admin/Analytics';
 import { ClientsManager } from './admin/ClientsManager';
+import { PaymentMethodsManager } from './admin/PaymentMethodsManager';
 import {
   Crown,
   CalendarDays,
@@ -14,7 +15,8 @@ import {
   Sparkles,
   Settings,
   BarChart3,
-  UserCog
+  UserCog,
+  CreditCard
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -26,7 +28,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showSlotsManager, setShowSlotsManager] = useState(false);
   const [showConsultationsManager, setShowConsultationsManager] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients' | 'payments'>('dashboard');
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalConsultations: 0,
@@ -148,6 +150,17 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
         >
           <UserCog className="w-4 h-4 inline mr-1" />
           Клиенты
+        </button>
+        <button
+          onClick={() => setActiveTab('payments')}
+          className={`rounded-xl px-4 py-2 font-bold whitespace-nowrap transition ${
+            activeTab === 'payments'
+              ? 'bg-[#385144] text-white shadow-sm'
+              : 'text-gray-500'
+          }`}
+        >
+          <CreditCard className="w-4 h-4 inline mr-1" />
+          Оплата
         </button>
       </div>
 
@@ -318,6 +331,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
       {activeTab === 'services' && <ServicesManager />}
       {activeTab === 'analytics' && <Analytics />}
       {activeTab === 'clients' && <ClientsManager />}
+      {activeTab === 'payments' && <PaymentMethodsManager />}
     </div>
   );
 };

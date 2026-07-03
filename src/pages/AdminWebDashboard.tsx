@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { ensureAdminSession } from '../lib/adminAuth';
+import { PaymentMethodsManager } from '../components/admin/PaymentMethodsManager';
 
 export const AdminWebDashboard = () => {
   const navigate = useNavigate();
@@ -291,6 +292,10 @@ export const AdminWebDashboard = () => {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="mb-8">
+          <PaymentMethodsManager />
         </div>
 
         {/* Новые карточки */}

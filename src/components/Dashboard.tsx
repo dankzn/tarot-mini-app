@@ -27,7 +27,8 @@ import {
   UserCircle,
   Info,
   Flame,
-  Heart
+  Heart,
+  CreditCard
 } from 'lucide-react';
 
 interface Service {
@@ -83,12 +84,14 @@ const consultationStatusLabels: Record<string, string> = {
   awaiting_client_confirmation: 'Подтвердите время',
   client_countered: 'Время предложено',
   in_progress: 'В процессе',
+  awaiting_payment: 'Ожидает оплаты',
 };
 
 const consultationStatusColors: Record<string, string> = {
   pending: 'bg-[#F4E7C8] text-[#7A5A21]',
   confirmed: 'bg-[#DDE9E0] text-[#385144]',
   in_progress: 'bg-[#E7D8C9] text-[#8A5A3F]',
+  awaiting_payment: 'bg-[#FFF1E8] text-[#8A5A3F]',
 };
 
 const getSafeDate = (value?: string | null) => {
@@ -536,6 +539,9 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const [totalConsultations, setTotalConsultations] = useState(0);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [upcomingConsultation, setUpcomingConsultation] = useState<any>(null);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentDueConsultation, setPaymentDueConsultation] = useState<any>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const onboardingStorageKey = `tarot-onboarding-seen:${user.id || user.telegram_id || 'guest'}`;
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try {
@@ -569,6 +575,8 @@ export const Dashboard = ({ user }: DashboardProps) => {
     loadBonusHistory();
     loadTotalConsultations();
     loadUpcomingConsultation();
+    loadPaymentMethods();
+    loadPaymentDueConsultation();
     loadProfilePhoto();
   }, []);
 
@@ -628,9 +636,9 @@ export const Dashboard = ({ user }: DashboardProps) => {
   const loadUpcomingConsultation = async () => {
     const { data, error } = await supabase
       .from('consultations')
-      .select('id, scheduled_at, requested_date, scheduling_status, client_time_counterproposal, status, price, bonus_used, services(title, duration_minutes)')
+        .select('id, scheduled_at, requested_date, scheduling_status, client_time_counterproposal, status, price, payment_status, payment_amount, priority_fee, bonus_used, services(title, duration_minutes)')
       .eq('user_id', user.id)
-      .in('status', ['pending', 'confirmed', 'in_progress'])
+      .in('status', ['pending', 'confirmed', 'in_progress', 'awaiting_payment'])
       .order('scheduled_at', { ascending: true })
       .limit(10);
 
@@ -648,6 +656,93 @@ export const Dashboard = ({ user }: DashboardProps) => {
     const latestActiveConsultation = activeConsultations[activeConsultations.length - 1] || null;
 
     setUpcomingConsultation(nextConsultation || latestActiveConsultation);
+  };
+
+  const loadPaymentMethods = async () => {
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .limit(5);
+
+    if (error) {
+      console.error('Ошибка загрузки способов оплаты:', error);
+      setPaymentMethods([]);
+      return;
+    }
+
+    setPaymentMethods(data || []);
+  };
+
+  const loadPaymentDueConsultation = async () => {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, scheduled_at, requested_date, requested_time_text, status, payment_status, payment_amount, price, services(title)')
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed', 'awaiting_payment'])
+      .in('payment_status', ['unpaid', 'payment_requested'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Ошибка загрузки оплаты:', error);
+      setPaymentDueConsultation(null);
+      return;
+    }
+
+    setPaymentDueConsultation(data || null);
+    setShowPaymentModal(Boolean(data?.status === 'awaiting_payment'));
+  };
+
+  const primaryPaymentMethod = paymentMethods[0] || null;
+
+  const openPaymentLink = async (consultation = paymentDueConsultation) => {
+    if (!primaryPaymentMethod?.payment_url) {
+      alert('Способ оплаты пока не настроен. Пожалуйста, напишите администратору.');
+      return;
+    }
+
+    if (consultation?.id) {
+      await supabase
+        .from('consultations')
+        .update({
+          payment_status: 'opened',
+          payment_method_id: primaryPaymentMethod.id,
+        })
+        .eq('id', consultation.id);
+    }
+
+    const telegramWebApp = window.Telegram?.WebApp as any;
+    telegramWebApp?.openLink?.(primaryPaymentMethod.payment_url);
+    if (!telegramWebApp?.openLink) {
+      window.open(primaryPaymentMethod.payment_url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const markPaymentSent = async (consultation = paymentDueConsultation) => {
+    if (!consultation?.id) return;
+
+    const { error } = await supabase
+      .from('consultations')
+      .update({
+        payment_status: 'marked_paid',
+        payment_method_id: primaryPaymentMethod?.id || null,
+        payment_marked_at: new Date().toISOString(),
+      })
+      .eq('id', consultation.id);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    alert('✅ Спасибо! Я проверю поступление и подтвержу оплату.');
+    setShowPaymentModal(false);
+    await loadPaymentDueConsultation();
+    await loadUpcomingConsultation();
   };
 
   const loadProfilePhoto = () => {
@@ -818,6 +913,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
           setShowBooking(false);
           setSelectedService(null);
           loadUpcomingConsultation();
+          loadPaymentDueConsultation();
           alert('✅ Заявка отправлена! Я свяжусь с вами для подтверждения.');
         }}
         onCancel={() => {
@@ -1367,6 +1463,18 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 </p>
               </div>
             </div>
+            {upcomingConsultation.payment_status !== 'paid' && (
+              <div
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openPaymentLink(upcomingConsultation);
+                }}
+                className="mt-3 flex items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144]"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Оплатить {upcomingConsultation.payment_amount || upcomingConsultation.price || 0} ₽
+              </div>
+            )}
           </button>
         )}
 
@@ -1712,6 +1820,18 @@ export const Dashboard = ({ user }: DashboardProps) => {
                 <span>Посмотреть детали</span>
                 <ChevronRight className="h-4 w-4" />
               </div>
+              {upcomingConsultation.payment_status !== 'paid' && (
+                <div
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openPaymentLink(upcomingConsultation);
+                  }}
+                  className="mt-3 flex items-center justify-center rounded-2xl bg-[#B8795C] px-4 py-3 text-sm font-black text-white"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Оплатить {upcomingConsultation.payment_amount || upcomingConsultation.price || 0} ₽
+                </div>
+              )}
             </button>
           )}
 
@@ -1940,6 +2060,82 @@ export const Dashboard = ({ user }: DashboardProps) => {
               >
                 Записаться на этот формат
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentModal && paymentDueConsultation && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#1F2E27]/45 p-3 backdrop-blur-sm">
+          <div className="mx-auto w-full max-w-xl overflow-hidden rounded-[2rem] border border-[#F2D2BF] bg-[#FFF1E8] shadow-[0_24px_70px_rgba(31,46,39,0.30)]">
+            <div className="bg-gradient-to-br from-[#8A5A3F] to-[#B8795C] p-5 text-white">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-white/62">
+                    payment request
+                  </p>
+                  <h3 className="text-2xl font-black leading-tight">Оплата консультации</h3>
+                </div>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="rounded-2xl bg-white/14 px-3 py-2 text-lg font-black text-white"
+                  aria-label="Закрыть"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm font-semibold leading-relaxed text-white/78">
+                Консультация завершена. Чтобы я подтвердил оплату и начислил бонусы, пожалуйста, оплатите её через приложение.
+              </p>
+            </div>
+
+            <div className="space-y-3 p-4">
+              <div className="rounded-[1.4rem] bg-white/75 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Тема обращения</p>
+                <p className="mt-1 text-xl font-black text-[#385144]">
+                  {paymentDueConsultation.services?.title || 'Консультация'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-[1.4rem] bg-white/75 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Дата</p>
+                  <p className="mt-1 font-black text-[#385144]">{getConsultationDateText(paymentDueConsultation)}</p>
+                </div>
+                <div className="rounded-[1.4rem] bg-white/75 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Время</p>
+                  <p className="mt-1 font-black text-[#385144]">{getConsultationTimeText(paymentDueConsultation)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-[1.4rem] bg-[#385144] p-4 text-white">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-white/58">Итоговая стоимость</p>
+                <p className="mt-1 text-3xl font-black">
+                  {paymentDueConsultation.payment_amount || paymentDueConsultation.price || 0} ₽
+                </p>
+              </div>
+
+              {primaryPaymentMethod?.instructions && (
+                <p className="rounded-[1.4rem] bg-white/60 p-4 text-sm font-semibold leading-relaxed text-[#6C756C]">
+                  {primaryPaymentMethod.instructions}
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => openPaymentLink(paymentDueConsultation)}
+                  className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)]"
+                >
+                  <CreditCard className="mr-2 h-5 w-5" />
+                  Оплатить
+                </button>
+                <button
+                  onClick={() => markPaymentSent(paymentDueConsultation)}
+                  className="w-full rounded-2xl bg-white px-4 py-3 font-black text-[#385144]"
+                >
+                  Я оплатил
+                </button>
+              </div>
             </div>
           </div>
         </div>

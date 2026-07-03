@@ -221,6 +221,23 @@ export const notifyClientTimeConfirmed = async (
   return sendTelegramNotification(clientTelegramId, message);
 };
 
+export const notifyClientPaymentRequired = async (
+  clientTelegramId: string | number,
+  serviceName: string,
+  price: number
+) => {
+  const message = `
+💳 <b>Оплата консультации</b>
+
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+💰 <b>К оплате:</b> ${price} ₽
+
+Пожалуйста, зайдите в мини-приложение и нажмите кнопку <b>Оплатить</b>. После оплаты отметьте «Я оплатил» — я проверю поступление и подтвержу оплату.
+  `.trim();
+
+  return sendTelegramNotification(clientTelegramId, message);
+};
+
 export const notifyAdminClientTimeResponse = async (
   adminTelegramIds: Array<string | number>,
   clientName: string,

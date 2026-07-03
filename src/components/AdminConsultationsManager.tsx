@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { 
   notifyClientBonusUpdate,
+  notifyClientPaymentRequired,
   notifyClientStatusChange,
   notifyClientTimeConfirmed,
   notifyClientTimeProposal
@@ -35,6 +36,7 @@ const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
   confirmed: 'bg-blue-100 text-blue-800 border-blue-300',
   in_progress: 'bg-purple-100 text-purple-800 border-purple-300',
+  awaiting_payment: 'bg-orange-100 text-orange-800 border-orange-300',
   completed: 'bg-green-100 text-green-800 border-green-300',
   cancelled: 'bg-red-100 text-red-800 border-red-300',
 };
@@ -46,6 +48,7 @@ const statusLabels: Record<string, string> = {
   awaiting_client_confirmation: 'Ждём ответ клиента',
   client_countered: 'Клиент предложил время',
   in_progress: 'В процессе',
+  awaiting_payment: 'Ждёт оплату',
   completed: 'Завершена',
   cancelled: 'Отменена',
 };
@@ -101,7 +104,7 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
     const { data: usersData } = await supabase
       .from('users')
-      .select('id, name, telegram_id, city, status, bonus_balance');
+      .select('id, name, telegram_id, city, status, bonus_balance, personal_tarologist_until');
 
     const { data: servicesData } = await supabase
       .from('services')
@@ -259,54 +262,18 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
   if (!selectedConsultation) return;
 
   try {
-    const isPersonalTarologist = isPersonalTarologistService(selectedConsultation.services?.title);
-    let personalTarologistUntil = null;
-
-    const cycleStart = getCurrentLoyaltyCycleStart();
-    const completedConsultationsInCycle = consultations.filter(c => {
-      const consultationDate = getConsultationCycleDate(c);
-      return (
-        c.user_id === selectedConsultation.user_id &&
-        c.status === 'completed' &&
-        c.id !== selectedConsultation.id &&
-        consultationDate &&
-        consultationDate >= cycleStart
-      );
-    });
-
-    const totalCompletedInCycle = completedConsultationsInCycle.length + 1;
-    const newStatus = getNextLoyaltyStatus(selectedConsultation.users?.status, totalCompletedInCycle);
-
-    if (isPersonalTarologist) {
-      const untilDate = new Date();
-      untilDate.setDate(untilDate.getDate() + 30);
-      personalTarologistUntil = untilDate.toISOString();
-      console.log('🎯 Устанавливаю срок личного ведения до:', personalTarologistUntil);
-    }
-    
-    const bonusUsed = selectedConsultation.bonus_used || 0;
     const finalPrice = completeData.new_price;
-    
-    // Используем НОВЫЙ статус для расчёта бонусов
-    const bonusPercent = getBonusPercent(newStatus);
-    const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
-    
-    const currentBonusBalance = selectedConsultation.users?.bonus_balance || 0;
-    const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
-
-    console.log('🔄 Обновление...');
-    console.log('User ID:', selectedConsultation.user_id);
-    console.log('Бонусы:', { bonusUsed, bonusEarned, currentBonusBalance, newBonusBalance });
-    console.log('Статус:', { oldStatus: selectedConsultation.users?.status, newStatus });
 
     const { error: consultError } = await supabase
       .from('consultations')
       .update({
-        status: 'completed',
+        status: 'awaiting_payment',
         completed_at: new Date().toISOString(),
         admin_notes: completeData.admin_notes,
         price: finalPrice,
-        bonus_paid: bonusEarned,
+        payment_amount: finalPrice,
+        payment_status: 'payment_requested',
+        bonus_paid: 0,
       })
       .eq('id', selectedConsultation.id);
 
@@ -315,55 +282,16 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
       throw consultError;
     }
 
-    const updateData: any = {
-      status: newStatus,
-      bonus_balance: newBonusBalance,
-    };
-    
-    if (personalTarologistUntil) {
-      updateData.personal_tarologist_until = personalTarologistUntil;
-    }
-
-    const { error: userError } = await supabase
-      .from('users')
-      .update(updateData)
-      .eq('id', selectedConsultation.user_id);
-
-    if (userError) {
-      console.error('❌ Ошибка пользователя:', userError);
-      throw userError;
-    }
-
-    const { data: verifyUser } = await supabase
-      .from('users')
-      .select('status, bonus_balance, personal_tarologist_until')
-      .eq('id', selectedConsultation.user_id)
-      .single();
-
-    console.log('✅ Проверка:', verifyUser);
-
-    alert(`✅ Консультация завершена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${verifyUser?.bonus_balance} ₽\nСтатус: ${verifyUser?.status}`);
-
     const clientTelegramId = selectedConsultation.users?.telegram_id;
-    const oldStatus = selectedConsultation.users?.status;
-
     if (clientTelegramId) {
-      if (bonusEarned > 0) {
-        await notifyClientBonusUpdate(
-          clientTelegramId,
-          bonusEarned,
-          verifyUser?.bonus_balance || 0,
-          selectedConsultation.services?.title || 'Консультация'
-        );
-      }
-
-      if (oldStatus !== newStatus) {
-        await notifyClientStatusChange(
-          clientTelegramId,
-          newStatus
-        );
-      }
+      await notifyClientPaymentRequired(
+        clientTelegramId,
+        selectedConsultation.services?.title || 'Консультация',
+        finalPrice
+      );
     }
+
+    alert('✅ Консультация завершена. Бонусы и статус будут начислены после подтверждения оплаты.');
     
     setShowCompleteForm(false);
     setSelectedConsultation(null);
@@ -378,6 +306,88 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
     alert('Ошибка: ' + error.message);
   }
 };
+
+  const confirmPayment = async (consultation: any) => {
+    if (!confirm('Подтвердить оплату и начислить бонусы?')) return;
+
+    try {
+      const cycleStart = getCurrentLoyaltyCycleStart();
+      const completedConsultationsInCycle = consultations.filter(c => {
+        const consultationDate = getConsultationCycleDate(c);
+        return (
+          c.user_id === consultation.user_id &&
+          c.status === 'completed' &&
+          c.id !== consultation.id &&
+          consultationDate &&
+          consultationDate >= cycleStart
+        );
+      });
+
+      const totalCompletedInCycle = completedConsultationsInCycle.length + 1;
+      const newStatus = getNextLoyaltyStatus(consultation.users?.status, totalCompletedInCycle);
+      const isPersonalTarologist = isPersonalTarologistService(consultation.services?.title);
+      const bonusUsed = consultation.bonus_used || 0;
+      const finalPrice = consultation.payment_amount || consultation.price || 0;
+      const bonusPercent = getBonusPercent(newStatus);
+      const bonusEarned = Math.floor(finalPrice * (bonusPercent / 100));
+      const currentBonusBalance = consultation.users?.bonus_balance || 0;
+      const newBonusBalance = currentBonusBalance - bonusUsed + bonusEarned;
+
+      const { error: consultError } = await supabase
+        .from('consultations')
+        .update({
+          status: 'completed',
+          payment_status: 'paid',
+          payment_confirmed_at: new Date().toISOString(),
+          price: finalPrice,
+          payment_amount: finalPrice,
+          bonus_paid: bonusEarned,
+          completed_at: consultation.completed_at || new Date().toISOString(),
+        })
+        .eq('id', consultation.id);
+
+      if (consultError) throw consultError;
+
+      const updateData: any = {
+        status: newStatus,
+        bonus_balance: newBonusBalance,
+      };
+
+      if (isPersonalTarologist) {
+        const untilDate = new Date();
+        untilDate.setDate(untilDate.getDate() + 30);
+        updateData.personal_tarologist_until = untilDate.toISOString();
+      }
+
+      const { error: userError } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', consultation.user_id);
+
+      if (userError) throw userError;
+
+      const clientTelegramId = consultation.users?.telegram_id;
+      if (clientTelegramId) {
+        if (bonusEarned > 0) {
+          await notifyClientBonusUpdate(
+            clientTelegramId,
+            bonusEarned,
+            newBonusBalance,
+            consultation.services?.title || 'Консультация'
+          );
+        }
+
+        if (consultation.users?.status !== newStatus) {
+          await notifyClientStatusChange(clientTelegramId, newStatus);
+        }
+      }
+
+      alert(`✅ Оплата подтверждена!\n\nСписано: -${bonusUsed} ₽\nНачислено: +${bonusEarned} ₽\nБаланс: ${newBonusBalance} ₽\nСтатус: ${newStatus}`);
+      await loadConsultations();
+    } catch (error: any) {
+      alert('Ошибка: ' + error.message);
+    }
+  };
 
   const handleEditConsultation = async () => {
     if (!selectedConsultation) return;
@@ -667,6 +677,14 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
           Подтверждены ({consultations.filter(c => c.status === 'confirmed').length})
         </button>
         <button
+          onClick={() => setFilter('awaiting_payment')}
+          className={`px-4 py-2 rounded-xl font-bold transition ${
+            filter === 'awaiting_payment' ? 'bg-orange-500 text-white' : 'bg-white text-[#385144] border border-gray-200'
+          }`}
+        >
+          Ждут оплату ({consultations.filter(c => c.status === 'awaiting_payment').length})
+        </button>
+        <button
           onClick={() => setFilter('completed')}
           className={`px-4 py-2 rounded-xl font-bold transition ${
             filter === 'completed' ? 'bg-green-500 text-white' : 'bg-white text-[#385144] border border-gray-200'
@@ -748,6 +766,17 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                     <p className="text-gray-500 text-xs mt-2 flex items-center">
                       <Sparkles className="w-3 h-3 mr-1" />
                       Промокод {consultation.promo_code}: −{consultation.promo_discount} ₽
+                    </p>
+                  )}
+                  {consultation.priority_fee > 0 && (
+                    <p className="text-gray-500 text-xs mt-2 flex items-center">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Приоритетная запись: +{consultation.priority_fee} ₽
+                    </p>
+                  )}
+                  {consultation.payment_status && consultation.payment_status !== 'paid' && (
+                    <p className="mt-2 inline-flex rounded-full bg-[#FFF1E8] px-3 py-1 text-xs font-black text-[#8A5A3F]">
+                      Оплата: {consultation.payment_status === 'marked_paid' ? 'клиент отметил оплату' : 'ожидается'}
                     </p>
                   )}
                 </div>
@@ -864,6 +893,16 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1" />
                       Завершить
+                    </button>
+                  )}
+
+                  {consultation.status === 'awaiting_payment' && (
+                    <button
+                      onClick={() => confirmPayment(consultation)}
+                      className="flex-1 bg-[#B8795C] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#9E654A] transition flex items-center justify-center"
+                    >
+                      <DollarSign className="w-4 h-4 mr-1" />
+                      Подтвердить оплату
                     </button>
                   )}
 

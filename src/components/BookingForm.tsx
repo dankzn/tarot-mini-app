@@ -81,6 +81,7 @@ const buildSlotOptions = (slots: TimeSlot[], duration: number): SlotOption[] => 
 };
 
 const backButtonClassName = 'inline-flex items-center rounded-2xl border border-[#385144]/15 bg-white px-4 py-2.5 text-sm font-black text-[#385144] shadow-[0_10px_24px_rgba(56,81,68,0.12)] transition hover:bg-[#EAF1EA] active:scale-[0.98]';
+const PRIORITY_BOOKING_FEE = 150;
 
 export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormProps) => {
   const [loading, setLoading] = useState(false);
@@ -109,7 +110,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   const promoDiscount = appliedPromo?.discount || 0;
   const priceAfterPromo = Math.max(0, originalPrice - promoDiscount);
   const maxBonusUsable = Math.min(userBalance, Math.floor(priceAfterPromo * 0.5));
-  const finalPrice = Math.max(0, (useBonuses ? priceAfterPromo - bonusAmount : priceAfterPromo));
+  const priorityFee = isPriorityRequest ? PRIORITY_BOOKING_FEE : 0;
+  const finalPrice = Math.max(0, (useBonuses ? priceAfterPromo - bonusAmount : priceAfterPromo) + priorityFee);
 
   useEffect(() => {
     if (selectedDate) {
@@ -277,6 +279,9 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
             scheduling_status: isPriorityRequest ? 'needs_admin_time' : 'scheduled',
             notes: preparedNotes,
             price: finalPrice,
+            payment_amount: finalPrice,
+            payment_status: 'unpaid',
+            priority_fee: priorityFee,
             bonus_used: useBonuses ? bonusAmount : 0,
             promo_code_id: appliedPromo?.id || null,
             promo_code: appliedPromo?.code || null,
@@ -605,6 +610,15 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                 <span className="font-bold">{finalPrice} ₽</span>
               </div>
             </div>
+
+            {isPriorityRequest && (
+              <div className="mb-4 rounded-[1.25rem] border border-[#B8795C]/25 bg-[#FFF6EF] p-4">
+                <p className="text-sm font-black text-[#385144]">Приоритетная заявка</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#6C756C]">
+                  К стоимости добавляется сервисный сбор за запись вне открытых окон: +{PRIORITY_BOOKING_FEE} ₽.
+                </p>
+              </div>
+            )}
 
             <div className="mb-4 rounded-[1.25rem] border border-[#385144]/10 bg-[#F8F5F2] p-4">
               <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]">
