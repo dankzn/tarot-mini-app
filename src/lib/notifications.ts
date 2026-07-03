@@ -273,6 +273,34 @@ export const notifyAdminClientTimeResponse = async (
     : { ok: true };
 };
 
+export const notifyAdminPaymentMarked = async (
+  adminTelegramIds: Array<string | number>,
+  clientName: string,
+  serviceName: string,
+  price: number
+) => {
+  if (adminTelegramIds.length === 0) {
+    return { ok: false, error: 'Admin Telegram ID was not found in users table' };
+  }
+
+  const message = `
+💳 <b>Клиент отметил оплату</b>
+
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}
+🃏 <b>Формат:</b> ${escapeHtml(serviceName)}
+💰 <b>Сумма:</b> ${price} ₽
+
+Проверь поступление и нажми <b>Подтвердить оплату</b> в админке.
+  `.trim();
+
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const failed = results.filter(result => !result.ok);
+
+  return failed.length === results.length
+    ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
+    : { ok: true };
+};
+
 // Уведомление клиенту об изменении баланса
 export const notifyClientBonusUpdate = async (
   clientTelegramId: string | number,

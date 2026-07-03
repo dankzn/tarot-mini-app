@@ -262,11 +262,16 @@ export const AdminWebConsultations = () => {
       if (consultError) throw consultError;
 
       if (selectedConsultation.users?.telegram_id) {
-        await notifyClientPaymentRequired(
+        const notificationResult = await notifyClientPaymentRequired(
           selectedConsultation.users.telegram_id,
           selectedConsultation.services?.title || 'Консультация',
           finalPrice
         );
+
+        if (!notificationResult.ok) {
+          console.error('❌ Уведомление клиенту об оплате не отправлено:', notificationResult.error);
+          alert(`Консультация завершена, но уведомление клиенту не отправилось: ${notificationResult.error}`);
+        }
       }
 
       alert('✅ Консультация завершена. Бонусы и статус будут начислены после подтверждения оплаты.');

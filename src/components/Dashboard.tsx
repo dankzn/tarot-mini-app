@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 import { getConsultationCycleDate, getCurrentLoyaltyCycleStart, getLoyaltyStatusByCompletedConsultations } from '../lib/bonusLogic';
+import { notifyAdminPaymentMarked } from '../lib/notifications';
 import {
   Crown,
   Sparkles,
@@ -681,7 +682,7 @@ export const Dashboard = ({ user }: DashboardProps) => {
       .select('id, scheduled_at, requested_date, requested_time_text, status, payment_status, payment_amount, price, services(title)')
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed', 'awaiting_payment'])
-      .in('payment_status', ['unpaid', 'payment_requested'])
+      .in('payment_status', ['unpaid', 'payment_requested', 'opened'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -736,6 +737,32 @@ export const Dashboard = ({ user }: DashboardProps) => {
     if (error) {
       alert('Ошибка: ' + error.message);
       return;
+    }
+
+    const { data: adminsData, error: adminsError } = await supabase
+      .from('users')
+      .select('telegram_id')
+      .eq('role', 'admin')
+      .not('telegram_id', 'is', null);
+
+    const adminTelegramIds = adminsError ? [] : Array.from(
+      new Set((adminsData || []).map(admin => admin.telegram_id).filter(Boolean))
+    );
+
+    if (adminsError) {
+      console.error('❌ Не удалось загрузить админов для уведомления об оплате:', adminsError);
+    }
+
+    const notificationResult = await notifyAdminPaymentMarked(
+      adminTelegramIds,
+      user.name || 'Клиент',
+      consultation.services?.title || 'Консультация',
+      consultation.payment_amount || consultation.price || 0
+    );
+
+    if (!notificationResult.ok) {
+      console.error('❌ Уведомление админу об оплате не отправлено:', notificationResult.error);
+      alert(`Оплата отмечена, но уведомление админу не отправилось: ${notificationResult.error}`);
     }
 
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');

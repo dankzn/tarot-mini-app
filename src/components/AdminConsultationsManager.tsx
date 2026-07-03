@@ -284,11 +284,16 @@ export const AdminConsultationsManager = ({ onBack }: AdminConsultationsManagerP
 
     const clientTelegramId = selectedConsultation.users?.telegram_id;
     if (clientTelegramId) {
-      await notifyClientPaymentRequired(
+      const notificationResult = await notifyClientPaymentRequired(
         clientTelegramId,
         selectedConsultation.services?.title || 'Консультация',
         finalPrice
       );
+
+      if (!notificationResult.ok) {
+        console.error('❌ Уведомление клиенту об оплате не отправлено:', notificationResult.error);
+        alert(`Консультация завершена, но уведомление клиенту не отправилось: ${notificationResult.error}`);
+      }
     }
 
     alert('✅ Консультация завершена. Бонусы и статус будут начислены после подтверждения оплаты.');
