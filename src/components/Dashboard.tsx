@@ -716,6 +716,32 @@ export const Dashboard = ({ user }: DashboardProps) => {
     return Boolean(priceState.countdownTarget);
   }).slice(0, 2);
   const todaySuggestedService = getTodaySuggestedService(services, dailyCard);
+  const conciergeInsight = upcomingConsultation
+    ? 'У вас уже есть активная запись. Самое важное сейчас — держать фокус и при необходимости открыть детали.'
+    : favoriteServices.length > 0
+      ? 'Я сохранил ваши любимые форматы в кабинете — можно быстро вернуться к ним без поиска по каталогу.'
+      : 'Если не хочется выбирать из всего каталога, пройдите короткий подбор — он оставит только подходящие форматы.';
+  const conciergeActionLabel = upcomingConsultation
+    ? 'Открыть запись'
+    : favoriteServices.length > 0
+      ? 'Ваши форматы'
+      : 'Подобрать';
+
+  const handleConciergeAction = () => {
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+
+    if (upcomingConsultation) {
+      setShowHistory(true);
+      return;
+    }
+
+    if (favoriteServices.length > 0) {
+      setActiveTab('cabinet');
+      return;
+    }
+
+    setShowServiceQuiz(true);
+  };
 
   const revealDailyCard = () => {
     try {
@@ -1262,6 +1288,43 @@ export const Dashboard = ({ user }: DashboardProps) => {
             </div>
           </div>
         )}
+
+        <div className="premium-surface mb-4 rounded-[1.75rem] p-5">
+          <div className="premium-content">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="luxury-kicker mb-1">personal concierge</p>
+                <h3 className="text-xl font-black leading-tight text-[#385144]">Личный ориентир</h3>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#385144] text-white shadow-[0_14px_30px_rgba(56,81,68,0.20)]">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            </div>
+
+            <p className="mb-4 text-sm font-semibold leading-relaxed text-[#59645C]">
+              {conciergeInsight}
+            </p>
+
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl bg-white/68 p-3 ring-1 ring-[#385144]/8">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8A5A3F]/65">Уровень</p>
+                <p className="mt-1 truncate text-sm font-black text-[#385144]">{currentStatus}</p>
+              </div>
+              <div className="rounded-2xl bg-white/68 p-3 ring-1 ring-[#385144]/8">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8A5A3F]/65">В фокусе</p>
+                <p className="mt-1 truncate text-sm font-black text-[#385144]">{dailyCard.focus}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleConciergeAction}
+              className="flex w-full items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.18)] transition hover:bg-[#2d4238]"
+            >
+              {conciergeActionLabel}
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        </div>
 
         {upcomingConsultation && (
           <button

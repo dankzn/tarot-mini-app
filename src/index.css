@@ -2,14 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --tarot-ink: #2F463B;
+  --tarot-green: #385144;
+  --tarot-sage: #6A7C69;
+  --tarot-clay: #B8795C;
+  --tarot-cream: #F8F3EC;
+  --tarot-paper: #FFFDF8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(221, 233, 224, 0.85), transparent 34%),
+    radial-gradient(circle at 18% 4%, rgba(221, 233, 224, 0.92), transparent 32%),
+    radial-gradient(circle at 96% 12%, rgba(184, 121, 92, 0.13), transparent 28%),
     linear-gradient(135deg, #F8F3EC 0%, #EFE6DA 100%);
+  background-attachment: fixed;
   min-height: 100vh;
   color: #2F463B;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(56, 81, 68, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 81, 68, 0.028) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at top, black, transparent 72%);
+}
+
+::selection {
+  background: rgba(184, 121, 92, 0.24);
+  color: #2F463B;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(184, 121, 92, 0.35);
+  outline-offset: 3px;
+}
+
+.premium-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 243, 236, 0.78)),
+    radial-gradient(circle at 12% 0%, rgba(221, 233, 224, 0.72), transparent 36%);
+  box-shadow: 0 18px 48px rgba(56, 81, 68, 0.11);
+  backdrop-filter: blur(18px);
+}
+
+.premium-surface::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255,255,255,0.72), transparent 34%, rgba(184,121,92,0.08));
+  opacity: 0.72;
+}
+
+.premium-content {
+  position: relative;
+  z-index: 1;
+}
+
+.luxury-kicker {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(138, 90, 63, 0.7);
+}
+
+.soft-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 81, 68, 0.18), transparent);
 }
 
 @keyframes fade-in {
@@ -22,10 +111,24 @@ body {
   to { transform: translateX(0); }
 }
 
+@keyframes float-soft {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes pulse-line {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(240%); }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-right {
   animation: slide-right 0.3s ease-out;
+}
+
+.animate-float-soft {
+  animation: float-soft 5.5s ease-in-out infinite;
 }

@@ -121,6 +121,33 @@ export const AdminWebDashboard = () => {
     navigate('/admin-web');
   };
 
+  const focusItems = [
+    {
+      title: stats.pendingConsultations > 0 ? 'Разобрать очередь заявок' : 'Очередь чистая',
+      text: stats.pendingConsultations > 0
+        ? `${stats.pendingConsultations} записей ждут решения: подтвердить, предложить время или перенести.`
+        : 'Новых неподтверждённых заявок нет — можно заняться клиентской базой или рассылкой.',
+      action: 'К записям',
+      path: '/admin-web/consultations',
+    },
+    {
+      title: stats.activeCampaigns > 0 ? 'Акции и цены активны' : 'Промо-центр спокойный',
+      text: stats.activeCampaigns > 0
+        ? `${stats.activeCampaigns} услуг сейчас с акцией или будущей сменой цены.`
+        : 'Можно запланировать мягкий повод для записи или проверить витрину услуг.',
+      action: 'К услугам',
+      path: '/admin-web/services',
+    },
+    {
+      title: stats.newUsers > 0 ? 'Есть новые клиенты' : 'Новых клиентов за неделю нет',
+      text: stats.newUsers > 0
+        ? `${stats.newUsers} новых профилей за 7 дней — хорошее время для персонального касания.`
+        : 'Стоит посмотреть аналитику и понять, какой вход в воронку усилить.',
+      action: stats.newUsers > 0 ? 'К клиентам' : 'К аналитике',
+      path: stats.newUsers > 0 ? '/admin-web/clients' : '/admin-web/analytics',
+    },
+  ];
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center">
@@ -230,8 +257,44 @@ export const AdminWebDashboard = () => {
             })}
           </div>
         </div>
+
+        <div className="premium-surface mb-8 rounded-[2rem] p-6">
+          <div className="premium-content">
+            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="luxury-kicker mb-1">morning brief</p>
+                <h2 className="text-2xl font-black text-[#385144]">Операционный фокус</h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-relaxed text-[#5E675D]">
+                  Три подсказки, куда смотреть в первую очередь, чтобы админка не была просто набором таблиц.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#385144]/10 px-4 py-2 text-sm font-black text-[#385144]">
+                Сегодня
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {focusItems.map((item) => (
+                <button
+                  key={item.title}
+                  onClick={() => navigate(item.path)}
+                  className="rounded-[1.35rem] bg-white/70 p-4 text-left ring-1 ring-[#385144]/8 transition hover:-translate-y-0.5 hover:bg-white"
+                >
+                  <p className="text-lg font-black text-[#385144]">{item.title}</p>
+                  <p className="mt-2 min-h-[3rem] text-sm font-semibold leading-relaxed text-[#6C756C]">
+                    {item.text}
+                  </p>
+                  <span className="mt-4 inline-flex rounded-full bg-[#385144] px-3 py-1.5 text-xs font-black text-white">
+                    {item.action}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Новые карточки */}
-	<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
 	  <a
 	    href="/admin-web/services"
 	    className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(56,81,68,0.12)]"

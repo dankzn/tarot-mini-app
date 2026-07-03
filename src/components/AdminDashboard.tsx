@@ -68,6 +68,10 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
     }
   };
 
+  const adminFocusText = stats.pendingConsultations > 0
+    ? `${stats.pendingConsultations} заявок ждут решения. Лучше начать с записей и быстро закрыть очередь.`
+    : 'Очередь заявок чистая. Можно проверить окна, услуги или клиентскую базу.';
+
   // Показываем менеджер слотов
   if (showSlotsManager) {
     return <AdminSlotsManager admin={currentUser} onBack={() => setShowSlotsManager(false)} />;
@@ -179,6 +183,43 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
                 <span className="text-white/70 text-xs">Общий доход</span>
               </div>
               <p className="font-black text-2xl">{stats.totalRevenue.toLocaleString()} ₽</p>
+            </div>
+          </div>
+
+          <div className="premium-surface mb-6 rounded-[1.75rem] p-5">
+            <div className="premium-content">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="luxury-kicker mb-1">daily focus</p>
+                  <h2 className="text-xl font-black text-[#385144]">Операционный фокус</h2>
+                </div>
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#385144] text-white">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="mb-4 text-sm font-semibold leading-relaxed text-[#5E675D]">
+                {adminFocusText}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setShowConsultationsManager(true)}
+                  className="rounded-2xl bg-white/72 px-3 py-3 text-xs font-black text-[#385144] ring-1 ring-[#385144]/8"
+                >
+                  Записи
+                </button>
+                <button
+                  onClick={() => setActiveTab('services')}
+                  className="rounded-2xl bg-white/72 px-3 py-3 text-xs font-black text-[#385144] ring-1 ring-[#385144]/8"
+                >
+                  Услуги
+                </button>
+                <button
+                  onClick={() => setActiveTab('clients')}
+                  className="rounded-2xl bg-white/72 px-3 py-3 text-xs font-black text-[#385144] ring-1 ring-[#385144]/8"
+                >
+                  Клиенты
+                </button>
+              </div>
             </div>
           </div>
 
