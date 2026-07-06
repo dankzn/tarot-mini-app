@@ -8,10 +8,13 @@ import {
   formatTrainingPrice,
   getTrainingProgramPriceLabel,
   trainingGroupStatusLabels,
+  homeworkStatusLabels,
   trainingPaymentLabels,
   trainingStatusLabels,
   type TrainingEnrollment,
   type TrainingGroup,
+  type TrainingLesson,
+  type TrainingLessonProgress,
   type TrainingProgram,
 } from '../../lib/training';
 
@@ -41,11 +44,14 @@ const getSafeDate = (value?: string | null) => {
 const groupStatuses = ['open', 'full', 'closed', 'started', 'completed'];
 const enrollmentStatuses = ['pending', 'waitlist', 'diagnostic', 'contacted', 'awaiting_payment', 'enrolled', 'completed', 'cancelled'];
 const paymentStatuses = ['not_requested', 'requested', 'marked_paid', 'paid'];
+const homeworkStatuses = ['not_started', 'assigned', 'submitted', 'accepted', 'revise'];
 
 export const TrainingManager = () => {
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [groups, setGroups] = useState<TrainingGroup[]>([]);
   const [enrollments, setEnrollments] = useState<TrainingEnrollment[]>([]);
+  const [lessons, setLessons] = useState<TrainingLesson[]>([]);
+  const [lessonProgress, setLessonProgress] = useState<TrainingLessonProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState('');
   const [groupForm, setGroupForm] = useState({
@@ -54,6 +60,15 @@ export const TrainingManager = () => {
     starts_at: getDefaultStart(),
     capacity: 6,
     notes: '',
+  });
+  const [lessonForm, setLessonForm] = useState({
+    group_id: '',
+    title: '',
+    lesson_at: '',
+    description: '',
+    homework_title: '',
+    homework_description: '',
+    sort_order: 1,
   });
 
   useEffect(() => {
@@ -92,6 +107,16 @@ export const TrainingManager = () => {
         taken: (group.training_enrollments || []).filter((enrollment: any) => enrollment.status !== 'cancelled').length,
       })));
 
+      const loadedGroups = (groupsData || []).map((group: any) => ({
+        ...group,
+        taken: (group.training_enrollments || []).filter((enrollment: any) => enrollment.status !== 'cancelled').length,
+      }));
+
+      setLessonForm(current => ({
+        ...current,
+        group_id: current.group_id || loadedGroups[0]?.id || '',
+      }));
+
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
         .from('training_enrollments')
         .select('*, users(name, username, telegram_id), training_programs(*), training_groups(*)')
@@ -100,10 +125,24 @@ export const TrainingManager = () => {
       if (enrollmentsError) throw enrollmentsError;
 
       setEnrollments(enrollmentsData || []);
+
+      const { data: lessonsData, error: lessonsError } = await supabase
+        .from('training_lessons')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('lesson_at', { ascending: true });
+
+      if (!lessonsError) setLessons(lessonsData || []);
+
+      const { data: progressData, error: progressError } = await supabase
+        .from('training_lesson_progress')
+        .select('*');
+
+      if (!progressError) setLessonProgress(progressData || []);
     } catch (error) {
       console.error('Ошибка загрузки обучения:', error);
       setPrograms(DEFAULT_TRAINING_PROGRAMS);
-      setLoadWarning('Модуль обучения работает после применения миграции 20260706_tarot_training.sql в Supabase.');
+      setLoadWarning('Модуль обучения временно загружен в витринном режиме. Проверьте подключение к базе данных.');
     } finally {
       setLoading(false);
     }
@@ -189,6 +228,69 @@ export const TrainingManager = () => {
     await loadData();
   };
 
+  const createLesson = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    try {
+      const payload = {
+        group_id: lessonForm.group_id,
+        title: lessonForm.title,
+        lesson_at: fromDateTimeLocal(lessonForm.lesson_at),
+        description: lessonForm.description || null,
+        homework_title: lessonForm.homework_title || null,
+        homework_description: lessonForm.homework_description || null,
+        sort_order: Number(lessonForm.sort_order) || 0,
+      };
+
+      const { error } = await supabase.from('training_lessons').insert([payload]);
+      if (error) throw error;
+
+      setLessonForm({
+        group_id: lessonForm.group_id,
+        title: '',
+        lesson_at: '',
+        description: '',
+        homework_title: '',
+        homework_description: '',
+        sort_order: lessonForm.sort_order + 1,
+      });
+      await loadData();
+    } catch (error) {
+      alert(`Не удалось создать занятие: ${error instanceof Error ? error.message : 'ошибка'}`);
+    }
+  };
+
+  const deleteLesson = async (lessonId: string) => {
+    if (!confirm('Удалить занятие и связанные отметки прогресса?')) return;
+
+    const { error } = await supabase.from('training_lessons').delete().eq('id', lessonId);
+    if (error) {
+      alert(`Не удалось удалить занятие: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+  };
+
+  const upsertProgress = async (lessonId: string, enrollmentId: string, payload: Record<string, any>) => {
+    const existing = lessonProgress.find(progress => progress.lesson_id === lessonId && progress.enrollment_id === enrollmentId);
+    const nextPayload = existing
+      ? payload
+      : { lesson_id: lessonId, enrollment_id: enrollmentId, ...payload };
+
+    const request = existing
+      ? supabase.from('training_lesson_progress').update(nextPayload).eq('id', existing.id)
+      : supabase.from('training_lesson_progress').insert([nextPayload]);
+
+    const { error } = await request;
+    if (error) {
+      alert(`Не удалось обновить прогресс: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+  };
+
   if (loading) {
     return (
       <div className="rounded-[2rem] bg-white/80 p-6 text-center font-black text-[#385144] shadow-sm">
@@ -241,6 +343,107 @@ export const TrainingManager = () => {
               <p className="mt-2 text-xs font-semibold leading-relaxed text-[#6C756C]">{program.description}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">student cabinet</p>
+            <h2 className="text-2xl font-black text-[#385144]">План занятий и домашки</h2>
+          </div>
+          <BookOpen className="h-6 w-6 text-[#B8795C]" />
+        </div>
+
+        <form onSubmit={createLesson} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-6">
+          <select
+            value={lessonForm.group_id}
+            onChange={(event) => setLessonForm({ ...lessonForm, group_id: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+            required
+          >
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>{group.title}</option>
+            ))}
+          </select>
+          <input
+            value={lessonForm.title}
+            onChange={(event) => setLessonForm({ ...lessonForm, title: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+            placeholder="Тема занятия"
+            required
+          />
+          <input
+            type="datetime-local"
+            value={lessonForm.lesson_at}
+            onChange={(event) => setLessonForm({ ...lessonForm, lesson_at: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+          />
+          <input
+            type="number"
+            value={lessonForm.sort_order}
+            onChange={(event) => setLessonForm({ ...lessonForm, sort_order: Number(event.target.value) })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+            placeholder="№"
+          />
+          <textarea
+            value={lessonForm.description}
+            onChange={(event) => setLessonForm({ ...lessonForm, description: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
+            placeholder="Описание занятия"
+          />
+          <input
+            value={lessonForm.homework_title}
+            onChange={(event) => setLessonForm({ ...lessonForm, homework_title: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+            placeholder="Название ДЗ"
+          />
+          <textarea
+            value={lessonForm.homework_description}
+            onChange={(event) => setLessonForm({ ...lessonForm, homework_description: event.target.value })}
+            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+            placeholder="Описание ДЗ"
+          />
+          <button className="flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 font-black text-white">
+            <Save className="mr-2 h-4 w-4" />
+            Добавить
+          </button>
+        </form>
+
+        <div className="space-y-3">
+          {lessons.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+              Занятий пока нет. После добавления ученики увидят план в личном кабинете Академии.
+            </div>
+          ) : lessons.map(lesson => {
+            const group = groups.find(item => item.id === lesson.group_id);
+            const lessonDate = getSafeDate(lesson.lesson_at);
+            return (
+              <div key={lesson.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
+                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">{group?.title || 'Группа'}</p>
+                    <h3 className="text-lg font-black text-[#385144]">{lesson.sort_order}. {lesson.title}</h3>
+                    {lessonDate && (
+                      <p className="mt-1 text-sm font-bold text-[#8A5A3F]">
+                        {format(lessonDate, 'd MMMM yyyy, HH:mm', { locale: ru })}
+                      </p>
+                    )}
+                    {lesson.homework_title && (
+                      <p className="mt-2 text-sm font-semibold text-[#6C756C]">ДЗ: {lesson.homework_title}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteLesson(lesson.id)}
+                    className="rounded-full bg-white px-3 py-2 text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -409,6 +612,38 @@ export const TrainingManager = () => {
                   className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
                 />
               </div>
+              {enrollment.group_id && ['enrolled', 'completed'].includes(enrollment.status) && (
+                <div className="mt-3 rounded-2xl bg-white/70 p-3">
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Прогресс ученика</p>
+                  <div className="space-y-2">
+                    {lessons.filter(lesson => lesson.group_id === enrollment.group_id).map(lesson => {
+                      const progress = lessonProgress.find(item => item.lesson_id === lesson.id && item.enrollment_id === enrollment.id);
+                      return (
+                        <div key={lesson.id} className="grid grid-cols-1 gap-2 rounded-2xl bg-[#F8F3EC] p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                          <p className="text-sm font-black text-[#385144]">{lesson.sort_order}. {lesson.title}</p>
+                          <label className="flex items-center gap-2 text-sm font-bold text-[#385144]">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(progress?.attended)}
+                              onChange={(event) => upsertProgress(lesson.id, enrollment.id, { attended: event.target.checked })}
+                            />
+                            Был(а)
+                          </label>
+                          <select
+                            value={progress?.homework_status || 'not_started'}
+                            onChange={(event) => upsertProgress(lesson.id, enrollment.id, { homework_status: event.target.value })}
+                            className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-bold text-[#385144]"
+                          >
+                            {homeworkStatuses.map(status => (
+                              <option key={status} value={status}>{homeworkStatusLabels[status] || status}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

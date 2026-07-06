@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ArrowLeft, Check, ChevronRight, Clock, GraduationCap, HelpCircle, MessageSquare, Route, Sparkles, Target, Users } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, Clock, GraduationCap, HelpCircle, MessageSquare, Route, Sparkles, Target, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   DEFAULT_TRAINING_PROGRAMS,
   formatTrainingPrice,
   getTrainingProgramCta,
   getTrainingProgramPriceLabel,
+  homeworkStatusLabels,
   trainingPaymentLabels,
   trainingStatusLabels,
   type TrainingEnrollment,
   type TrainingGroup,
+  type TrainingLesson,
+  type TrainingLessonProgress,
   type TrainingProgram,
 } from '../lib/training';
 import { notifyAdminNewTrainingEnrollment } from '../lib/notifications';
@@ -93,6 +96,8 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizRecommendation, setQuizRecommendation] = useState<TrainingProgram | null>(null);
   const [enrollmentKind, setEnrollmentKind] = useState<'application' | 'waitlist'>('application');
+  const [lessons, setLessons] = useState<TrainingLesson[]>([]);
+  const [lessonProgress, setLessonProgress] = useState<TrainingLessonProgress[]>([]);
 
   useEffect(() => {
     loadTrainingData();
@@ -131,7 +136,31 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         .order('created_at', { ascending: false });
 
       if (!enrollmentsRequest.error) {
-        setEnrollments(enrollmentsRequest.data || []);
+        const loadedEnrollments = enrollmentsRequest.data || [];
+        setEnrollments(loadedEnrollments);
+
+        const groupIds = Array.from(new Set(loadedEnrollments.map((enrollment: any) => enrollment.group_id).filter(Boolean)));
+        const enrollmentIds = loadedEnrollments.map((enrollment: any) => enrollment.id).filter(Boolean);
+
+        if (groupIds.length > 0) {
+          const lessonsRequest = await supabase
+            .from('training_lessons')
+            .select('*')
+            .in('group_id', groupIds)
+            .order('sort_order', { ascending: true })
+            .order('lesson_at', { ascending: true });
+
+          if (!lessonsRequest.error) setLessons(lessonsRequest.data || []);
+        }
+
+        if (enrollmentIds.length > 0) {
+          const progressRequest = await supabase
+            .from('training_lesson_progress')
+            .select('*')
+            .in('enrollment_id', enrollmentIds);
+
+          if (!progressRequest.error) setLessonProgress(progressRequest.data || []);
+        }
       }
     } catch (error) {
       console.warn('Обучение загружено в витринном режиме:', error);
@@ -140,6 +169,22 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
       setLoading(false);
     }
   };
+
+  const activeStudentEnrollment = enrollments.find(enrollment => (
+    ['enrolled', 'completed'].includes(enrollment.status) && enrollment.group_id
+  ));
+  const studentLessons = activeStudentEnrollment
+    ? lessons.filter(lesson => lesson.group_id === activeStudentEnrollment.group_id)
+    : [];
+  const getProgressForLesson = (lessonId: string) => (
+    lessonProgress.find(progress => (
+      progress.lesson_id === lessonId && progress.enrollment_id === activeStudentEnrollment?.id
+    ))
+  );
+  const completedHomeworks = studentLessons.filter(lesson => (
+    getProgressForLesson(lesson.id)?.homework_status === 'accepted'
+  )).length;
+  const attendedLessons = studentLessons.filter(lesson => getProgressForLesson(lesson.id)?.attended).length;
 
   const getProgramGroups = (programId: string) => (
     groups.filter(group => group.program_id === programId && group.status === 'open' && getGroupPlacesLeft(group) > 0)
@@ -367,6 +412,87 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {activeStudentEnrollment && (
+          <section className="mb-5 rounded-[1.9rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">student cabinet</p>
+                <h2 className="text-2xl font-black text-[#385144]">Личный кабинет ученика</h2>
+                <p className="mt-1 text-sm font-semibold text-[#657066]">
+                  {activeStudentEnrollment.training_groups?.title || 'Группа обучения'}
+                </p>
+              </div>
+              <GraduationCap className="h-7 w-7 text-[#B8795C]" />
+            </div>
+
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'Занятий', value: studentLessons.length },
+                { label: 'Посещено', value: attendedLessons },
+                { label: 'ДЗ принято', value: completedHomeworks },
+              ].map(item => (
+                <div key={item.label} className="rounded-2xl bg-[#F8F3EC] p-3 text-center">
+                  <p className="text-2xl font-black text-[#385144]">{item.value}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8FA092]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {studentLessons.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+                План занятий скоро появится здесь после настройки группы.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {studentLessons.map((lesson, index) => {
+                  const progress = getProgressForLesson(lesson.id);
+                  const lessonDate = getSafeDate(lesson.lesson_at);
+                  return (
+                    <div key={lesson.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Занятие {index + 1}</p>
+                          <h3 className="mt-1 font-black text-[#385144]">{lesson.title}</h3>
+                          {lessonDate && (
+                            <p className="mt-1 text-xs font-bold text-[#6C756C]">
+                              {format(lessonDate, 'd MMMM, HH:mm', { locale: ru })}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                          progress?.attended ? 'bg-[#DDE9E0] text-[#385144]' : 'bg-white text-[#8FA092]'
+                        }`}>
+                          {progress?.attended ? 'Был(а)' : 'Не отмечено'}
+                        </span>
+                      </div>
+                      {lesson.description && <p className="mb-3 text-sm font-semibold text-[#657066]">{lesson.description}</p>}
+                      {(lesson.homework_title || lesson.homework_description) && (
+                        <div className="rounded-2xl bg-white/80 p-3">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="text-sm font-black text-[#385144]">{lesson.homework_title || 'Домашняя работа'}</p>
+                            <span className="rounded-full bg-[#EAF1EA] px-2 py-1 text-[10px] font-black text-[#385144]">
+                              {homeworkStatusLabels[progress?.homework_status || 'not_started']}
+                            </span>
+                          </div>
+                          {lesson.homework_description && (
+                            <p className="text-xs font-semibold leading-relaxed text-[#6C756C]">{lesson.homework_description}</p>
+                          )}
+                          {progress?.homework_status === 'accepted' && (
+                            <p className="mt-2 flex items-center text-xs font-black text-[#385144]">
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              Домашняя работа принята
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 

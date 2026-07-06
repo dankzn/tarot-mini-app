@@ -40,6 +40,26 @@ export interface TrainingEnrollment {
   users?: any;
 }
 
+export interface TrainingLesson {
+  id: string;
+  group_id: string;
+  title: string;
+  description?: string | null;
+  lesson_at?: string | null;
+  homework_title?: string | null;
+  homework_description?: string | null;
+  sort_order: number;
+}
+
+export interface TrainingLessonProgress {
+  id: string;
+  lesson_id: string;
+  enrollment_id: string;
+  attended: boolean;
+  homework_status: string;
+  homework_note?: string | null;
+}
+
 export const DEFAULT_TRAINING_PROGRAMS: TrainingProgram[] = [
   {
     id: 'fallback-individual-basic',
@@ -98,6 +118,14 @@ export const trainingPaymentLabels: Record<string, string> = {
   requested: 'Ожидает оплаты',
   marked_paid: 'Оплата на проверке',
   paid: 'Оплачено',
+};
+
+export const homeworkStatusLabels: Record<string, string> = {
+  not_started: 'Не начато',
+  assigned: 'Выдано',
+  submitted: 'Сдано',
+  accepted: 'Принято',
+  revise: 'Нужна доработка',
 };
 
 export const trainingGroupStatusLabels: Record<string, string> = {
