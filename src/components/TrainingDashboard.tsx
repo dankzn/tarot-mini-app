@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, Clock, GraduationCap, HelpCircle, MessageSquare, Route, Sparkles, Target, Users } from 'lucide-react';
+import { ArrowLeft, CalendarCheck, Check, CheckCircle2, ChevronRight, Clock, GraduationCap, HelpCircle, Home, MessageSquare, Route, Sparkles, Target, UserCircle, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   DEFAULT_TRAINING_PROGRAMS,
@@ -98,6 +98,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [enrollmentKind, setEnrollmentKind] = useState<'application' | 'waitlist'>('application');
   const [lessons, setLessons] = useState<TrainingLesson[]>([]);
   const [lessonProgress, setLessonProgress] = useState<TrainingLessonProgress[]>([]);
+  const [activeTab, setActiveTab] = useState<'academy' | 'cabinet'>('academy');
 
   useEffect(() => {
     loadTrainingData();
@@ -185,6 +186,12 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     getProgressForLesson(lesson.id)?.homework_status === 'accepted'
   )).length;
   const attendedLessons = studentLessons.filter(lesson => getProgressForLesson(lesson.id)?.attended).length;
+
+  useEffect(() => {
+    if (activeStudentEnrollment) {
+      setActiveTab('cabinet');
+    }
+  }, [activeStudentEnrollment?.id]);
 
   const getProgramGroups = (programId: string) => (
     groups.filter(group => group.program_id === programId && group.status === 'open' && getGroupPlacesLeft(group) > 0)
@@ -294,7 +301,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] pb-10 text-[#2F463B]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] pb-28 text-[#2F463B]">
       <div className="mx-auto max-w-md px-5 py-6">
         <div className="mb-5 flex items-center justify-between">
           <button
@@ -305,43 +312,48 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
             <ArrowLeft className="mr-2 h-4 w-4" />
             Выбор
           </button>
-          <button
-            type="button"
-            onClick={onOpenConsultations}
-            className="rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-sm"
-          >
-            Консультации
-          </button>
+          <p className="rounded-2xl bg-white/58 px-4 py-3 text-sm font-black text-[#6C756C] shadow-sm">
+            Tarot Academy
+          </p>
         </div>
 
         <section className="mb-5 overflow-hidden rounded-[2.2rem] bg-[#385144] p-6 text-white shadow-[0_22px_48px_rgba(56,81,68,0.22)]">
           <p className="mb-3 text-xs font-black uppercase tracking-[0.28em] text-[#F4E7C8]">tarot academy</p>
-          <h1 className="text-4xl font-black leading-none">Обучение Таро</h1>
+          <h1 className="text-4xl font-black leading-none">
+            {activeTab === 'cabinet' && activeStudentEnrollment ? 'Личный кабинет' : 'Обучение Таро'}
+          </h1>
           <p className="mt-4 text-sm font-semibold leading-relaxed text-white/78">
-            Не просто “курс”, а персональный маршрут: понять ваш уровень, выбрать темп и довести до уверенной практики.
+            {activeTab === 'cabinet' && activeStudentEnrollment
+              ? 'Ваш учебный центр: занятия, посещения, домашние задания и комментарии по курсу.'
+              : 'Не просто “курс”, а персональный маршрут: понять ваш уровень, выбрать темп и довести до уверенной практики.'
+            }
           </p>
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          {activeTab === 'academy' && (
+          <>
+            <div className="mt-5 grid grid-cols-3 gap-2">
             {['лично', 'группа', 'практика'].map(item => (
               <div key={item} className="rounded-2xl bg-white/12 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.12em] text-white/80">
                 {item}
               </div>
             ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setShowQuiz(true);
-              setQuizAnswers({});
-              setQuizRecommendation(null);
-            }}
-            className="mt-5 flex w-full items-center justify-center rounded-2xl bg-white py-4 font-black text-[#385144] shadow-[0_14px_32px_rgba(0,0,0,0.10)]"
-          >
-            <HelpCircle className="mr-2 h-5 w-5" />
-            Подобрать обучение
-          </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowQuiz(true);
+                setQuizAnswers({});
+                setQuizRecommendation(null);
+              }}
+              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-white py-4 font-black text-[#385144] shadow-[0_14px_32px_rgba(0,0,0,0.10)]"
+            >
+              <HelpCircle className="mr-2 h-5 w-5" />
+              Подобрать обучение
+            </button>
+          </>
+          )}
         </section>
 
-        {activeStudentEnrollment && (
+        {activeTab === 'cabinet' && activeStudentEnrollment && (
           <section className="mb-5 rounded-[1.9rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
@@ -434,7 +446,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </section>
         )}
 
-        {!activeStudentEnrollment && (
+        {activeTab === 'academy' && (
         <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
@@ -459,7 +471,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         </section>
         )}
 
-        {!activeStudentEnrollment && (
+        {activeTab === 'academy' && (
         <section className="mb-5 grid grid-cols-1 gap-3">
           <div className="rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
             <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">result</p>
@@ -488,7 +500,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         </section>
         )}
 
-        {!activeStudentEnrollment && enrollments.length > 0 && (
+        {activeTab === 'academy' && enrollments.length > 0 && (
           <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
             <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">мои заявки</p>
             <div className="space-y-3">
@@ -512,7 +524,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </section>
         )}
 
-        {!activeStudentEnrollment && (
+        {activeTab === 'academy' && (
         <section className="space-y-4">
           {programs.map(program => {
             const programGroups = getProgramGroups(program.id);
@@ -597,6 +609,46 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           })}
         </section>
         )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-4">
+        <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-[1.8rem] border border-white/80 bg-white/92 p-2 shadow-[0_18px_46px_rgba(56,81,68,0.18)] backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setActiveTab('academy')}
+            className={`flex flex-col items-center justify-center rounded-[1.3rem] px-3 py-3 text-xs font-black transition ${
+              activeTab === 'academy'
+                ? 'bg-[#385144] text-white'
+                : 'text-[#6C756C]'
+            }`}
+          >
+            <Home className="mb-1 h-5 w-5" />
+            Академия
+          </button>
+          <button
+            type="button"
+            disabled={!activeStudentEnrollment}
+            onClick={() => activeStudentEnrollment && setActiveTab('cabinet')}
+            className={`flex flex-col items-center justify-center rounded-[1.3rem] px-3 py-3 text-xs font-black transition ${
+              activeTab === 'cabinet'
+                ? 'bg-[#385144] text-white'
+                : activeStudentEnrollment
+                  ? 'text-[#6C756C]'
+                  : 'text-[#A9B0AA] opacity-60'
+            }`}
+          >
+            <UserCircle className="mb-1 h-5 w-5" />
+            ЛК
+          </button>
+          <button
+            type="button"
+            onClick={onOpenConsultations}
+            className="flex flex-col items-center justify-center rounded-[1.3rem] px-3 py-3 text-xs font-black text-[#6C756C] transition"
+          >
+            <CalendarCheck className="mb-1 h-5 w-5" />
+            Консультации
+          </button>
+        </div>
       </div>
 
       {selectedProgram && (
