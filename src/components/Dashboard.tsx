@@ -1906,6 +1906,26 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
 
         {activeTab === 'menu' && (
           <div className="space-y-3">
+            {onOpenTraining && (
+              <button
+                onClick={onOpenTraining}
+                className="flex w-full items-center justify-between rounded-[1.6rem] border border-[#385144]/10 bg-[#385144] p-4 text-left text-white shadow-[0_16px_36px_rgba(56,81,68,0.22)]"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/12">
+                    <BookOpen className="h-6 w-6" />
+                  </span>
+                  <span>
+                    <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-white/55">
+                      tarot academy
+                    </span>
+                    <span className="block font-black">Перейти в Академию</span>
+                    <span className="mt-1 block text-xs text-white/68">Обучение, группы и кабинет ученика</span>
+                  </span>
+                </span>
+                <ChevronRight className="h-5 w-5 text-white/70" />
+              </button>
+            )}
             <button
               onClick={() => setShowInfoMenu(true)}
               className="flex w-full items-center justify-between rounded-[1.5rem] border border-white/80 bg-white/80 p-4 text-left shadow-[0_12px_30px_rgba(56,81,68,0.08)]"
@@ -1931,12 +1951,11 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       </div>
 
       <div className="fixed inset-x-0 bottom-4 z-30 px-4">
-        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2 rounded-[1.5rem] border border-white/75 bg-white/85 p-2 shadow-[0_18px_45px_rgba(56,81,68,0.18)] backdrop-blur">
+        <div className={`mx-auto grid max-w-xl ${onOpenTraining ? 'grid-cols-5' : 'grid-cols-4'} gap-2 rounded-[1.5rem] border border-white/75 bg-white/85 p-2 shadow-[0_18px_45px_rgba(56,81,68,0.18)] backdrop-blur`}>
           {[
             { id: 'home' as DashboardTab, label: 'Главная', icon: Home },
             { id: 'services' as DashboardTab, label: 'Услуги', icon: CalendarCheck },
             { id: 'cabinet' as DashboardTab, label: 'Кабинет', icon: UserCircle },
-            { id: 'menu' as DashboardTab, label: 'Меню', icon: Menu },
           ].map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -1956,6 +1975,26 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
               </button>
             );
           })}
+          {onOpenTraining && (
+            <button
+              onClick={onOpenTraining}
+              className="flex flex-col items-center justify-center rounded-[1.1rem] px-2 py-2 text-[11px] font-black text-[#6C756C] transition hover:bg-[#F3EEE7]"
+            >
+              <BookOpen className="mb-1 h-4 w-4" />
+              Академия
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTab('menu')}
+            className={`flex flex-col items-center justify-center rounded-[1.1rem] px-2 py-2 text-[11px] font-black transition ${
+              activeTab === 'menu'
+                ? 'bg-[#385144] text-white shadow-[0_10px_22px_rgba(56,81,68,0.18)]'
+                : 'text-[#6C756C] hover:bg-[#F3EEE7]'
+            }`}
+          >
+            <Menu className="mb-1 h-4 w-4" />
+            Меню
+          </button>
         </div>
       </div>
 
