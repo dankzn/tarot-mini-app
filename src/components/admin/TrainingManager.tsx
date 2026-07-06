@@ -246,6 +246,32 @@ export const TrainingManager = () => {
     await loadData();
   };
 
+  const enrollStudent = async (enrollment: TrainingEnrollment) => {
+    const targetGroupId = enrollment.group_id || selectedGroup?.id || groups[0]?.id || '';
+
+    if (!targetGroupId) {
+      alert('Сначала создайте группу или выберите группу для зачисления.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('training_enrollments')
+      .update({
+        group_id: targetGroupId,
+        status: 'enrolled',
+        payment_status: enrollment.payment_status === 'not_requested' ? 'requested' : enrollment.payment_status,
+      })
+      .eq('id', enrollment.id);
+
+    if (error) {
+      alert(`Не удалось зачислить ученика: ${error.message}`);
+      return;
+    }
+
+    setSelectedGroupId(targetGroupId);
+    await loadData();
+  };
+
   const createLesson = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -788,10 +814,7 @@ export const TrainingManager = () => {
                 </select>
                 <select
                   value={enrollment.group_id || ''}
-                  onChange={(event) => updateEnrollment(enrollment.id, {
-                    group_id: event.target.value || null,
-                    status: event.target.value && enrollment.status === 'pending' ? 'enrolled' : enrollment.status,
-                  })}
+                  onChange={(event) => updateEnrollment(enrollment.id, { group_id: event.target.value || null })}
                   className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
                 >
                   <option value="">Без группы</option>
@@ -812,6 +835,15 @@ export const TrainingManager = () => {
                   placeholder="Внутренняя заметка по ученику: темп, особенности, договорённости"
                 />
               </div>
+              {enrollment.status !== 'enrolled' && enrollment.status !== 'completed' && (
+                <button
+                  type="button"
+                  onClick={() => enrollStudent(enrollment)}
+                  className="mt-3 w-full rounded-2xl bg-[#385144] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)]"
+                >
+                  Зачислить на курс
+                </button>
+              )}
               {enrollment.group_id && ['enrolled', 'completed'].includes(enrollment.status) && (
                 <div className="mt-3 rounded-2xl bg-white/70 p-3">
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Прогресс ученика</p>

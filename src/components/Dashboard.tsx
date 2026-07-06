@@ -29,7 +29,8 @@ import {
   Info,
   Flame,
   Heart,
-  CreditCard
+  CreditCard,
+  BookOpen
 } from 'lucide-react';
 
 interface Service {
@@ -52,6 +53,7 @@ interface Service {
 
 interface DashboardProps {
   user: any;
+  onOpenTraining?: () => void;
 }
 
 interface DailyCard {
@@ -516,7 +518,7 @@ const getServiceRecommendations = (services: Service[], selectedOptions: QuizOpt
   }).map(({ service }) => service);
 };
 
-export const Dashboard = ({ user }: DashboardProps) => {
+export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBooking, setShowBooking] = useState(false);
@@ -1204,6 +1206,28 @@ export const Dashboard = ({ user }: DashboardProps) => {
             <h1 className="text-xl font-black tracking-tight text-[#385144]">Tarot by Danil</h1>
           </div>
         </div>
+
+        {activeTab === 'home' && onOpenTraining && (
+          <button
+            type="button"
+            onClick={onOpenTraining}
+            className="mb-5 w-full overflow-hidden rounded-[1.75rem] bg-[#385144] p-4 text-left text-white shadow-[0_18px_42px_rgba(56,81,68,0.18)] transition active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/14 text-[#F4E7C8] ring-1 ring-white/15">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#F4E7C8]">tarot academy</p>
+                <h2 className="mt-1 text-lg font-black leading-tight">Можно не только записаться, но и обучиться</h2>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-white/72">
+                  Индивидуально или в группе: база, практика, домашки и бережный темп.
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-[#F4E7C8]" />
+            </div>
+          </button>
+        )}
 
         {activeTab === 'cabinet' && (
         <div className="relative mb-4 overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-[#FFFCF7] via-[#F5EFE7] to-[#E8EFE7] p-5 shadow-[0_22px_55px_rgba(56,81,68,0.16)]">

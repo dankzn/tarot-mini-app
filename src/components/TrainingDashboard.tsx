@@ -341,80 +341,6 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </button>
         </section>
 
-        <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">learning route</p>
-              <h2 className="text-2xl font-black text-[#385144]">Маршрут обучения</h2>
-            </div>
-            <Route className="h-6 w-6 text-[#B8795C]" />
-          </div>
-          <div className="space-y-3">
-            {TRAINING_PATH.map((step, index) => (
-              <div key={step.title} className="flex gap-3 rounded-2xl bg-[#F8F3EC] p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#385144] text-sm font-black text-white">
-                  {index + 1}
-                </div>
-                <div>
-                  <p className="font-black text-[#385144]">{step.title}</p>
-                  <p className="mt-1 text-sm font-semibold leading-relaxed text-[#657066]">{step.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-5 grid grid-cols-1 gap-3">
-          <div className="rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">result</p>
-            <h2 className="mb-4 flex items-center text-2xl font-black text-[#385144]">
-              <Target className="mr-2 h-6 w-6 text-[#B8795C]" />
-              После обучения вы сможете
-            </h2>
-            <div className="grid grid-cols-1 gap-2">
-              {TRAINING_RESULTS.map(result => (
-                <div key={result} className="flex items-start rounded-2xl bg-[#F8F3EC] p-3 text-sm font-black text-[#385144]">
-                  <Check className="mr-2 mt-0.5 h-4 w-4 shrink-0 text-[#B8795C]" />
-                  {result}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {FIT_ITEMS.map(item => (
-              <div key={item.title} className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 shadow-sm">
-                <p className="mb-2 text-lg font-black text-[#385144]">{item.title}</p>
-                <p className="text-xs font-semibold leading-relaxed text-[#657066]">{item.text}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {enrollments.length > 0 && (
-          <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">мои заявки</p>
-            <div className="space-y-3">
-              {enrollments.slice(0, 2).map(enrollment => (
-                <div key={enrollment.id} className="rounded-2xl bg-[#F8F3EC] p-4">
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-black text-[#385144]">{enrollment.training_programs?.title || 'Обучение Таро'}</p>
-                      <p className="mt-1 text-xs font-semibold text-[#6C756C]">
-                        {trainingPaymentLabels[enrollment.payment_status] || enrollment.payment_status}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
-                      {trainingStatusLabels[enrollment.status] || enrollment.status}
-                    </span>
-                  </div>
-                  <p className="text-xl font-black text-[#8A5A3F]">{formatTrainingPrice(enrollment.final_price)}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {activeStudentEnrollment && (
           <section className="mb-5 rounded-[1.9rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -422,10 +348,17 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">student cabinet</p>
                 <h2 className="text-2xl font-black text-[#385144]">Личный кабинет ученика</h2>
                 <p className="mt-1 text-sm font-semibold text-[#657066]">
-                  {activeStudentEnrollment.training_groups?.title || 'Группа обучения'}
+                  {activeStudentEnrollment.training_groups?.title || 'Курс обучения'}
                 </p>
               </div>
               <GraduationCap className="h-7 w-7 text-[#B8795C]" />
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-[#385144] p-4 text-white">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#F4E7C8]">вы зачислены</p>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-white/78">
+                Здесь сохраняется всё, что происходит на курсе: план занятий, история посещений, домашние задания и статус проверки.
+              </p>
             </div>
 
             <div className="mb-4 grid grid-cols-3 gap-2">
@@ -443,7 +376,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
 
             {studentLessons.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
-                План занятий скоро появится здесь после настройки группы.
+                План курса скоро появится здесь. После добавления занятия в админке оно сразу будет видно в кабинете.
               </div>
             ) : (
               <div className="space-y-3">
@@ -486,6 +419,11 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                               Домашняя работа принята
                             </p>
                           )}
+                          {progress?.homework_note && (
+                            <p className="mt-2 rounded-xl bg-[#F8F3EC] p-2 text-xs font-semibold leading-relaxed text-[#657066]">
+                              Комментарий: {progress.homework_note}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -496,6 +434,85 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </section>
         )}
 
+        {!activeStudentEnrollment && (
+        <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">learning route</p>
+              <h2 className="text-2xl font-black text-[#385144]">Маршрут обучения</h2>
+            </div>
+            <Route className="h-6 w-6 text-[#B8795C]" />
+          </div>
+          <div className="space-y-3">
+            {TRAINING_PATH.map((step, index) => (
+              <div key={step.title} className="flex gap-3 rounded-2xl bg-[#F8F3EC] p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#385144] text-sm font-black text-white">
+                  {index + 1}
+                </div>
+                <div>
+                  <p className="font-black text-[#385144]">{step.title}</p>
+                  <p className="mt-1 text-sm font-semibold leading-relaxed text-[#657066]">{step.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        )}
+
+        {!activeStudentEnrollment && (
+        <section className="mb-5 grid grid-cols-1 gap-3">
+          <div className="rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">result</p>
+            <h2 className="mb-4 flex items-center text-2xl font-black text-[#385144]">
+              <Target className="mr-2 h-6 w-6 text-[#B8795C]" />
+              После обучения вы сможете
+            </h2>
+            <div className="grid grid-cols-1 gap-2">
+              {TRAINING_RESULTS.map(result => (
+                <div key={result} className="flex items-start rounded-2xl bg-[#F8F3EC] p-3 text-sm font-black text-[#385144]">
+                  <Check className="mr-2 mt-0.5 h-4 w-4 shrink-0 text-[#B8795C]" />
+                  {result}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {FIT_ITEMS.map(item => (
+              <div key={item.title} className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 shadow-sm">
+                <p className="mb-2 text-lg font-black text-[#385144]">{item.title}</p>
+                <p className="text-xs font-semibold leading-relaxed text-[#657066]">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+        )}
+
+        {!activeStudentEnrollment && enrollments.length > 0 && (
+          <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">мои заявки</p>
+            <div className="space-y-3">
+              {enrollments.slice(0, 2).map(enrollment => (
+                <div key={enrollment.id} className="rounded-2xl bg-[#F8F3EC] p-4">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-[#385144]">{enrollment.training_programs?.title || 'Обучение Таро'}</p>
+                      <p className="mt-1 text-xs font-semibold text-[#6C756C]">
+                        {trainingPaymentLabels[enrollment.payment_status] || enrollment.payment_status}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
+                      {trainingStatusLabels[enrollment.status] || enrollment.status}
+                    </span>
+                  </div>
+                  <p className="text-xl font-black text-[#8A5A3F]">{formatTrainingPrice(enrollment.final_price)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!activeStudentEnrollment && (
         <section className="space-y-4">
           {programs.map(program => {
             const programGroups = getProgramGroups(program.id);
@@ -579,6 +596,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
             );
           })}
         </section>
+        )}
       </div>
 
       {selectedProgram && (

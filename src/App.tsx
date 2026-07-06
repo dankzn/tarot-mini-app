@@ -21,6 +21,27 @@ const AdminWebServices = lazy(() => import('./pages/AdminWebServices').then(modu
 const AdminWebAnalytics = lazy(() => import('./pages/AdminWebAnalytics').then(module => ({ default: module.AdminWebAnalytics })));
 const AdminWebClients = lazy(() => import('./pages/AdminWebClients').then(module => ({ default: module.AdminWebClients })));
 const AdminWebTraining = lazy(() => import('./pages/AdminWebTraining').then(module => ({ default: module.AdminWebTraining })));
+type ClientMode = 'consultations' | 'training';
+
+const getClientModuleStorageKey = (user: any) => `tarot-client-modules:${user?.id || user?.telegram_id || 'guest'}`;
+
+const readVisitedModules = (user: any): ClientMode[] => {
+  try {
+    const raw = window.localStorage.getItem(getClientModuleStorageKey(user));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((mode): mode is ClientMode => ['consultations', 'training'].includes(mode)) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeVisitedModule = (user: any, mode: ClientMode) => {
+  try {
+    const next = Array.from(new Set([...readVisitedModules(user), mode]));
+    window.localStorage.setItem(getClientModuleStorageKey(user), JSON.stringify(next));
+  } catch {
+  }
+};
 
 const AppLoader = () => (
   <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#E7EFE7_0,#F8F3EC_46%,#EFE6DA_100%)] flex items-center justify-center p-6">
@@ -48,7 +69,7 @@ export const App = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
-  const [clientMode, setClientMode] = useState<'consultations' | 'training' | null>(null);
+  const [clientMode, setClientMode] = useState<ClientMode | null>(null);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -92,6 +113,7 @@ export const App = () => {
 
       if (existingUser) {
         setUser(existingUser);
+        await resolveInitialClientMode(existingUser);
       } else {
         setUser({ needsRegistration: true, telegramUser: tgUser });
       }
@@ -104,6 +126,42 @@ export const App = () => {
 
   const handleRegistrationComplete = async (userData: any) => {
     setUser(userData);
+  };
+
+  const resolveInitialClientMode = async (currentUser: any) => {
+    if (!currentUser?.id || currentUser.role === 'admin') return;
+
+    try {
+      const visited = new Set(readVisitedModules(currentUser));
+
+      const [consultationsRequest, trainingRequest] = await Promise.all([
+        supabase
+          .from('consultations')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', currentUser.id),
+        supabase
+          .from('training_enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', currentUser.id),
+      ]);
+
+      if ((consultationsRequest.count || 0) > 0) visited.add('consultations');
+      if ((trainingRequest.count || 0) > 0) visited.add('training');
+
+      if (visited.size === 1) {
+        setClientMode(visited.has('training') ? 'training' : 'consultations');
+      } else {
+        setClientMode(null);
+      }
+    } catch (error) {
+      console.warn('Не удалось определить стартовый модуль:', error);
+      setClientMode(null);
+    }
+  };
+
+  const openClientMode = (mode: ClientMode) => {
+    writeVisitedModule(user, mode);
+    setClientMode(mode);
   };
 
   if (showSplash && !isAdminRoute) {
@@ -146,17 +204,17 @@ export const App = () => {
             ) : user.role === 'admin' ? (
               <AdminDashboard currentUser={user} />
             ) : clientMode === 'consultations' ? (
-              <Dashboard user={user} />
+              <Dashboard user={user} onOpenTraining={() => openClientMode('training')} />
             ) : clientMode === 'training' ? (
               <TrainingDashboard
                 user={user}
                 onBackToGateway={() => setClientMode(null)}
-                onOpenConsultations={() => setClientMode('consultations')}
+                onOpenConsultations={() => openClientMode('consultations')}
               />
             ) : (
               <ProductGateway
-                onChooseConsultations={() => setClientMode('consultations')}
-                onChooseTraining={() => setClientMode('training')}
+                onChooseConsultations={() => openClientMode('consultations')}
+                onChooseTraining={() => openClientMode('training')}
               />
             )
           } />
