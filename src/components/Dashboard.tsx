@@ -23,6 +23,8 @@ import {
   ArrowLeft,
   Menu,
   Camera,
+  Eye,
+  Leaf,
   UserCircle,
   Info,
   Flame,
@@ -514,31 +516,6 @@ const getServiceRecommendations = (services: Service[], selectedOptions: QuizOpt
   }).map(({ service }) => service);
 };
 
-const getTodaySuggestedService = (services: Service[], dailyCard: DailyCard) => {
-  if (services.length === 0) return null;
-
-  const dailyCardService = services.find(isDailyCardServiceItem);
-  if (dailyCardService) return dailyCardService;
-
-  const focus = dailyCard.focus.toLowerCase();
-  const keywordMap: Record<string, string[]> = {
-    инициатива: ['карта', 'прогноз', 'выбор'],
-    интуиция: ['карта', 'себ', 'расклад'],
-    забота: ['себ', 'ресурс', 'личн'],
-    движение: ['выбор', 'разбор', 'ситуац'],
-    'мягкая власть': ['отнош', 'чувств', 'личн'],
-    ясность: ['разбор', 'ситуац', 'глуб'],
-    восстановление: ['себ', 'ресурс', 'сопровожд'],
-    открытость: ['отнош', 'люб', 'прогноз'],
-  };
-  const keywords = keywordMap[focus] || ['карта', 'разбор'];
-
-  return services.find((service) => {
-    const text = `${service.title} ${service.description || ''}`.toLowerCase();
-    return keywords.some((keyword) => text.includes(keyword));
-  }) || services[0];
-};
-
 export const Dashboard = ({ user }: DashboardProps) => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -573,6 +550,14 @@ export const Dashboard = ({ user }: DashboardProps) => {
   });
   const dailyCardSeed = String(user.telegram_id || user.id || user.name || 'guest');
   const dailyCard = getDailyCard(dailyCardSeed);
+  const dailyCardStorageKey = `tarot-daily-card:${dailyCardSeed}:${getDailyCardDateKey()}`;
+  const [isDailyCardOpen, setIsDailyCardOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(dailyCardStorageKey) === 'open';
+    } catch {
+      return false;
+    }
+  });
   const favoriteServicesStorageKey = `tarot-favorite-services:${user.id || user.telegram_id || 'guest'}`;
   const [favoriteServiceIds, setFavoriteServiceIds] = useState<string[]>(() => {
     try {
@@ -849,7 +834,17 @@ export const Dashboard = ({ user }: DashboardProps) => {
     const priceState = getServicePriceState(service, clockNow);
     return Boolean(priceState.countdownTarget);
   }).slice(0, 2);
-  const todaySuggestedService = getTodaySuggestedService(services, dailyCard);
+
+  const revealDailyCard = () => {
+    try {
+      window.localStorage.setItem(dailyCardStorageKey, 'open');
+    } catch {
+      // localStorage может быть недоступен внутри некоторых WebView
+    }
+
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+    setIsDailyCardOpen(true);
+  };
 
   const toggleFavoriteService = (serviceId: string) => {
     setFavoriteServiceIds((current) => {
@@ -1259,23 +1254,26 @@ export const Dashboard = ({ user }: DashboardProps) => {
               className="mb-3 w-full rounded-2xl border border-white/80 bg-white/75 p-4 text-left shadow-sm backdrop-blur transition hover:border-[#385144]/25"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A5A3F]/70">
                     Статус клиента
                   </p>
-                  <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-black ${statusColor}`}>
-                    {currentStatus}
-                  </span>
-                  {hasActivePersonalTarologist && (
-                    <span className="mt-2 ml-2 inline-flex rounded-full bg-[#DDE9E0] px-3 py-1 text-sm font-black text-[#385144]">
-                      Личное ведение
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-sm font-black ${statusColor}`}>
+                      {currentStatus}
                     </span>
-                  )}
+                  </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#DDE9E0] text-[#385144]">
                   <Crown className="h-5 w-5" />
                 </div>
               </div>
+              {hasActivePersonalTarologist && (
+                <div className="mb-3 flex items-center justify-between rounded-2xl bg-[#EAF1EA] px-4 py-3 text-sm font-black text-[#385144]">
+                  <span className="text-xs uppercase tracking-[0.14em] text-[#6C756C]">Активная услуга</span>
+                  <span>Личное ведение</span>
+                </div>
+              )}
               <div className="h-2 overflow-hidden rounded-full bg-[#E5DED5]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#385144] to-[#8A9B7B]"
@@ -1392,43 +1390,55 @@ export const Dashboard = ({ user }: DashboardProps) => {
           </div>
         </button>
 
-        {todaySuggestedService && (
-          <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)] backdrop-blur">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
-                  ежедневный ориентир
-                </p>
-                <h3 className="text-xl font-black leading-tight text-[#385144]">
-                  {todaySuggestedService.title}
-                </h3>
-              </div>
-              <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
-                {dailyCard.focus}
-              </span>
+        <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-white/80 bg-gradient-to-br from-[#FFF9F0] via-white to-[#EAF1EA] p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.22em] text-[#8A5A3F]/70">
+                daily ritual
+              </p>
+              <h3 className="flex items-center text-xl font-black text-[#385144]">
+                <Leaf className="mr-2 h-5 w-5 text-[#B8795C]" />
+                Интерактивная карта дня
+              </h3>
             </div>
-            <p className="mb-4 text-sm leading-relaxed text-[#59645C]">
-              Это не про отношения, работу или сложный запрос. Это короткий прогноз на день: мягко сориентироваться и не перегрузиться.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setServiceDetails(todaySuggestedService)}
-                className="flex-1 rounded-2xl border border-[#385144]/10 bg-[#F8F3EC] px-4 py-3 text-sm font-black text-[#385144]"
-              >
-                Подробнее
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedService(todaySuggestedService);
-                  setShowBooking(true);
-                }}
-                className="flex-1 rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)]"
-              >
-                Записаться
-              </button>
-            </div>
+            <span className="rounded-full bg-[#385144]/10 px-3 py-1 text-xs font-black text-[#385144]">
+              {format(new Date(), 'd MMM', { locale: ru })}
+            </span>
           </div>
-        )}
+
+          {isDailyCardOpen ? (
+            <div className="rounded-[1.4rem] border border-[#E6D7C9] bg-white/75 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8FA092]">
+                    {dailyCard.arcana}
+                  </p>
+                  <p className="text-2xl font-black text-[#385144]">{dailyCard.name}</p>
+                </div>
+                <div className="rounded-2xl bg-[#B8795C]/10 px-3 py-2 text-right">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#8A5A3F]/70">
+                    фокус
+                  </p>
+                  <p className="font-black text-[#8A5A3F]">{dailyCard.focus}</p>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-[#59645C]">{dailyCard.message}</p>
+            </div>
+          ) : (
+            <div className="rounded-[1.4rem] border border-dashed border-[#B8795C]/40 bg-white/60 p-4">
+              <p className="mb-4 text-sm leading-relaxed text-[#59645C]">
+                Это бесплатный ежедневный интерактив внутри приложения. Он не заменяет услугу “Карта дня” и не участвует в подборе консультации.
+              </p>
+              <button
+                onClick={revealDailyCard}
+                className="flex w-full items-center justify-center rounded-2xl bg-[#B8795C] py-3 font-black text-white shadow-[0_12px_28px_rgba(184,121,92,0.22)] transition hover:bg-[#9E654A]"
+              >
+                <Eye className="mr-2 h-5 w-5" />
+                Открыть карту
+              </button>
+            </div>
+          )}
+        </div>
 
         </>
         )}
