@@ -110,6 +110,6 @@ export const formatTrainingPrice = (price: number) => `${Number(price || 0).toLo
 
 export const getTrainingProgramPriceLabel = (program: TrainingProgram) => (
   program.is_group
-    ? `${formatTrainingPrice(program.price)} / человек`
+    ? `${formatTrainingPrice(program.price)} с человека`
     : formatTrainingPrice(program.price)
 );

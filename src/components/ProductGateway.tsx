@@ -1,14 +1,11 @@
 import { BookOpen, CalendarCheck, ChevronRight, Sparkles } from 'lucide-react';
 
 interface ProductGatewayProps {
-  user: any;
   onChooseConsultations: () => void;
   onChooseTraining: () => void;
 }
 
-export const ProductGateway = ({ user, onChooseConsultations, onChooseTraining }: ProductGatewayProps) => {
-  const firstName = String(user?.name || '').split(' ')[0] || 'привет';
-
+export const ProductGateway = ({ onChooseConsultations, onChooseTraining }: ProductGatewayProps) => {
   return (
     <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_18%_10%,#E7EFE7_0,transparent_30%),radial-gradient(circle_at_82%_22%,#F2DFD1_0,transparent_28%),linear-gradient(145deg,#F8F3EC_0%,#EFE6DA_100%)] px-6 py-8 text-[#2F463B]">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center">
@@ -19,7 +16,7 @@ export const ProductGateway = ({ user, onChooseConsultations, onChooseTraining }
           <p className="mb-2 text-xs font-black uppercase tracking-[0.32em] text-[#B8795C]">personal tarot space</p>
           <h1 className="text-4xl font-black leading-none text-[#385144]">Куда идём?</h1>
           <p className="mx-auto mt-3 max-w-xs text-sm font-semibold leading-relaxed text-[#657066]">
-            {firstName}, выберите пространство: личная консультация или обучение Таро.
+            Выберите пространство: личная консультация или обучение Таро.
           </p>
         </div>
 

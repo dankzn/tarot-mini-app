@@ -155,7 +155,6 @@ export const App = () => {
               />
             ) : (
               <ProductGateway
-                user={user}
                 onChooseConsultations={() => setClientMode('consultations')}
                 onChooseTraining={() => setClientMode('training')}
               />

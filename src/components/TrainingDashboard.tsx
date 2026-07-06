@@ -39,15 +39,12 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [clientComment, setClientComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [loadWarning, setLoadWarning] = useState('');
 
   useEffect(() => {
     loadTrainingData();
   }, []);
 
   const loadTrainingData = async () => {
-    setLoadWarning('');
-
     try {
       const programsRequest = await supabase
         .from('training_programs')
@@ -85,7 +82,6 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     } catch (error) {
       console.warn('Обучение загружено в витринном режиме:', error);
       setPrograms(DEFAULT_TRAINING_PROGRAMS);
-      setLoadWarning('Чтобы принимать заявки на обучение, примените миграцию 20260706_tarot_training.sql в Supabase.');
     } finally {
       setLoading(false);
     }
@@ -200,12 +196,6 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
             ))}
           </div>
         </section>
-
-        {loadWarning && (
-          <div className="mb-5 rounded-2xl border border-[#B8795C]/25 bg-[#FFF9F0] p-4 text-sm font-semibold leading-relaxed text-[#8A5A3F]">
-            {loadWarning}
-          </div>
-        )}
 
         {enrollments.length > 0 && (
           <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
