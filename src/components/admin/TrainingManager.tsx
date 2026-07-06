@@ -42,10 +42,12 @@ const getSafeDate = (value?: string | null) => {
 };
 
 const groupStatuses = ['open', 'full', 'closed', 'started', 'completed'];
-const enrollmentStatuses = ['pending', 'details', 'contract', 'enrolled', 'learning', 'completed', 'expelled', 'cancelled'];
+const enrollmentRouteStatuses = ['pending', 'details', 'contract', 'enrolled', 'learning', 'completed'];
 const paymentStatuses = ['not_requested', 'requested', 'marked_paid', 'paid'];
 const homeworkStatuses = ['not_started', 'assigned', 'submitted', 'accepted', 'revise'];
 const activeStudentStatuses = ['enrolled', 'learning', 'completed'];
+
+type AdminTrainingSection = 'enrollments' | 'programs' | 'groups' | 'journal';
 
 const createEmptyProgramForm = () => ({
   id: '',
@@ -70,6 +72,7 @@ export const TrainingManager = () => {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState('');
+  const [activeSection, setActiveSection] = useState<AdminTrainingSection>('enrollments');
   const [programForm, setProgramForm] = useState(createEmptyProgramForm());
   const [groupForm, setGroupForm] = useState({
     program_id: '',
@@ -331,30 +334,25 @@ export const TrainingManager = () => {
     await loadData();
   };
 
-  const enrollStudent = async (enrollment: TrainingEnrollment) => {
-    const targetGroupId = enrollment.group_id || selectedGroup?.id || groups[0]?.id || '';
+  const setEnrollmentStatus = async (enrollment: TrainingEnrollment, status: string) => {
+    const payload: Record<string, any> = { status };
 
-    if (!targetGroupId) {
-      alert('Сначала создайте группу или выберите группу для зачисления.');
-      return;
+    if (activeStudentStatuses.includes(status) && !enrollment.group_id) {
+      const targetGroupId = selectedGroup?.id || groups[0]?.id || '';
+
+      if (!targetGroupId) {
+        alert('Перед зачислением создайте группу или выберите группу в заявке.');
+        return;
+      }
+
+      payload.group_id = targetGroupId;
     }
 
-    const { error } = await supabase
-      .from('training_enrollments')
-      .update({
-        group_id: targetGroupId,
-        status: 'enrolled',
-        payment_status: enrollment.payment_status === 'not_requested' ? 'requested' : enrollment.payment_status,
-      })
-      .eq('id', enrollment.id);
-
-    if (error) {
-      alert(`Не удалось зачислить ученика: ${error.message}`);
-      return;
+    if (status === 'contract' && enrollment.payment_status === 'not_requested') {
+      payload.payment_status = 'requested';
     }
 
-    setSelectedGroupId(targetGroupId);
-    await loadData();
+    await updateEnrollment(enrollment.id, payload);
   };
 
   const createLesson = async (event: React.FormEvent) => {
@@ -468,6 +466,57 @@ export const TrainingManager = () => {
         </div>
       )}
 
+      <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-4 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">academy control</p>
+            <h2 className="text-2xl font-black text-[#385144]">Пульт Академии</h2>
+          </div>
+          <span className="hidden rounded-full bg-[#F8F3EC] px-4 py-2 text-xs font-black text-[#6C756C] md:inline-flex">
+            не всё сразу — по разделам
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {[
+            { id: 'enrollments' as AdminTrainingSection, label: 'Заявки', text: 'маршрут ученика', value: enrollments.length, icon: GraduationCap },
+            { id: 'programs' as AdminTrainingSection, label: 'Курсы', text: 'цены и описания', value: programs.length, icon: BookOpen },
+            { id: 'groups' as AdminTrainingSection, label: 'Группы', text: 'старт и места', value: groups.length, icon: Users },
+            { id: 'journal' as AdminTrainingSection, label: 'Журнал', text: 'занятия и ДЗ', value: selectedGroupLessons.length, icon: CalendarDays },
+          ].map(item => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveSection(item.id)}
+                className={`rounded-[1.35rem] p-4 text-left transition ${
+                  isActive
+                    ? 'bg-[#385144] text-white shadow-[0_14px_30px_rgba(56,81,68,0.20)]'
+                    : 'bg-[#F8F3EC] text-[#385144] hover:bg-[#EFE6DA]'
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <Icon className={`h-5 w-5 ${isActive ? 'text-[#F4E7C8]' : 'text-[#B8795C]'}`} />
+                  <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                    isActive ? 'bg-white/14 text-white' : 'bg-white text-[#6C756C]'
+                  }`}>
+                    {item.value}
+                  </span>
+                </div>
+                <p className="font-black">{item.label}</p>
+                <p className={`mt-1 text-xs font-semibold ${isActive ? 'text-white/62' : 'text-[#6C756C]'}`}>
+                  {item.text}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeSection === 'programs' && (
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
@@ -618,7 +667,9 @@ export const TrainingManager = () => {
           ))}
         </div>
       </section>
+      )}
 
+      {activeSection === 'journal' && (
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -868,7 +919,9 @@ export const TrainingManager = () => {
           </div>
         )}
       </section>
+      )}
 
+      {activeSection === 'groups' && (
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
@@ -1012,7 +1065,9 @@ export const TrainingManager = () => {
           })}
         </div>
       </section>
+      )}
 
+      {activeSection === 'enrollments' && (
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
         <div className="mb-4">
           <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">enrollments</p>
@@ -1025,11 +1080,9 @@ export const TrainingManager = () => {
               Заявок на обучение пока нет.
             </div>
           ) : enrollments.map(enrollment => {
-            const statusOptions = enrollmentStatuses.includes(enrollment.status)
-              ? enrollmentStatuses
-              : [enrollment.status, ...enrollmentStatuses];
             const incompleteHomeworkCount = getIncompleteHomeworkCount(enrollment);
             const canExpel = activeStudentStatuses.includes(enrollment.status) && incompleteHomeworkCount >= 5;
+            const isOffRouteStatus = !enrollmentRouteStatuses.includes(enrollment.status);
 
             return (
             <div key={enrollment.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
@@ -1054,16 +1107,53 @@ export const TrainingManager = () => {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                <select
-                  value={enrollment.status}
-                  onChange={(event) => updateEnrollment(enrollment.id, { status: event.target.value })}
-                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
-                >
-                  {statusOptions.map(status => (
-                    <option key={status} value={status}>{trainingStatusLabels[status] || status}</option>
-                  ))}
-                </select>
+              <div className="mb-3 rounded-[1.2rem] bg-white/70 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Маршрут ученика</p>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                    enrollment.status === 'expelled'
+                      ? 'bg-[#8A5A3F] text-white'
+                      : enrollment.status === 'cancelled'
+                        ? 'bg-[#E8DDD1] text-[#6C756C]'
+                        : 'bg-[#EAF1EA] text-[#385144]'
+                  }`}>
+                    {trainingStatusLabels[enrollment.status] || enrollment.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+                  {enrollmentRouteStatuses.map((status, index) => {
+                    const isActive = enrollment.status === status;
+                    const isPast = enrollmentRouteStatuses.indexOf(enrollment.status) > index;
+
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setEnrollmentStatus(enrollment, status)}
+                        className={`rounded-2xl px-3 py-3 text-left text-xs font-black transition ${
+                          isActive
+                            ? 'bg-[#385144] text-white shadow-[0_10px_22px_rgba(56,81,68,0.18)]'
+                            : isPast
+                              ? 'bg-[#EAF1EA] text-[#385144]'
+                              : 'bg-white text-[#6C756C] hover:bg-[#F8F3EC]'
+                        }`}
+                      >
+                        <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] opacity-60">
+                          шаг {index + 1}
+                        </span>
+                        {trainingStatusLabels[status]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {isOffRouteStatus && (
+                  <p className="mt-2 text-xs font-semibold text-[#8A5A3F]">
+                    Запись сейчас вне маршрута. Выберите нужный этап кнопкой выше.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                 <select
                   value={enrollment.payment_status}
                   onChange={(event) => updateEnrollment(enrollment.id, { payment_status: event.target.value })}
@@ -1092,7 +1182,7 @@ export const TrainingManager = () => {
                 <textarea
                   defaultValue={enrollment.admin_notes || ''}
                   onBlur={(event) => updateEnrollment(enrollment.id, { admin_notes: event.target.value || null })}
-                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-4"
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
                   placeholder="Внутренняя заметка по ученику: темп, особенности, договорённости"
                 />
               </div>
@@ -1101,22 +1191,31 @@ export const TrainingManager = () => {
                   У ученика {incompleteHomeworkCount} невыполненных домашних заданий. Можно отчислить отдельным действием.
                 </div>
               )}
-              {!activeStudentStatuses.includes(enrollment.status) && enrollment.status !== 'expelled' && enrollment.status !== 'cancelled' && (
+              {enrollment.status === 'cancelled' && (
                 <button
                   type="button"
-                  onClick={() => enrollStudent(enrollment)}
+                  onClick={() => setEnrollmentStatus(enrollment, 'pending')}
                   className="mt-3 w-full rounded-2xl bg-[#385144] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(56,81,68,0.18)]"
                 >
-                  Зачислить на курс
+                  Вернуть в маршрут
                 </button>
               )}
               {canExpel && (
                 <button
                   type="button"
-                  onClick={() => updateEnrollment(enrollment.id, { status: 'expelled' })}
+                  onClick={() => setEnrollmentStatus(enrollment, 'expelled')}
                   className="mt-3 w-full rounded-2xl bg-[#8A5A3F] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(138,90,63,0.18)]"
                 >
                   Отчислить ученика
+                </button>
+              )}
+              {!['cancelled', 'expelled', 'completed'].includes(enrollment.status) && (
+                <button
+                  type="button"
+                  onClick={() => setEnrollmentStatus(enrollment, 'cancelled')}
+                  className="mt-3 w-full rounded-2xl bg-white px-4 py-3 font-black text-[#8A5A3F] shadow-sm"
+                >
+                  Отменить заявку
                 </button>
               )}
               {enrollment.group_id && activeStudentStatuses.includes(enrollment.status) && (
@@ -1156,6 +1255,7 @@ export const TrainingManager = () => {
           })}
         </div>
       </section>
+      )}
     </div>
   );
 };
