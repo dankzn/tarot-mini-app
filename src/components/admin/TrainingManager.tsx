@@ -52,6 +52,7 @@ export const TrainingManager = () => {
   const [enrollments, setEnrollments] = useState<TrainingEnrollment[]>([]);
   const [lessons, setLessons] = useState<TrainingLesson[]>([]);
   const [lessonProgress, setLessonProgress] = useState<TrainingLessonProgress[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState('');
   const [groupForm, setGroupForm] = useState({
@@ -102,16 +103,13 @@ export const TrainingManager = () => {
 
       if (groupsError) throw groupsError;
 
-      setGroups((groupsData || []).map((group: any) => ({
-        ...group,
-        taken: (group.training_enrollments || []).filter((enrollment: any) => enrollment.status !== 'cancelled').length,
-      })));
-
       const loadedGroups = (groupsData || []).map((group: any) => ({
         ...group,
         taken: (group.training_enrollments || []).filter((enrollment: any) => enrollment.status !== 'cancelled').length,
       }));
 
+      setGroups(loadedGroups);
+      setSelectedGroupId(current => current || loadedGroups[0]?.id || '');
       setLessonForm(current => ({
         ...current,
         group_id: current.group_id || loadedGroups[0]?.id || '',
@@ -158,6 +156,26 @@ export const TrainingManager = () => {
 
     return { activeGroups, pending, enrolled, money };
   }, [groups, enrollments]);
+
+  const selectedGroup = groups.find(group => group.id === selectedGroupId) || groups[0] || null;
+  const selectedGroupLessons = selectedGroup
+    ? lessons.filter(lesson => lesson.group_id === selectedGroup.id)
+    : [];
+  const selectedGroupStudents = selectedGroup
+    ? enrollments.filter(enrollment => (
+      enrollment.group_id === selectedGroup.id && ['enrolled', 'completed'].includes(enrollment.status)
+    ))
+    : [];
+  const selectedGroupProgress = selectedGroupStudents.flatMap(enrollment => (
+    selectedGroupLessons.map(lesson => (
+      lessonProgress.find(progress => progress.lesson_id === lesson.id && progress.enrollment_id === enrollment.id)
+    )).filter(Boolean)
+  )) as TrainingLessonProgress[];
+  const selectedGroupAttendanceCount = selectedGroupProgress.filter(progress => progress.attended).length;
+  const selectedGroupAcceptedHomeworkCount = selectedGroupProgress.filter(progress => progress.homework_status === 'accepted').length;
+  const getLessonProgress = (lessonId: string, enrollmentId: string) => (
+    lessonProgress.find(progress => progress.lesson_id === lessonId && progress.enrollment_id === enrollmentId)
+  );
 
   const createGroup = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -260,6 +278,20 @@ export const TrainingManager = () => {
     }
   };
 
+  const updateLesson = async (lessonId: string, payload: Record<string, any>) => {
+    const { error } = await supabase
+      .from('training_lessons')
+      .update(payload)
+      .eq('id', lessonId);
+
+    if (error) {
+      alert(`Не удалось обновить занятие: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+  };
+
   const deleteLesson = async (lessonId: string) => {
     if (!confirm('Удалить занятие и связанные отметки прогресса?')) return;
 
@@ -347,104 +379,253 @@ export const TrainingManager = () => {
       </section>
 
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">student cabinet</p>
-            <h2 className="text-2xl font-black text-[#385144]">План занятий и домашки</h2>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">academy journal</p>
+            <h2 className="text-2xl font-black text-[#385144]">Журнал группы</h2>
+            <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+              Здесь добавляются занятия, домашки, посещаемость и проверка ДЗ.
+            </p>
           </div>
-          <BookOpen className="h-6 w-6 text-[#B8795C]" />
-        </div>
-
-        <form onSubmit={createLesson} className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-6">
           <select
-            value={lessonForm.group_id}
-            onChange={(event) => setLessonForm({ ...lessonForm, group_id: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
-            required
+            value={selectedGroup?.id || ''}
+            onChange={(event) => {
+              setSelectedGroupId(event.target.value);
+              setLessonForm(current => ({ ...current, group_id: event.target.value }));
+            }}
+            className="rounded-2xl border border-[#385144]/10 bg-white px-4 py-3 font-black text-[#385144]"
           >
             {groups.map(group => (
               <option key={group.id} value={group.id}>{group.title}</option>
             ))}
           </select>
-          <input
-            value={lessonForm.title}
-            onChange={(event) => setLessonForm({ ...lessonForm, title: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
-            placeholder="Тема занятия"
-            required
-          />
-          <input
-            type="datetime-local"
-            value={lessonForm.lesson_at}
-            onChange={(event) => setLessonForm({ ...lessonForm, lesson_at: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
-          />
-          <input
-            type="number"
-            value={lessonForm.sort_order}
-            onChange={(event) => setLessonForm({ ...lessonForm, sort_order: Number(event.target.value) })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
-            placeholder="№"
-          />
-          <textarea
-            value={lessonForm.description}
-            onChange={(event) => setLessonForm({ ...lessonForm, description: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
-            placeholder="Описание занятия"
-          />
-          <input
-            value={lessonForm.homework_title}
-            onChange={(event) => setLessonForm({ ...lessonForm, homework_title: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
-            placeholder="Название ДЗ"
-          />
-          <textarea
-            value={lessonForm.homework_description}
-            onChange={(event) => setLessonForm({ ...lessonForm, homework_description: event.target.value })}
-            className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
-            placeholder="Описание ДЗ"
-          />
-          <button className="flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 font-black text-white">
-            <Save className="mr-2 h-4 w-4" />
-            Добавить
-          </button>
-        </form>
-
-        <div className="space-y-3">
-          {lessons.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
-              Занятий пока нет. После добавления ученики увидят план в личном кабинете Академии.
-            </div>
-          ) : lessons.map(lesson => {
-            const group = groups.find(item => item.id === lesson.group_id);
-            const lessonDate = getSafeDate(lesson.lesson_at);
-            return (
-              <div key={lesson.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
-                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">{group?.title || 'Группа'}</p>
-                    <h3 className="text-lg font-black text-[#385144]">{lesson.sort_order}. {lesson.title}</h3>
-                    {lessonDate && (
-                      <p className="mt-1 text-sm font-bold text-[#8A5A3F]">
-                        {format(lessonDate, 'd MMMM yyyy, HH:mm', { locale: ru })}
-                      </p>
-                    )}
-                    {lesson.homework_title && (
-                      <p className="mt-2 text-sm font-semibold text-[#6C756C]">ДЗ: {lesson.homework_title}</p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteLesson(lesson.id)}
-                    className="rounded-full bg-white px-3 py-2 text-red-500"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
         </div>
+
+        {!selectedGroup ? (
+          <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+            Сначала создайте группу обучения — после этого появится журнал, занятия и домашки.
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                { label: 'Ученики', value: selectedGroupStudents.length },
+                { label: 'Занятия', value: selectedGroupLessons.length },
+                { label: 'Посещения', value: selectedGroupAttendanceCount },
+                { label: 'ДЗ принято', value: selectedGroupAcceptedHomeworkCount },
+              ].map(item => (
+                <div key={item.label} className="rounded-2xl bg-[#F8F3EC] p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9AA39B]">{item.label}</p>
+                  <p className="mt-2 text-2xl font-black text-[#385144]">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={createLesson} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]">новое занятие</p>
+                  <h3 className="text-lg font-black text-[#385144]">Добавить занятие и ДЗ</h3>
+                </div>
+                <BookOpen className="h-5 w-5 text-[#B8795C]" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+                <input
+                  value={lessonForm.title}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, title: event.target.value })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+                  placeholder="Тема занятия"
+                  required
+                />
+                <input
+                  type="datetime-local"
+                  value={lessonForm.lesson_at}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, lesson_at: event.target.value })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                />
+                <input
+                  type="number"
+                  value={lessonForm.sort_order}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, sort_order: Number(event.target.value) })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                  placeholder="№"
+                />
+                <input
+                  value={lessonForm.homework_title}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, homework_title: event.target.value })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+                  placeholder="Название ДЗ"
+                />
+                <textarea
+                  value={lessonForm.description}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, description: event.target.value })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
+                  placeholder="Что будет на занятии"
+                />
+                <textarea
+                  value={lessonForm.homework_description}
+                  onChange={(event) => setLessonForm({ ...lessonForm, group_id: selectedGroup.id, homework_description: event.target.value })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+                  placeholder="Что сделать дома"
+                />
+                <button className="flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 font-black text-white">
+                  <Save className="mr-2 h-4 w-4" />
+                  Добавить
+                </button>
+              </div>
+            </form>
+
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {selectedGroupLessons.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C] xl:col-span-2">
+                  В этой группе пока нет занятий. Добавьте первое занятие — ученики сразу увидят его в кабинете.
+                </div>
+              ) : selectedGroupLessons.map(lesson => {
+                const lessonDate = getSafeDate(lesson.lesson_at);
+                return (
+                  <div key={lesson.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">занятие {lesson.sort_order}</p>
+                        <h3 className="text-lg font-black text-[#385144]">{lesson.title}</h3>
+                        <p className="text-sm font-bold text-[#8A5A3F]">
+                          {lessonDate ? format(lessonDate, 'd MMMM yyyy, HH:mm', { locale: ru }) : 'Дата не указана'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteLesson(lesson.id)}
+                        className="rounded-full bg-white px-3 py-2 text-red-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <input
+                        defaultValue={lesson.title}
+                        onBlur={(event) => event.target.value !== lesson.title && updateLesson(lesson.id, { title: event.target.value })}
+                        className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                        placeholder="Тема занятия"
+                      />
+                      <input
+                        type="datetime-local"
+                        defaultValue={toDateTimeLocal(lesson.lesson_at)}
+                        onBlur={(event) => updateLesson(lesson.id, { lesson_at: fromDateTimeLocal(event.target.value) })}
+                        className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                      />
+                      <textarea
+                        defaultValue={lesson.description || ''}
+                        onBlur={(event) => updateLesson(lesson.id, { description: event.target.value || null })}
+                        className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144] md:col-span-2"
+                        placeholder="Описание занятия"
+                      />
+                      <input
+                        defaultValue={lesson.homework_title || ''}
+                        onBlur={(event) => updateLesson(lesson.id, { homework_title: event.target.value || null })}
+                        className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                        placeholder="Название ДЗ"
+                      />
+                      <textarea
+                        defaultValue={lesson.homework_description || ''}
+                        onBlur={(event) => updateLesson(lesson.id, { homework_description: event.target.value || null })}
+                        className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                        placeholder="Текст ДЗ"
+                      />
+                    </div>
+                    <p className="mt-2 text-xs font-semibold text-[#8FA092]">
+                      Изменения сохраняются после выхода из поля.
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-[1.35rem] bg-[#385144] p-4 text-white">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/55">group register</p>
+                  <h3 className="text-xl font-black">Учет учеников</h3>
+                </div>
+                <Users className="h-6 w-6 text-white/75" />
+              </div>
+              {selectedGroupStudents.length === 0 ? (
+                <div className="rounded-2xl bg-white/10 p-4 text-sm font-semibold text-white/75">
+                  В группе пока нет зачисленных учеников. В заявках ниже выберите группу и статус “Зачислен(а)”.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedGroupStudents.map(enrollment => {
+                    const acceptedCount = selectedGroupLessons.filter(lesson => (
+                      getLessonProgress(lesson.id, enrollment.id)?.homework_status === 'accepted'
+                    )).length;
+                    const attendedCount = selectedGroupLessons.filter(lesson => (
+                      getLessonProgress(lesson.id, enrollment.id)?.attended
+                    )).length;
+
+                    return (
+                      <div key={enrollment.id} className="rounded-2xl bg-white p-4 text-[#385144]">
+                        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <h4 className="text-lg font-black">{enrollment.users?.name || 'Ученик'}</h4>
+                            <p className="text-sm font-semibold text-[#6C756C]">
+                              @{enrollment.users?.username || enrollment.users?.telegram_id || 'без username'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black">
+                              Был(а): {attendedCount}/{selectedGroupLessons.length}
+                            </span>
+                            <span className="rounded-full bg-[#F8F3EC] px-3 py-1 text-xs font-black text-[#8A5A3F]">
+                              ДЗ: {acceptedCount}/{selectedGroupLessons.length}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedGroupLessons.map(lesson => {
+                            const progress = getLessonProgress(lesson.id, enrollment.id);
+                            return (
+                              <div key={lesson.id} className="grid grid-cols-1 gap-2 rounded-2xl bg-[#F8F3EC] p-3 md:grid-cols-[1fr_auto_190px] md:items-center">
+                                <div>
+                                  <p className="text-sm font-black">{lesson.sort_order}. {lesson.title}</p>
+                                  {lesson.homework_title && (
+                                    <p className="text-xs font-semibold text-[#6C756C]">ДЗ: {lesson.homework_title}</p>
+                                  )}
+                                </div>
+                                <label className="flex items-center gap-2 text-sm font-bold">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(progress?.attended)}
+                                    onChange={(event) => upsertProgress(lesson.id, enrollment.id, { attended: event.target.checked })}
+                                  />
+                                  Был(а)
+                                </label>
+                                <select
+                                  value={progress?.homework_status || 'not_started'}
+                                  onChange={(event) => upsertProgress(lesson.id, enrollment.id, { homework_status: event.target.value })}
+                                  className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-bold text-[#385144]"
+                                >
+                                  {homeworkStatuses.map(status => (
+                                    <option key={status} value={status}>{homeworkStatusLabels[status] || status}</option>
+                                  ))}
+                                </select>
+                                <textarea
+                                  defaultValue={progress?.homework_note || ''}
+                                  onBlur={(event) => upsertProgress(lesson.id, enrollment.id, { homework_note: event.target.value || null })}
+                                  className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-semibold text-[#385144] md:col-span-3"
+                                  placeholder="Комментарий по занятию или домашке"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
@@ -586,7 +767,7 @@ export const TrainingManager = () => {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                 <select
                   value={enrollment.status}
                   onChange={(event) => updateEnrollment(enrollment.id, { status: event.target.value })}
@@ -605,11 +786,30 @@ export const TrainingManager = () => {
                     <option key={status} value={status}>{trainingPaymentLabels[status] || status}</option>
                   ))}
                 </select>
+                <select
+                  value={enrollment.group_id || ''}
+                  onChange={(event) => updateEnrollment(enrollment.id, {
+                    group_id: event.target.value || null,
+                    status: event.target.value && enrollment.status === 'pending' ? 'enrolled' : enrollment.status,
+                  })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                >
+                  <option value="">Без группы</option>
+                  {groups.map(group => (
+                    <option key={group.id} value={group.id}>{group.title}</option>
+                  ))}
+                </select>
                 <input
                   type="number"
                   value={enrollment.final_price || 0}
                   onChange={(event) => updateEnrollment(enrollment.id, { final_price: Number(event.target.value) || 0 })}
                   className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                />
+                <textarea
+                  defaultValue={enrollment.admin_notes || ''}
+                  onBlur={(event) => updateEnrollment(enrollment.id, { admin_notes: event.target.value || null })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-4"
+                  placeholder="Внутренняя заметка по ученику: темп, особенности, договорённости"
                 />
               </div>
               {enrollment.group_id && ['enrolled', 'completed'].includes(enrollment.status) && (
