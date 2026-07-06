@@ -301,6 +301,38 @@ export const notifyAdminPaymentMarked = async (
     : { ok: true };
 };
 
+export const notifyAdminNewTrainingEnrollment = async (
+  adminTelegramIds: Array<string | number>,
+  clientName: string,
+  clientUsername: string | null,
+  programName: string,
+  price: number,
+  groupTitle?: string | null
+) => {
+  if (adminTelegramIds.length === 0) {
+    return { ok: false, error: 'Admin Telegram ID was not found in users table' };
+  }
+
+  const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
+  const groupText = groupTitle ? `\n👥 <b>Группа:</b> ${escapeHtml(groupTitle)}` : '';
+  const message = `
+🎓 <b>Новая заявка на обучение Таро</b>
+
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}${usernameText}
+📚 <b>Программа:</b> ${escapeHtml(programName)}${groupText}
+💳 <b>Стоимость:</b> ${price} ₽
+
+Заявка ждёт обработки в разделе <b>Обучение</b>.
+  `.trim();
+
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const failed = results.filter(result => !result.ok);
+
+  return failed.length === results.length
+    ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
+    : { ok: true };
+};
+
 // Уведомление клиенту об изменении баланса
 export const notifyClientBonusUpdate = async (
   clientTelegramId: string | number,

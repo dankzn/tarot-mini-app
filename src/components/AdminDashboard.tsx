@@ -7,6 +7,7 @@ import { Analytics } from './admin/Analytics';
 import { ClientsManager } from './admin/ClientsManager';
 import { PaymentMethodsManager } from './admin/PaymentMethodsManager';
 import { PromoCodesManager } from './admin/PromoCodesManager';
+import { TrainingManager } from './admin/TrainingManager';
 import {
   Crown,
   CalendarDays,
@@ -18,7 +19,8 @@ import {
   BarChart3,
   UserCog,
   CreditCard,
-  TicketPercent
+  TicketPercent,
+  GraduationCap
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -30,7 +32,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [showSlotsManager, setShowSlotsManager] = useState(false);
   const [showConsultationsManager, setShowConsultationsManager] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients' | 'payments' | 'promo'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'services' | 'analytics' | 'clients' | 'payments' | 'promo' | 'training'>('dashboard');
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalConsultations: 0,
@@ -177,6 +179,17 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
         >
           <UserCog className="w-4 h-4 inline mr-1" />
           Клиенты
+        </button>
+        <button
+          onClick={() => setActiveTab('training')}
+          className={`rounded-xl px-4 py-2 font-bold whitespace-nowrap transition ${
+            activeTab === 'training'
+              ? 'bg-[#385144] text-white shadow-sm'
+              : 'text-gray-500'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 inline mr-1" />
+          Обучение
         </button>
         <button
           onClick={() => setActiveTab('promo')}
@@ -388,6 +401,7 @@ export const AdminDashboard = ({ currentUser }: AdminDashboardProps) => {
       {activeTab === 'services' && <ServicesManager />}
       {activeTab === 'analytics' && <Analytics />}
       {activeTab === 'clients' && <ClientsManager />}
+      {activeTab === 'training' && <TrainingManager />}
       {activeTab === 'payments' && <PaymentMethodsManager />}
       {activeTab === 'promo' && <PromoCodesManager />}
     </div>

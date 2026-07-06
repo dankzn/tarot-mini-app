@@ -9,6 +9,8 @@ import { AdminWebGuard } from './components/admin/AdminWebGuard';
 
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const ProductGateway = lazy(() => import('./components/ProductGateway').then(module => ({ default: module.ProductGateway })));
+const TrainingDashboard = lazy(() => import('./components/TrainingDashboard').then(module => ({ default: module.TrainingDashboard })));
 const AdminWebLogin = lazy(() => import('./pages/AdminWebLogin').then(module => ({ default: module.AdminWebLogin })));
 const AdminWebDashboard = lazy(() => import('./pages/AdminWebDashboard').then(module => ({ default: module.AdminWebDashboard })));
 const AdminWebConsultations = lazy(() => import('./pages/AdminWebConsultations').then(module => ({ default: module.AdminWebConsultations })));
@@ -18,6 +20,7 @@ const AdminWebMailings = lazy(() => import('./pages/AdminWebMailings').then(modu
 const AdminWebServices = lazy(() => import('./pages/AdminWebServices').then(module => ({ default: module.AdminWebServices })));
 const AdminWebAnalytics = lazy(() => import('./pages/AdminWebAnalytics').then(module => ({ default: module.AdminWebAnalytics })));
 const AdminWebClients = lazy(() => import('./pages/AdminWebClients').then(module => ({ default: module.AdminWebClients })));
+const AdminWebTraining = lazy(() => import('./pages/AdminWebTraining').then(module => ({ default: module.AdminWebTraining })));
 
 const AppLoader = () => (
   <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#E7EFE7_0,#F8F3EC_46%,#EFE6DA_100%)] flex items-center justify-center p-6">
@@ -45,6 +48,7 @@ export const App = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const [clientMode, setClientMode] = useState<'consultations' | 'training' | null>(null);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -118,6 +122,7 @@ export const App = () => {
           <Route path="/admin-web/users" element={adminRoute(<AdminWebUsers />)} />
           <Route path="/admin-web/mailings" element={adminRoute(<AdminWebMailings />)} />
           <Route path="/admin-web/services" element={adminRoute(<AdminWebServices />)} />
+          <Route path="/admin-web/training" element={adminRoute(<AdminWebTraining />)} />
           <Route path="/admin-web/analytics" element={adminRoute(<AdminWebAnalytics />)} />
           <Route path="/admin-web/clients" element={adminRoute(<AdminWebClients />)} />
 
@@ -140,8 +145,20 @@ export const App = () => {
               </div>
             ) : user.role === 'admin' ? (
               <AdminDashboard currentUser={user} />
-            ) : (
+            ) : clientMode === 'consultations' ? (
               <Dashboard user={user} />
+            ) : clientMode === 'training' ? (
+              <TrainingDashboard
+                user={user}
+                onBackToGateway={() => setClientMode(null)}
+                onOpenConsultations={() => setClientMode('consultations')}
+              />
+            ) : (
+              <ProductGateway
+                user={user}
+                onChooseConsultations={() => setClientMode('consultations')}
+                onChooseTraining={() => setClientMode('training')}
+              />
             )
           } />
         </Routes>

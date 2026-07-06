@@ -11,6 +11,7 @@ import {
   DollarSign,
   Clock,
   Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { ensureAdminSession } from '../lib/adminAuth';
 import { PaymentMethodsManager } from '../components/admin/PaymentMethodsManager';
@@ -437,6 +438,21 @@ export const AdminWebDashboard = () => {
 
         {/* Новые карточки */}
 		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+	  <a
+	    href="/admin-web/training"
+	    className="rounded-[1.5rem] border border-white/80 bg-[#385144] p-5 text-white shadow-[0_18px_44px_rgba(56,81,68,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_50px_rgba(56,81,68,0.22)]"
+	  >
+	    <div className="flex items-center mb-3">
+	      <div className="w-12 h-12 bg-white/16 rounded-2xl flex items-center justify-center mr-4">
+	        <GraduationCap className="h-6 w-6 text-[#F4E7C8]" />
+	      </div>
+	      <div>
+	        <h3 className="font-bold text-white">Обучение Таро</h3>
+	        <p className="text-sm text-white/65">Группы, ученики и заявки</p>
+	      </div>
+	    </div>
+	  </a>
+
 	  <a
 	    href="/admin-web/services"
 	    className="rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(56,81,68,0.12)]"
