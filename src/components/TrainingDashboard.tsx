@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ArrowLeft, Check, ChevronRight, Clock, GraduationCap, MessageSquare, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clock, GraduationCap, HelpCircle, MessageSquare, Route, Sparkles, Target, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   DEFAULT_TRAINING_PROGRAMS,
   formatTrainingPrice,
+  getTrainingProgramCta,
   getTrainingProgramPriceLabel,
   trainingPaymentLabels,
   trainingStatusLabels,
@@ -29,6 +30,55 @@ const getSafeDate = (value?: string | null) => {
 
 const getGroupPlacesLeft = (group: TrainingGroup) => Math.max((group.capacity || 0) - (group.taken || 0), 0);
 
+const TRAINING_PATH = [
+  { title: 'База', text: 'Структура колоды, арканы, логика чтения и безопасный вход в практику.' },
+  { title: 'Практика', text: 'Первые расклады, вопросы, связки карт и разбор реальных ситуаций.' },
+  { title: 'Этика', text: 'Как консультировать бережно: границы, формулировки и ответственность.' },
+  { title: 'Самостоятельность', text: 'Собираем личный стиль чтения и понятный план дальнейшей практики.' },
+];
+
+const TRAINING_RESULTS = [
+  'понимать структуру колоды без зубрёжки',
+  'читать простые и сложные расклады спокойнее',
+  'формулировать вопросы и видеть связки карт',
+  'практиковать без мистического шума и страха ошибиться',
+];
+
+const FIT_ITEMS = [
+  { title: 'Подходит', text: 'если хочется бережно войти в Таро, получить структуру и практику.' },
+  { title: 'Не подходит', text: 'если нужен быстрый “сертификат без участия” или обещание магического результата.' },
+];
+
+const QUIZ_STEPS = [
+  {
+    id: 'level',
+    title: 'Какой у вас опыт?',
+    options: [
+      { id: 'new', label: 'Я начинаю с нуля' },
+      { id: 'base', label: 'Знаю часть арканов' },
+      { id: 'practice', label: 'Уже делаю расклады' },
+    ],
+  },
+  {
+    id: 'format',
+    title: 'Как комфортнее учиться?',
+    options: [
+      { id: 'personal', label: 'Лично и глубже' },
+      { id: 'group', label: 'В группе и с ритмом' },
+      { id: 'unsure', label: 'Пока не знаю' },
+    ],
+  },
+  {
+    id: 'goal',
+    title: 'Что хочется получить?',
+    options: [
+      { id: 'start', label: 'Спокойный старт' },
+      { id: 'system', label: 'Систему и практику' },
+      { id: 'deep', label: 'Разбор сложных тем' },
+    ],
+  },
+];
+
 export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }: TrainingDashboardProps) => {
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [groups, setGroups] = useState<TrainingGroup[]>([]);
@@ -39,6 +89,10 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [clientComment, setClientComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizRecommendation, setQuizRecommendation] = useState<TrainingProgram | null>(null);
+  const [enrollmentKind, setEnrollmentKind] = useState<'application' | 'waitlist'>('application');
 
   useEffect(() => {
     loadTrainingData();
@@ -91,6 +145,35 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     groups.filter(group => group.program_id === programId && group.status === 'open' && getGroupPlacesLeft(group) > 0)
   );
 
+  const pickProgramBySlug = (slug: string) => programs.find(program => program.slug === slug) || programs[0] || null;
+
+  const getRecommendedProgram = (answers: Record<string, string>) => {
+    if (answers.format === 'group') return pickProgramBySlug('group-basic');
+    if (answers.level === 'practice' || answers.goal === 'deep') return pickProgramBySlug('individual-advanced');
+    if (answers.goal === 'system' && answers.format === 'personal') return pickProgramBySlug('individual-advanced');
+    return pickProgramBySlug('individual-basic');
+  };
+
+  const handleQuizAnswer = (stepId: string, optionId: string) => {
+    const nextAnswers = { ...quizAnswers, [stepId]: optionId };
+    setQuizAnswers(nextAnswers);
+
+    if (QUIZ_STEPS.every(step => nextAnswers[step.id])) {
+      const recommendation = getRecommendedProgram(nextAnswers);
+      setQuizRecommendation(recommendation);
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+    }
+  };
+
+  const openEnrollment = (program: TrainingProgram, kind: 'application' | 'waitlist' = 'application') => {
+    const programGroups = getProgramGroups(program.id);
+    setSelectedProgram(program);
+    setSelectedGroupId(kind === 'waitlist' ? '' : programGroups[0]?.id || '');
+    setPreferredStart('');
+    setClientComment(kind === 'waitlist' ? 'Хочу попасть в лист ожидания на ближайший поток.' : '');
+    setEnrollmentKind(kind);
+  };
+
   const getAdminTelegramIds = async () => {
     const { data } = await supabase
       .from('users')
@@ -113,7 +196,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         user_id: user.id,
         program_id: selectedProgram.id,
         group_id: groupId,
-        status: 'pending',
+        status: enrollmentKind === 'waitlist' ? 'waitlist' : 'pending',
         payment_status: 'not_requested',
         final_price: selectedProgram.price,
         preferred_start: preferredStart || null,
@@ -141,8 +224,12 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
       setSelectedGroupId('');
       setPreferredStart('');
       setClientComment('');
+      setEnrollmentKind('application');
       await loadTrainingData();
-      alert('Заявка на обучение отправлена. Я свяжусь с вами и подтвержу детали.');
+      alert(enrollmentKind === 'waitlist'
+        ? 'Готово: добавил(а) вас в лист ожидания. Я сообщу, когда откроется новый поток.'
+        : 'Заявка на обучение отправлена. Я свяжусь с вами и подтвержу детали.'
+      );
     } catch (error) {
       console.error('Ошибка заявки на обучение:', error);
       alert(`Не удалось отправить заявку: ${error instanceof Error ? error.message : 'проверьте подключение'}`);
@@ -186,12 +273,74 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           <p className="mb-3 text-xs font-black uppercase tracking-[0.28em] text-[#F4E7C8]">tarot academy</p>
           <h1 className="text-4xl font-black leading-none">Обучение Таро</h1>
           <p className="mt-4 text-sm font-semibold leading-relaxed text-white/78">
-            Индивидуальные и групповые форматы: база, практика, этика чтения и уверенность в раскладах.
+            Не просто “курс”, а персональный маршрут: понять ваш уровень, выбрать темп и довести до уверенной практики.
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2">
             {['лично', 'группа', 'практика'].map(item => (
               <div key={item} className="rounded-2xl bg-white/12 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.12em] text-white/80">
                 {item}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowQuiz(true);
+              setQuizAnswers({});
+              setQuizRecommendation(null);
+            }}
+            className="mt-5 flex w-full items-center justify-center rounded-2xl bg-white py-4 font-black text-[#385144] shadow-[0_14px_32px_rgba(0,0,0,0.10)]"
+          >
+            <HelpCircle className="mr-2 h-5 w-5" />
+            Подобрать обучение
+          </button>
+        </section>
+
+        <section className="mb-5 rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.10)]">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">learning route</p>
+              <h2 className="text-2xl font-black text-[#385144]">Маршрут обучения</h2>
+            </div>
+            <Route className="h-6 w-6 text-[#B8795C]" />
+          </div>
+          <div className="space-y-3">
+            {TRAINING_PATH.map((step, index) => (
+              <div key={step.title} className="flex gap-3 rounded-2xl bg-[#F8F3EC] p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#385144] text-sm font-black text-white">
+                  {index + 1}
+                </div>
+                <div>
+                  <p className="font-black text-[#385144]">{step.title}</p>
+                  <p className="mt-1 text-sm font-semibold leading-relaxed text-[#657066]">{step.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-5 grid grid-cols-1 gap-3">
+          <div className="rounded-[1.8rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">result</p>
+            <h2 className="mb-4 flex items-center text-2xl font-black text-[#385144]">
+              <Target className="mr-2 h-6 w-6 text-[#B8795C]" />
+              После обучения вы сможете
+            </h2>
+            <div className="grid grid-cols-1 gap-2">
+              {TRAINING_RESULTS.map(result => (
+                <div key={result} className="flex items-start rounded-2xl bg-[#F8F3EC] p-3 text-sm font-black text-[#385144]">
+                  <Check className="mr-2 mt-0.5 h-4 w-4 shrink-0 text-[#B8795C]" />
+                  {result}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {FIT_ITEMS.map(item => (
+              <div key={item.title} className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4 shadow-sm">
+                <p className="mb-2 text-lg font-black text-[#385144]">{item.title}</p>
+                <p className="text-xs font-semibold leading-relaxed text-[#657066]">{item.text}</p>
               </div>
             ))}
           </div>
@@ -294,15 +443,10 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedProgram(program);
-                    setSelectedGroupId(programGroups[0]?.id || '');
-                    setPreferredStart('');
-                    setClientComment('');
-                  }}
+                  onClick={() => openEnrollment(program, program.is_group && programGroups.length === 0 ? 'waitlist' : 'application')}
                   className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_32px_rgba(56,81,68,0.18)]"
                 >
-                  Оставить заявку
+                  {getTrainingProgramCta(program, programGroups.length > 0)}
                   <ChevronRight className="ml-2 h-5 w-5" />
                 </button>
               </article>
@@ -319,7 +463,9 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">заявка на обучение</p>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">
+                  {enrollmentKind === 'waitlist' ? 'лист ожидания' : 'обсуждение формата'}
+                </p>
                 <h3 className="mt-1 text-2xl font-black text-[#385144]">{selectedProgram.title}</h3>
               </div>
               <button
@@ -384,10 +530,78 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
               disabled={submitting}
               className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white disabled:opacity-60"
             >
-              {submitting ? 'Отправляю...' : 'Отправить заявку'}
+              {submitting ? 'Отправляю...' : enrollmentKind === 'waitlist' ? 'Встать в лист ожидания' : 'Отправить заявку'}
               {!submitting && <Sparkles className="ml-2 h-5 w-5 text-[#F4E7C8]" />}
             </button>
           </form>
+        </div>
+      )}
+
+      {showQuiz && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/42 p-4 backdrop-blur-sm">
+          <div className="mx-auto max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#F8F3EC] p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">academy quiz</p>
+                <h3 className="mt-1 text-2xl font-black text-[#385144]">Подберём маршрут</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuiz(false)}
+                className="rounded-2xl bg-white px-4 py-2 font-black text-[#385144]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {QUIZ_STEPS.map(step => (
+                <div key={step.id} className="rounded-[1.4rem] bg-white/80 p-4">
+                  <p className="mb-3 font-black text-[#385144]">{step.title}</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {step.options.map(option => {
+                      const selected = quizAnswers[step.id] === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => handleQuizAnswer(step.id, option.id)}
+                          className={`rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
+                            selected
+                              ? 'bg-[#385144] text-white'
+                              : 'bg-[#F8F3EC] text-[#385144]'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {quizRecommendation && (
+              <div className="mt-4 rounded-[1.5rem] bg-[#385144] p-5 text-white">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#F4E7C8]">рекомендация</p>
+                <h4 className="mt-2 text-2xl font-black">{quizRecommendation.title}</h4>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-white/75">{quizRecommendation.description}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuiz(false);
+                    openEnrollment(
+                      quizRecommendation,
+                      quizRecommendation.is_group && getProgramGroups(quizRecommendation.id).length === 0 ? 'waitlist' : 'application'
+                    );
+                  }}
+                  className="mt-4 w-full rounded-2xl bg-white py-3 font-black text-[#385144]"
+                >
+                  {getTrainingProgramCta(quizRecommendation, getProgramGroups(quizRecommendation.id).length > 0)}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

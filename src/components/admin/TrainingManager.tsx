@@ -39,7 +39,7 @@ const getSafeDate = (value?: string | null) => {
 };
 
 const groupStatuses = ['open', 'full', 'closed', 'started', 'completed'];
-const enrollmentStatuses = ['pending', 'contacted', 'awaiting_payment', 'enrolled', 'completed', 'cancelled'];
+const enrollmentStatuses = ['pending', 'waitlist', 'diagnostic', 'contacted', 'awaiting_payment', 'enrolled', 'completed', 'cancelled'];
 const paymentStatuses = ['not_requested', 'requested', 'marked_paid', 'paid'];
 
 export const TrainingManager = () => {
@@ -111,7 +111,7 @@ export const TrainingManager = () => {
 
   const stats = useMemo(() => {
     const activeGroups = groups.filter(group => ['open', 'full'].includes(group.status)).length;
-    const pending = enrollments.filter(enrollment => enrollment.status === 'pending').length;
+    const pending = enrollments.filter(enrollment => ['pending', 'waitlist', 'diagnostic'].includes(enrollment.status)).length;
     const enrolled = enrollments.filter(enrollment => enrollment.status === 'enrolled').length;
     const money = enrollments
       .filter(enrollment => ['requested', 'marked_paid'].includes(enrollment.payment_status))

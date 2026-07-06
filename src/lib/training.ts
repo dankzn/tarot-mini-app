@@ -84,6 +84,8 @@ export const DEFAULT_TRAINING_PROGRAMS: TrainingProgram[] = [
 
 export const trainingStatusLabels: Record<string, string> = {
   pending: 'Заявка получена',
+  waitlist: 'Лист ожидания',
+  diagnostic: 'На диагностике',
   contacted: 'На связи',
   awaiting_payment: 'Ожидает оплаты',
   enrolled: 'Зачислен(а)',
@@ -113,3 +115,11 @@ export const getTrainingProgramPriceLabel = (program: TrainingProgram) => (
     ? `${formatTrainingPrice(program.price)} с человека`
     : formatTrainingPrice(program.price)
 );
+
+export const getTrainingProgramCta = (program: TrainingProgram, hasOpenGroup = false) => {
+  if (program.is_group) {
+    return hasOpenGroup ? 'Занять место в группе' : 'В лист ожидания';
+  }
+
+  return 'Обсудить формат';
+};
