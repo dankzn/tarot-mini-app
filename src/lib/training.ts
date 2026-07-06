@@ -103,14 +103,18 @@ export const DEFAULT_TRAINING_PROGRAMS: TrainingProgram[] = [
 ];
 
 export const trainingStatusLabels: Record<string, string> = {
-  pending: 'Заявка получена',
-  waitlist: 'Лист ожидания',
-  diagnostic: 'На диагностике',
-  contacted: 'На связи',
-  awaiting_payment: 'Ожидает оплаты',
-  enrolled: 'Зачислен(а)',
-  completed: 'Обучение завершено',
+  pending: 'Заявка подана',
+  details: 'Уточнение деталей',
+  contract: 'Подписание договора',
+  enrolled: 'Зачисление',
+  learning: 'Обучение',
+  completed: 'Курс завершён',
+  expelled: 'Отчислен(а)',
   cancelled: 'Отменено',
+  waitlist: 'Лист ожидания',
+  diagnostic: 'Уточнение деталей',
+  contacted: 'Уточнение деталей',
+  awaiting_payment: 'Подписание договора',
 };
 
 export const trainingPaymentLabels: Record<string, string> = {

@@ -42,9 +42,24 @@ const getSafeDate = (value?: string | null) => {
 };
 
 const groupStatuses = ['open', 'full', 'closed', 'started', 'completed'];
-const enrollmentStatuses = ['pending', 'waitlist', 'diagnostic', 'contacted', 'awaiting_payment', 'enrolled', 'completed', 'cancelled'];
+const enrollmentStatuses = ['pending', 'details', 'contract', 'enrolled', 'learning', 'completed', 'expelled', 'cancelled'];
 const paymentStatuses = ['not_requested', 'requested', 'marked_paid', 'paid'];
 const homeworkStatuses = ['not_started', 'assigned', 'submitted', 'accepted', 'revise'];
+const activeStudentStatuses = ['enrolled', 'learning', 'completed'];
+
+const createEmptyProgramForm = () => ({
+  id: '',
+  slug: '',
+  title: '',
+  format_type: 'individual',
+  description: '',
+  price: 0,
+  duration_label: '',
+  includes_text: '',
+  is_group: false,
+  is_active: true,
+  sort_order: 100,
+});
 
 export const TrainingManager = () => {
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
@@ -55,6 +70,7 @@ export const TrainingManager = () => {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState('');
+  const [programForm, setProgramForm] = useState(createEmptyProgramForm());
   const [groupForm, setGroupForm] = useState({
     program_id: '',
     title: '',
@@ -148,8 +164,8 @@ export const TrainingManager = () => {
 
   const stats = useMemo(() => {
     const activeGroups = groups.filter(group => ['open', 'full'].includes(group.status)).length;
-    const pending = enrollments.filter(enrollment => ['pending', 'waitlist', 'diagnostic'].includes(enrollment.status)).length;
-    const enrolled = enrollments.filter(enrollment => enrollment.status === 'enrolled').length;
+    const pending = enrollments.filter(enrollment => ['pending', 'details', 'contract'].includes(enrollment.status)).length;
+    const enrolled = enrollments.filter(enrollment => activeStudentStatuses.includes(enrollment.status)).length;
     const money = enrollments
       .filter(enrollment => ['requested', 'marked_paid'].includes(enrollment.payment_status))
       .reduce((sum, enrollment) => sum + (enrollment.final_price || 0), 0);
@@ -163,7 +179,7 @@ export const TrainingManager = () => {
     : [];
   const selectedGroupStudents = selectedGroup
     ? enrollments.filter(enrollment => (
-      enrollment.group_id === selectedGroup.id && ['enrolled', 'completed'].includes(enrollment.status)
+      enrollment.group_id === selectedGroup.id && activeStudentStatuses.includes(enrollment.status)
     ))
     : [];
   const selectedGroupProgress = selectedGroupStudents.flatMap(enrollment => (
@@ -176,6 +192,75 @@ export const TrainingManager = () => {
   const getLessonProgress = (lessonId: string, enrollmentId: string) => (
     lessonProgress.find(progress => progress.lesson_id === lessonId && progress.enrollment_id === enrollmentId)
   );
+  const getIncompleteHomeworkCount = (enrollment: TrainingEnrollment) => (
+    lessons
+      .filter(lesson => lesson.group_id === enrollment.group_id && (lesson.homework_title || lesson.homework_description))
+      .filter(lesson => getLessonProgress(lesson.id, enrollment.id)?.homework_status !== 'accepted')
+      .length
+  );
+
+  const editProgram = (program: TrainingProgram) => {
+    setProgramForm({
+      id: program.id,
+      slug: program.slug,
+      title: program.title,
+      format_type: program.format_type || (program.is_group ? 'group' : 'individual'),
+      description: program.description || '',
+      price: program.price || 0,
+      duration_label: program.duration_label || '',
+      includes_text: (program.includes || []).join(', '),
+      is_group: Boolean(program.is_group),
+      is_active: Boolean(program.is_active),
+      sort_order: program.sort_order || 0,
+    });
+  };
+
+  const resetProgramForm = () => setProgramForm(createEmptyProgramForm());
+
+  const saveProgram = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const payload = {
+      slug: programForm.slug.trim(),
+      title: programForm.title.trim(),
+      format_type: programForm.format_type.trim() || (programForm.is_group ? 'group' : 'individual'),
+      description: programForm.description.trim(),
+      price: Number(programForm.price) || 0,
+      duration_label: programForm.duration_label.trim() || null,
+      includes: programForm.includes_text
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean),
+      is_group: programForm.is_group,
+      is_active: programForm.is_active,
+      sort_order: Number(programForm.sort_order) || 0,
+    };
+
+    const request = programForm.id
+      ? supabase.from('training_programs').update(payload).eq('id', programForm.id)
+      : supabase.from('training_programs').insert([payload]);
+
+    const { error } = await request;
+    if (error) {
+      alert(`Не удалось сохранить курс: ${error.message}`);
+      return;
+    }
+
+    resetProgramForm();
+    await loadData();
+  };
+
+  const deleteProgram = async (program: TrainingProgram) => {
+    if (!confirm(`Удалить курс “${program.title}”? Если есть заявки, лучше выключить курс, а не удалять.`)) return;
+
+    const { error } = await supabase.from('training_programs').delete().eq('id', program.id);
+    if (error) {
+      alert(`Не удалось удалить курс: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+  };
 
   const createGroup = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -206,10 +291,10 @@ export const TrainingManager = () => {
     }
   };
 
-  const updateGroupStatus = async (groupId: string, status: string) => {
+  const updateGroup = async (groupId: string, payload: Record<string, any>) => {
     const { error } = await supabase
       .from('training_groups')
-      .update({ status })
+      .update(payload)
       .eq('id', groupId);
 
     if (error) {
@@ -387,18 +472,148 @@ export const TrainingManager = () => {
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">training products</p>
-            <h2 className="text-2xl font-black text-[#385144]">Программы обучения</h2>
+            <h2 className="text-2xl font-black text-[#385144]">Курсы и программы</h2>
+            <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+              Здесь можно создать курс, поменять описание, цену, состав программы и скрыть его с витрины.
+            </p>
           </div>
         </div>
+
+        <form onSubmit={saveProgram} className="mb-5 rounded-[1.35rem] bg-[#F8F3EC] p-4">
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]">
+                {programForm.id ? 'редактирование курса' : 'новый курс'}
+              </p>
+              <h3 className="text-lg font-black text-[#385144]">
+                {programForm.id ? programForm.title || 'Курс' : 'Добавить программу обучения'}
+              </h3>
+            </div>
+            {programForm.id && (
+              <button
+                type="button"
+                onClick={resetProgramForm}
+                className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-[#385144]"
+              >
+                Новый курс
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+            <input
+              value={programForm.title}
+              onChange={(event) => setProgramForm({ ...programForm, title: event.target.value })}
+              className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+              placeholder="Название курса"
+              required
+            />
+            <input
+              value={programForm.slug}
+              onChange={(event) => setProgramForm({ ...programForm, slug: event.target.value })}
+              className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+              placeholder="slug"
+              required
+            />
+            <input
+              type="number"
+              min={0}
+              value={programForm.price}
+              onChange={(event) => setProgramForm({ ...programForm, price: Number(event.target.value) })}
+              className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+              placeholder="Цена"
+              required
+            />
+            <input
+              value={programForm.duration_label}
+              onChange={(event) => setProgramForm({ ...programForm, duration_label: event.target.value })}
+              className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+              placeholder="Темп/длительность"
+            />
+            <input
+              type="number"
+              value={programForm.sort_order}
+              onChange={(event) => setProgramForm({ ...programForm, sort_order: Number(event.target.value) })}
+              className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+              placeholder="Сорт."
+            />
+            <textarea
+              value={programForm.description}
+              onChange={(event) => setProgramForm({ ...programForm, description: event.target.value })}
+              className="min-h-24 rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
+              placeholder="Описание курса"
+              required
+            />
+            <textarea
+              value={programForm.includes_text}
+              onChange={(event) => setProgramForm({ ...programForm, includes_text: event.target.value })}
+              className="min-h-24 rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
+              placeholder="Что входит через запятую: занятия, ДЗ, практика..."
+            />
+            <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-black text-[#385144]">
+              <input
+                type="checkbox"
+                checked={programForm.is_group}
+                onChange={(event) => setProgramForm({
+                  ...programForm,
+                  is_group: event.target.checked,
+                  format_type: event.target.checked ? 'group' : 'individual',
+                })}
+              />
+              Групповой курс
+            </label>
+            <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-black text-[#385144]">
+              <input
+                type="checkbox"
+                checked={programForm.is_active}
+                onChange={(event) => setProgramForm({ ...programForm, is_active: event.target.checked })}
+              />
+              Показывать клиентам
+            </label>
+            <button className="flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 font-black text-white md:col-span-2">
+              <Save className="mr-2 h-4 w-4" />
+              {programForm.id ? 'Сохранить курс' : 'Добавить курс'}
+            </button>
+          </div>
+        </form>
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {programs.map(program => (
             <div key={program.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
-              <p className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#B8795C]">
-                {program.is_group ? 'групповое' : 'индивидуальное'}
-              </p>
-              <h3 className="font-black leading-tight text-[#385144]">{program.title}</h3>
-              <p className="mt-2 text-xl font-black text-[#8A5A3F]">{getTrainingProgramPriceLabel(program)}</p>
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#B8795C]">
+                    {program.is_group ? 'групповое' : 'индивидуальное'} · {program.is_active ? 'на витрине' : 'скрыто'}
+                  </p>
+                  <h3 className="font-black leading-tight text-[#385144]">{program.title}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteProgram(program)}
+                  className="rounded-full bg-white p-2 text-red-500"
+                  title="Удалить курс"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xl font-black text-[#8A5A3F]">{getTrainingProgramPriceLabel(program)}</p>
               <p className="mt-2 text-xs font-semibold leading-relaxed text-[#6C756C]">{program.description}</p>
+              {(program.includes || []).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {(program.includes || []).slice(0, 4).map(item => (
+                    <span key={item} className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#385144]">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => editProgram(program)}
+                className="mt-3 w-full rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144]"
+              >
+                Редактировать
+              </button>
             </div>
           ))}
         </div>
@@ -736,7 +951,7 @@ export const TrainingManager = () => {
                     </span>
                     <select
                       value={group.status}
-                      onChange={(event) => updateGroupStatus(group.id, event.target.value)}
+                      onChange={(event) => updateGroup(group.id, { status: event.target.value })}
                       className="rounded-full border border-[#385144]/10 bg-white px-3 py-1 text-xs font-black text-[#385144]"
                     >
                       {groupStatuses.map(status => (
@@ -752,7 +967,46 @@ export const TrainingManager = () => {
                     </button>
                   </div>
                 </div>
-                {group.notes && <p className="text-sm font-semibold text-[#6C756C]">{group.notes}</p>}
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
+                  <input
+                    defaultValue={group.title}
+                    onBlur={(event) => updateGroup(group.id, { title: event.target.value })}
+                    className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144] md:col-span-2"
+                    placeholder="Название группы"
+                  />
+                  <select
+                    defaultValue={group.program_id}
+                    onChange={(event) => updateGroup(group.id, { program_id: event.target.value })}
+                    className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144] md:col-span-2"
+                  >
+                    {programs.filter(item => item.is_group).map(item => (
+                      <option key={item.id} value={item.id}>{item.title}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="datetime-local"
+                    defaultValue={toDateTimeLocal(group.starts_at)}
+                    onBlur={(event) => updateGroup(group.id, { starts_at: fromDateTimeLocal(event.target.value) })}
+                    className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    defaultValue={group.capacity}
+                    onBlur={(event) => updateGroup(group.id, { capacity: Number(event.target.value) || 1 })}
+                    className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144]"
+                    placeholder="Мест"
+                  />
+                  <textarea
+                    defaultValue={group.notes || ''}
+                    onBlur={(event) => updateGroup(group.id, { notes: event.target.value || null })}
+                    className="rounded-xl border border-[#385144]/10 bg-white p-3 text-sm font-bold text-[#385144] md:col-span-6"
+                    placeholder="Заметка по группе"
+                  />
+                </div>
+                <p className="mt-2 text-xs font-semibold text-[#8FA092]">
+                  Дату старта, численность и программу можно менять прямо здесь. Ученики переносятся в блоке заявок через поле “группа”.
+                </p>
               </div>
             );
           })}
@@ -770,7 +1024,14 @@ export const TrainingManager = () => {
             <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
               Заявок на обучение пока нет.
             </div>
-          ) : enrollments.map(enrollment => (
+          ) : enrollments.map(enrollment => {
+            const statusOptions = enrollmentStatuses.includes(enrollment.status)
+              ? enrollmentStatuses
+              : [enrollment.status, ...enrollmentStatuses];
+            const incompleteHomeworkCount = getIncompleteHomeworkCount(enrollment);
+            const canExpel = activeStudentStatuses.includes(enrollment.status) && incompleteHomeworkCount >= 5;
+
+            return (
             <div key={enrollment.id} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
@@ -799,7 +1060,7 @@ export const TrainingManager = () => {
                   onChange={(event) => updateEnrollment(enrollment.id, { status: event.target.value })}
                   className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
                 >
-                  {enrollmentStatuses.map(status => (
+                  {statusOptions.map(status => (
                     <option key={status} value={status}>{trainingStatusLabels[status] || status}</option>
                   ))}
                 </select>
@@ -835,7 +1096,12 @@ export const TrainingManager = () => {
                   placeholder="Внутренняя заметка по ученику: темп, особенности, договорённости"
                 />
               </div>
-              {enrollment.status !== 'enrolled' && enrollment.status !== 'completed' && (
+              {canExpel && (
+                <div className="mt-3 rounded-2xl border border-[#B8795C]/25 bg-[#FFF9F0] p-3 text-sm font-bold text-[#8A5A3F]">
+                  У ученика {incompleteHomeworkCount} невыполненных домашних заданий. Можно отчислить отдельным действием.
+                </div>
+              )}
+              {!activeStudentStatuses.includes(enrollment.status) && enrollment.status !== 'expelled' && enrollment.status !== 'cancelled' && (
                 <button
                   type="button"
                   onClick={() => enrollStudent(enrollment)}
@@ -844,7 +1110,16 @@ export const TrainingManager = () => {
                   Зачислить на курс
                 </button>
               )}
-              {enrollment.group_id && ['enrolled', 'completed'].includes(enrollment.status) && (
+              {canExpel && (
+                <button
+                  type="button"
+                  onClick={() => updateEnrollment(enrollment.id, { status: 'expelled' })}
+                  className="mt-3 w-full rounded-2xl bg-[#8A5A3F] px-4 py-3 font-black text-white shadow-[0_12px_28px_rgba(138,90,63,0.18)]"
+                >
+                  Отчислить ученика
+                </button>
+              )}
+              {enrollment.group_id && activeStudentStatuses.includes(enrollment.status) && (
                 <div className="mt-3 rounded-2xl bg-white/70 p-3">
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Прогресс ученика</p>
                   <div className="space-y-2">
@@ -877,7 +1152,8 @@ export const TrainingManager = () => {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>

@@ -209,7 +209,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   };
 
   const activeStudentEnrollment = enrollments.find(enrollment => (
-    ['enrolled', 'completed'].includes(enrollment.status) && enrollment.group_id
+    ['enrolled', 'learning', 'completed'].includes(enrollment.status) && enrollment.group_id
   ));
 
   useEffect(() => {
@@ -299,7 +299,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         user_id: user.id,
         program_id: selectedProgram.id,
         group_id: groupId,
-        status: enrollmentKind === 'waitlist' ? 'waitlist' : 'pending',
+        status: 'pending',
         payment_status: 'not_requested',
         final_price: selectedProgram.price,
         preferred_start: preferredStart || null,

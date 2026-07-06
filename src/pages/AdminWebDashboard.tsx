@@ -177,7 +177,7 @@ export const AdminWebDashboard = () => {
         clientCountered: consultationsData?.filter(c => c.scheduling_status === 'client_countered').length || 0,
         activeCampaigns,
         moneyInWork,
-        trainingPending: enrollmentsData.filter(enrollment => ['pending', 'diagnostic'].includes(enrollment.status)).length,
+        trainingPending: enrollmentsData.filter(enrollment => ['pending', 'details', 'contract'].includes(enrollment.status)).length,
         trainingWaitlist: enrollmentsData.filter(enrollment => enrollment.status === 'waitlist').length,
       });
 
