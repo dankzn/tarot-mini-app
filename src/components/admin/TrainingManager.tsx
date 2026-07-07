@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { BookOpen, CalendarDays, CheckCircle2, GraduationCap, Plus, Save, Trash2, Users } from 'lucide-react';
+import { BookOpen, CalendarDays, CheckCircle2, GraduationCap, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
   DEFAULT_TRAINING_PROGRAMS,
@@ -73,6 +73,7 @@ export const TrainingManager = () => {
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState('');
   const [activeSection, setActiveSection] = useState<AdminTrainingSection>('enrollments');
+  const [isProgramEditorOpen, setProgramEditorOpen] = useState(false);
   const [programForm, setProgramForm] = useState(createEmptyProgramForm());
   const [groupForm, setGroupForm] = useState({
     program_id: '',
@@ -216,9 +217,20 @@ export const TrainingManager = () => {
       is_active: Boolean(program.is_active),
       sort_order: program.sort_order || 0,
     });
+    setProgramEditorOpen(true);
   };
 
   const resetProgramForm = () => setProgramForm(createEmptyProgramForm());
+
+  const openNewProgramEditor = () => {
+    resetProgramForm();
+    setProgramEditorOpen(true);
+  };
+
+  const closeProgramEditor = () => {
+    resetProgramForm();
+    setProgramEditorOpen(false);
+  };
 
   const saveProgram = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -250,6 +262,7 @@ export const TrainingManager = () => {
     }
 
     resetProgramForm();
+    setProgramEditorOpen(false);
     await loadData();
   };
 
@@ -526,9 +539,41 @@ export const TrainingManager = () => {
               Здесь можно создать курс, поменять описание, цену, состав программы и скрыть его с витрины.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={openNewProgramEditor}
+            className="shrink-0 rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#2d4238]"
+          >
+            <Plus className="mr-2 inline h-4 w-4" />
+            Добавить курс
+          </button>
         </div>
 
-        <form onSubmit={saveProgram} className="mb-5 rounded-[1.35rem] bg-[#F8F3EC] p-4">
+        {isProgramEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1F2E27]/45 p-3 backdrop-blur-sm md:items-center">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[#FFFCF7] p-5 shadow-2xl md:p-6">
+            <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-start justify-between gap-4 border-b border-[#385144]/10 bg-[#FFFCF7]/95 px-5 py-4 backdrop-blur md:-mx-6 md:-mt-6 md:px-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]/75">
+                  {programForm.id ? 'course editor' : 'new course'}
+                </p>
+                <h3 className="mt-1 text-2xl font-black text-[#385144]">
+                  {programForm.id ? programForm.title || 'Редактировать курс' : 'Добавить программу обучения'}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                  Цена, описание и видимость курса обновятся в витрине академии.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeProgramEditor}
+                className="rounded-2xl bg-white p-3 text-[#385144] shadow-sm transition hover:bg-[#EAF1EA]"
+                aria-label="Закрыть редактор курса"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+        <form onSubmit={saveProgram} className="rounded-[1.35rem] bg-[#F8F3EC] p-4">
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]">
@@ -625,6 +670,9 @@ export const TrainingManager = () => {
             </button>
           </div>
         </form>
+          </div>
+        </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {programs.map(program => (
