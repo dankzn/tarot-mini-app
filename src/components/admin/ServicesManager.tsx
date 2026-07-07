@@ -390,10 +390,6 @@ export const ServicesManager = () => {
       sort_order: service.sort_order || 0,
     });
     setShowForm(true);
-
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 100);
   };
 
   const handleDelete = async (id: string) => {
@@ -541,10 +537,29 @@ export const ServicesManager = () => {
       </div>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-bold text-[#385144] mb-4">
-            {editingId ? 'Редактировать услугу' : 'Новая услуга'}
-          </h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1F2E27]/45 p-3 backdrop-blur-sm md:items-center">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[#FFFCF7] p-5 shadow-2xl md:p-6">
+            <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-start justify-between gap-4 border-b border-[#385144]/10 bg-[#FFFCF7]/95 px-5 py-4 backdrop-blur md:-mx-6 md:-mt-6 md:px-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]/75">
+                  {editingId ? 'service editor' : 'new service'}
+                </p>
+                <h3 className="mt-1 text-2xl font-black text-[#385144]">
+                  {editingId ? 'Редактировать услугу' : 'Новая услуга'}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                  Карточка открыта поверх админки — изменения сохраняются сразу в витрину.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded-2xl bg-white p-3 text-[#385144] shadow-sm transition hover:bg-[#EAF1EA]"
+                aria-label="Закрыть редактор услуги"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">
@@ -847,6 +862,7 @@ export const ServicesManager = () => {
               </button>
             </div>
           </form>
+          </div>
         </div>
       )}
 
