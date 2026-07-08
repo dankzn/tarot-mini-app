@@ -67,6 +67,43 @@ const activeStudentStatuses = ['enrolled', 'learning', 'completed'];
 
 type AdminTrainingSection = 'enrollments' | 'programs' | 'groups' | 'journal';
 
+const TRAINING_LESSON_TEMPLATES: Record<string, Array<{ title: string; homework: string }>> = {
+  'individual-basic': [
+    { title: 'Введение в Таро и структура колоды', homework: 'Познакомиться с колодой и сделать расклад на 1 карту на день' },
+    { title: 'Старшие арканы', homework: 'Описать 5 Старших арканов своими словами' },
+    { title: 'Младшие арканы и масти', homework: 'Разобрать масти через эмоции, ситуации и примеры' },
+    { title: 'Числовые карты', homework: 'Сделать 3 расклада “ситуация — совет — итог”' },
+    { title: 'Придворные карты', homework: 'Подобрать примеры людей/ролей к придворным картам' },
+    { title: 'Простые расклады', homework: 'Сделать 3 расклада на состояние, выбор и ближайшую ситуацию' },
+    { title: 'Формулировка вопросов и ошибки новичков', homework: 'Переформулировать 10 вопросов и сделать расклад по одному из них' },
+    { title: 'Итоговая практика', homework: 'Итоговый самостоятельный расклад с письменной трактовкой' },
+  ],
+  'group-basic': [
+    { title: 'Введение в Таро и структура колоды', homework: 'Познакомиться с колодой и сделать расклад на 1 карту на день' },
+    { title: 'Старшие арканы', homework: 'Описать 5 Старших арканов своими словами' },
+    { title: 'Младшие арканы и масти', homework: 'Разобрать масти через эмоции, ситуации и примеры' },
+    { title: 'Числовые карты', homework: 'Сделать 3 расклада “ситуация — совет — итог”' },
+    { title: 'Придворные карты', homework: 'Подобрать примеры людей/ролей к придворным картам' },
+    { title: 'Простые расклады', homework: 'Сделать 3 расклада на состояние, выбор и ближайшую ситуацию' },
+    { title: 'Формулировка вопросов и ошибки новичков', homework: 'Переформулировать 10 вопросов и сделать расклад по одному из них' },
+    { title: 'Итоговая практика', homework: 'Итоговый самостоятельный расклад с письменной трактовкой' },
+  ],
+  'individual-advanced': [
+    { title: 'Повтор базы и диагностика уровня', homework: 'Сделать диагностический расклад и объяснить каждую карту в позиции' },
+    { title: 'Старшие арканы глубже', homework: 'Разобрать 3 Старших аркана на уровнях событие, состояние, совет, риск' },
+    { title: 'Младшие арканы в динамике', homework: 'Описать динамику ситуации от первой карты к последней' },
+    { title: 'Связки карт', homework: 'Разобрать 10 связок из двух карт и 5 связок из трёх карт' },
+    { title: 'Придворные карты глубже', homework: 'Сделать расклад на взаимодействие двух людей и определить роли' },
+    { title: 'Сложные расклады', homework: 'Составить схему расклада под конкретный вопрос' },
+    { title: 'Отношения и личные запросы', homework: 'Сделать расклад на отношения и прописать бережную подачу результата' },
+    { title: 'Работа, деньги и выбор', homework: 'Сделать расклад на выбор из двух вариантов' },
+    { title: 'Сложные карты без страха', homework: 'Написать мягкие трактовки для 5 сложных карт' },
+    { title: 'Структура консультации', homework: 'Подготовить письменный сценарий консультации' },
+    { title: 'Практика на реальных запросах', homework: 'Провести тренировочный расклад и оформить его как консультацию' },
+    { title: 'Итоговая консультация', homework: 'Финальная письменная работа: расклад, трактовка, выводы и рекомендации' },
+  ],
+};
+
 const createEmptyProgramForm = () => ({
   id: '',
   slug: '',
@@ -446,6 +483,39 @@ export const TrainingManager = () => {
     const { error } = await supabase.from('training_lessons').delete().eq('id', lessonId);
     if (error) {
       alert(`Не удалось удалить занятие: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+  };
+
+  const seedLessonsFromProgram = async () => {
+    if (!selectedGroup) return;
+    if (selectedGroupLessons.length > 0 && !confirm('В группе уже есть занятия. Добавить шаблонные занятия в конец списка?')) return;
+
+    const program = programs.find(item => item.id === selectedGroup.program_id);
+    const template = TRAINING_LESSON_TEMPLATES[program?.slug || ''] || TRAINING_LESSON_TEMPLATES['group-basic'];
+    const startDate = getSafeDate(selectedGroup.starts_at) || new Date();
+    const existingMaxSort = selectedGroupLessons.reduce((max, lesson) => Math.max(max, lesson.sort_order || 0), 0);
+
+    const payload = template.map((lesson, index) => {
+      const lessonDate = new Date(startDate);
+      lessonDate.setDate(startDate.getDate() + index * 7);
+
+      return {
+        group_id: selectedGroup.id,
+        title: lesson.title,
+        description: `Модуль ${index + 1}: ${lesson.title}`,
+        lesson_at: lessonDate.toISOString(),
+        homework_title: `ДЗ ${index + 1}`,
+        homework_description: lesson.homework,
+        sort_order: existingMaxSort + index + 1,
+      };
+    });
+
+    const { error } = await supabase.from('training_lessons').insert(payload);
+    if (error) {
+      alert(`Не удалось собрать журнал из программы: ${error.message}`);
       return;
     }
 
@@ -836,7 +906,14 @@ export const TrainingManager = () => {
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]">новое занятие</p>
                   <h3 className="text-lg font-black text-[#385144]">Добавить занятие и ДЗ</h3>
                 </div>
-                <BookOpen className="h-5 w-5 text-[#B8795C]" />
+                <button
+                  type="button"
+                  onClick={seedLessonsFromProgram}
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144] shadow-sm transition hover:bg-[#EAF1EA]"
+                >
+                  <BookOpen className="mr-2 inline h-4 w-4 text-[#B8795C]" />
+                  Собрать журнал из программы
+                </button>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
                 <input
@@ -887,7 +964,7 @@ export const TrainingManager = () => {
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               {selectedGroupLessons.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C] xl:col-span-2">
-                  В этой группе пока нет занятий. Добавьте первое занятие — ученики сразу увидят его в кабинете.
+                  В этой группе пока нет занятий. Нажмите “Собрать журнал из программы” — я создам уроки по плану курса, даты от старта группы и домашки.
                 </div>
               ) : selectedGroupLessons.map(lesson => {
                 const lessonDate = getSafeDate(lesson.lesson_at);
@@ -960,6 +1037,10 @@ export const TrainingManager = () => {
               {selectedGroupStudents.length === 0 ? (
                 <div className="rounded-2xl bg-white/10 p-4 text-sm font-semibold text-white/75">
                   В группе пока нет зачисленных учеников. В заявках ниже выберите группу и статус “Зачислен(а)”.
+                </div>
+              ) : selectedGroupLessons.length === 0 ? (
+                <div className="rounded-2xl bg-white/10 p-4 text-sm font-semibold text-white/75">
+                  Ученик уже есть, но колонок журнала пока нет. Сначала соберите занятия из программы или добавьте урок вручную — после этого появятся даты и ячейки оценок.
                 </div>
               ) : (
                 <div className="space-y-4">
