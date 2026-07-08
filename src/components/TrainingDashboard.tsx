@@ -65,6 +65,77 @@ const TRAINING_RESULTS = [
   'собрать личный стиль практики без мистического шума',
 ];
 
+const PROGRAM_PREVIEWS: Record<string, { format: string; level: string; focus: string; access: string }> = {
+  'individual-basic': {
+    format: '8 занятий + ДЗ',
+    level: 'с нуля',
+    focus: 'база, колода, простые расклады',
+    access: 'подробный план после оплаты',
+  },
+  'group-basic': {
+    format: '8 занятий + ДЗ',
+    level: 'с нуля',
+    focus: 'база, практика в группе, общий ритм',
+    access: 'подробный план после оплаты',
+  },
+  'individual-advanced': {
+    format: '12 занятий + ДЗ',
+    level: 'после базы',
+    focus: 'связки, сложные запросы, консультация',
+    access: 'подробный план после оплаты',
+  },
+};
+
+const PROGRAM_CURRICULUM: Record<string, Array<{ title: string; focus: string }>> = {
+  'individual-basic': [
+    { title: 'Введение в Таро и структура колоды', focus: 'Старшие и Младшие арканы, масти, этика и первые правила работы.' },
+    { title: 'Старшие арканы', focus: 'Основные жизненные этапы, состояния и важные темы без перегруза символикой.' },
+    { title: 'Младшие арканы и масти', focus: 'Жезлы, Кубки, Мечи и Пентакли как сферы жизни и настроение карты.' },
+    { title: 'Числовые карты', focus: 'Логика развития ситуации от Туза до Десятки.' },
+    { title: 'Придворные карты', focus: 'Люди, роли, поведение, состояние и способ действия.' },
+    { title: 'Простые расклады', focus: '1 карта, 3 карты и связный ответ вместо разрозненных значений.' },
+    { title: 'Вопросы и ошибки новичков', focus: 'Корректная формулировка вопросов и спокойная работа со сложными картами.' },
+    { title: 'Итоговая практика', focus: 'Самостоятельный базовый расклад, разбор ошибок и дальнейший путь.' },
+  ],
+  'group-basic': [
+    { title: 'Введение в Таро и структура колоды', focus: 'Старшие и Младшие арканы, масти, этика и первые правила работы.' },
+    { title: 'Старшие арканы', focus: 'Основные жизненные этапы, состояния и важные темы без перегруза символикой.' },
+    { title: 'Младшие арканы и масти', focus: 'Жезлы, Кубки, Мечи и Пентакли как сферы жизни и настроение карты.' },
+    { title: 'Числовые карты', focus: 'Логика развития ситуации от Туза до Десятки.' },
+    { title: 'Придворные карты', focus: 'Люди, роли, поведение, состояние и способ действия.' },
+    { title: 'Простые расклады', focus: '1 карта, 3 карты и связный ответ вместо разрозненных значений.' },
+    { title: 'Вопросы и ошибки новичков', focus: 'Корректная формулировка вопросов и спокойная работа со сложными картами.' },
+    { title: 'Итоговая практика', focus: 'Самостоятельный базовый расклад, разбор ошибок и дальнейший путь.' },
+  ],
+  'individual-advanced': [
+    { title: 'Повтор базы и диагностика уровня', focus: 'Находим слабые места и определяем, что нужно усилить.' },
+    { title: 'Старшие арканы глубже', focus: 'Процессы, кризисы, выборы, внутренние состояния и жизненные этапы.' },
+    { title: 'Младшие арканы в динамике', focus: 'Развитие ситуации, задержки, конфликт, ресурс и результат.' },
+    { title: 'Связки карт', focus: 'Как карты усиливают, смягчают, уточняют или меняют значение друг друга.' },
+    { title: 'Придворные карты глубже', focus: 'Люди, роли, стиль общения и внутреннее состояние в конкретном раскладе.' },
+    { title: 'Сложные расклады', focus: 'Многоуровневые схемы под запрос, а не один расклад на всё.' },
+    { title: 'Отношения и личные запросы', focus: 'Чувства, намерения, конфликт, дистанция и бережная подача результата.' },
+    { title: 'Работа, деньги и выбор', focus: 'Варианты действий, риски, ресурсы и сильная стратегия.' },
+    { title: 'Сложные карты без страха', focus: 'Мягкая профессиональная трактовка карт, которые часто пугают.' },
+    { title: 'Структура консультации', focus: 'Запрос, расклад, чтение карт, выводы, рекомендации и завершение.' },
+    { title: 'Практика на реальных запросах', focus: 'Связность речи, глубина трактовки и уточняющие вопросы.' },
+    { title: 'Итоговая консультация', focus: 'Полный разбор от начала до конца и персональная обратная связь.' },
+  ],
+};
+
+const getProgramPreview = (program: TrainingProgram) => (
+  PROGRAM_PREVIEWS[program.slug] || {
+    format: program.duration_label || 'индивидуальный формат',
+    level: program.is_group ? 'группа' : 'лично',
+    focus: program.description,
+    access: 'подробный план после оплаты',
+  }
+);
+
+const getProgramCurriculum = (program?: TrainingProgram | null) => (
+  program ? PROGRAM_CURRICULUM[program.slug] || [] : []
+);
+
 const QUIZ_STEPS = [
   {
     id: 'level',
@@ -235,6 +306,8 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     const date = getSafeDate(lesson.lesson_at);
     return date && date.getTime() >= Date.now();
   }) || studentLessons.find(lesson => !getProgressForLesson(lesson.id)?.attended);
+  const canViewFullCurriculum = activeStudentEnrollment?.payment_status === 'paid';
+  const fallbackCurriculum = getProgramCurriculum(activeStudentEnrollment?.training_programs);
 
   const openRequests = enrollments.filter(enrollment => !['cancelled', 'completed'].includes(enrollment.status));
 
@@ -501,6 +574,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
               <div className="space-y-3">
                 {programs.map(program => {
                   const tone = getProgramTone(program);
+                  const preview = getProgramPreview(program);
                   const programGroups = getProgramGroups(program.id);
                   const startsAt = getSafeDate(programGroups[0]?.starts_at);
 
@@ -523,6 +597,19 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
 
                       <p className="mb-4 text-sm font-semibold leading-relaxed text-[#657066]">{program.description}</p>
 
+                      <div className="mb-4 grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'формат', value: preview.format },
+                          { label: 'уровень', value: preview.level },
+                          { label: 'фокус', value: preview.focus },
+                        ].map(item => (
+                          <div key={item.label} className="rounded-2xl bg-white/72 p-3">
+                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#A5AEA6]">{item.label}</p>
+                            <p className="mt-1 text-[11px] font-black leading-snug text-[#385144]">{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
                       <div className="mb-4 grid grid-cols-[1fr_auto] gap-3">
                         <div className="rounded-2xl bg-white/76 p-4">
                           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9AA39B]">стоимость</p>
@@ -540,6 +627,10 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                             {item}
                           </span>
                         ))}
+                      </div>
+
+                      <div className="mb-4 rounded-2xl border border-dashed border-[#B8795C]/30 bg-white/54 p-3 text-xs font-black leading-relaxed text-[#8A5A3F]">
+                        {preview.access}: занятия, домашние задания и разборы появятся в личном кабинете студента.
                       </div>
 
                       {program.is_group && (
@@ -658,7 +749,24 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                 <Route className="h-6 w-6 text-[#B8795C]" />
               </div>
 
-              {studentLessons.length === 0 ? (
+              {!canViewFullCurriculum ? (
+                <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4">
+                  <p className="text-sm font-black text-[#385144]">Подробная программа откроется после оплаты</p>
+                  <p className="mt-2 text-sm font-semibold leading-relaxed text-[#6C756C]">
+                    Пока виден только общий маршрут обучения. После подтверждения оплаты здесь появятся занятия, домашние задания и разборы.
+                  </p>
+                </div>
+              ) : studentLessons.length === 0 && fallbackCurriculum.length > 0 ? (
+                <div className="space-y-3">
+                  {fallbackCurriculum.map((lesson, index) => (
+                    <div key={lesson.title} className="rounded-[1.45rem] bg-[#F8F3EC] p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Занятие {index + 1}</p>
+                      <h3 className="mt-1 font-black text-[#385144]">{lesson.title}</h3>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#657066]">{lesson.focus}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : studentLessons.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
                   Пока занятий нет. Когда админ добавит план, он сразу появится здесь: темы, даты, домашки и статусы.
                 </div>
