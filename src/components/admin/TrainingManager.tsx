@@ -41,6 +41,24 @@ const getSafeDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const getHomeworkDeadline = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
+  if (progress?.homework_deadline_extended_until) return getSafeDate(progress.homework_deadline_extended_until);
+  const lessonDate = getSafeDate(lesson.lesson_at);
+  if (!lessonDate) return null;
+  const deadline = new Date(lessonDate);
+  deadline.setDate(deadline.getDate() + 2);
+  deadline.setHours(23, 59, 59, 999);
+  return deadline;
+};
+
+const getJournalCellValue = (progress?: TrainingLessonProgress) => {
+  if (!progress) return '';
+  if (progress.attendance_status === 'absent' || (!progress.attended && progress.attendance_status === 'absent')) return 'absent';
+  if (progress.grade) return String(progress.grade);
+  if (progress.attended || progress.attendance_status === 'attended') return 'attended';
+  return '';
+};
+
 const groupStatuses = ['open', 'full', 'closed', 'started', 'completed'];
 const enrollmentRouteStatuses = ['pending', 'details', 'contract', 'enrolled', 'learning', 'completed'];
 const paymentStatuses = ['not_requested', 'requested', 'marked_paid', 'paid'];
@@ -60,6 +78,7 @@ const createEmptyProgramForm = () => ({
   includes_text: '',
   is_group: false,
   is_active: true,
+  has_certificate: false,
   sort_order: 100,
 });
 
@@ -215,6 +234,7 @@ export const TrainingManager = () => {
       includes_text: (program.includes || []).join(', '),
       is_group: Boolean(program.is_group),
       is_active: Boolean(program.is_active),
+      has_certificate: Boolean(program.has_certificate),
       sort_order: program.sort_order || 0,
     });
     setProgramEditorOpen(true);
@@ -248,6 +268,7 @@ export const TrainingManager = () => {
         .filter(Boolean),
       is_group: programForm.is_group,
       is_active: programForm.is_active,
+      has_certificate: programForm.has_certificate,
       sort_order: Number(programForm.sort_order) || 0,
     };
 
@@ -350,6 +371,11 @@ export const TrainingManager = () => {
   const setEnrollmentStatus = async (enrollment: TrainingEnrollment, status: string) => {
     const payload: Record<string, any> = { status };
 
+    if (status === 'completed' && enrollment.certificate_required && enrollment.exam_status !== 'passed') {
+      alert('Этот ученик записан на курс с сертификатом. Завершить курс можно после экзамена.');
+      return;
+    }
+
     if (activeStudentStatuses.includes(status) && !enrollment.group_id) {
       const targetGroupId = selectedGroup?.id || groups[0]?.id || '';
 
@@ -443,6 +469,41 @@ export const TrainingManager = () => {
     }
 
     await loadData();
+  };
+
+  const updateJournalCell = async (lessonId: string, enrollmentId: string, value: string) => {
+    if (!value) {
+      await upsertProgress(lessonId, enrollmentId, {
+        attended: false,
+        attendance_status: 'pending',
+        grade: null,
+      });
+      return;
+    }
+
+    if (value === 'absent') {
+      await upsertProgress(lessonId, enrollmentId, {
+        attended: false,
+        attendance_status: 'absent',
+        grade: null,
+      });
+      return;
+    }
+
+    if (value === 'attended') {
+      await upsertProgress(lessonId, enrollmentId, {
+        attended: true,
+        attendance_status: 'attended',
+        grade: null,
+      });
+      return;
+    }
+
+    await upsertProgress(lessonId, enrollmentId, {
+      attended: true,
+      attendance_status: 'attended',
+      grade: Number(value),
+    });
   };
 
   if (loading) {
@@ -663,6 +724,14 @@ export const TrainingManager = () => {
                 onChange={(event) => setProgramForm({ ...programForm, is_active: event.target.checked })}
               />
               Показывать клиентам
+            </label>
+            <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-black text-[#385144]">
+              <input
+                type="checkbox"
+                checked={programForm.has_certificate}
+                onChange={(event) => setProgramForm({ ...programForm, has_certificate: event.target.checked })}
+              />
+              С сертификатом
             </label>
             <button className="flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 font-black text-white md:col-span-2">
               <Save className="mr-2 h-4 w-4" />
@@ -893,7 +962,63 @@ export const TrainingManager = () => {
                   В группе пока нет зачисленных учеников. В заявках ниже выберите группу и статус “Зачислен(а)”.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  <div className="overflow-x-auto rounded-2xl bg-white text-[#385144]">
+                    <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-white p-3 text-xs font-black uppercase tracking-[0.16em] text-[#8FA092]">
+                            Ученик
+                          </th>
+                          {selectedGroupLessons.map(lesson => {
+                            const lessonDate = getSafeDate(lesson.lesson_at);
+                            return (
+                              <th key={lesson.id} className="min-w-[132px] border-l border-[#385144]/10 p-3 text-xs font-black text-[#385144]">
+                                <span className="block">{lesson.sort_order}. {lesson.title}</span>
+                                <span className="mt-1 block font-semibold text-[#6C756C]">
+                                  {lessonDate ? format(lessonDate, 'd MMM', { locale: ru }) : 'без даты'}
+                                </span>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedGroupStudents.map(enrollment => (
+                          <tr key={enrollment.id}>
+                            <td className="sticky left-0 z-10 border-t border-[#385144]/10 bg-white p-3">
+                              <p className="font-black">{enrollment.users?.name || 'Ученик'}</p>
+                              <p className="text-xs font-semibold text-[#6C756C]">
+                                @{enrollment.users?.username || enrollment.users?.telegram_id || 'без username'}
+                              </p>
+                            </td>
+                            {selectedGroupLessons.map(lesson => {
+                              const progress = getLessonProgress(lesson.id, enrollment.id);
+                              return (
+                                <td key={lesson.id} className="border-l border-t border-[#385144]/10 p-3">
+                                  <select
+                                    value={getJournalCellValue(progress)}
+                                    onChange={(event) => updateJournalCell(lesson.id, enrollment.id, event.target.value)}
+                                    className="w-full rounded-xl border border-[#385144]/10 bg-[#F8F3EC] p-2 text-center font-black text-[#385144]"
+                                  >
+                                    <option value="">—</option>
+                                    <option value="attended">✓</option>
+                                    <option value="5">5</option>
+                                    <option value="4">4</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1</option>
+                                    <option value="absent">н</option>
+                                  </select>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
                   {selectedGroupStudents.map(enrollment => {
                     const acceptedCount = selectedGroupLessons.filter(lesson => (
                       getLessonProgress(lesson.id, enrollment.id)?.homework_status === 'accepted'
@@ -923,6 +1048,8 @@ export const TrainingManager = () => {
                         <div className="space-y-2">
                           {selectedGroupLessons.map(lesson => {
                             const progress = getLessonProgress(lesson.id, enrollment.id);
+                            const files = progress?.homework_files || [];
+                            const deadline = getHomeworkDeadline(lesson, progress);
                             return (
                               <div key={lesson.id} className="grid grid-cols-1 gap-2 rounded-2xl bg-[#F8F3EC] p-3 md:grid-cols-[1fr_auto_190px] md:items-center">
                                 <div>
@@ -930,12 +1057,20 @@ export const TrainingManager = () => {
                                   {lesson.homework_title && (
                                     <p className="text-xs font-semibold text-[#6C756C]">ДЗ: {lesson.homework_title}</p>
                                   )}
+                                  {deadline && (
+                                    <p className="mt-1 text-[11px] font-bold text-[#8A5A3F]">
+                                      Дедлайн: {format(deadline, 'd MMM, HH:mm', { locale: ru })}
+                                    </p>
+                                  )}
                                 </div>
                                 <label className="flex items-center gap-2 text-sm font-bold">
                                   <input
                                     type="checkbox"
                                     checked={Boolean(progress?.attended)}
-                                    onChange={(event) => upsertProgress(lesson.id, enrollment.id, { attended: event.target.checked })}
+                                    onChange={(event) => upsertProgress(lesson.id, enrollment.id, {
+                                      attended: event.target.checked,
+                                      attendance_status: event.target.checked ? 'attended' : 'pending',
+                                    })}
                                   />
                                   Был(а)
                                 </label>
@@ -954,6 +1089,51 @@ export const TrainingManager = () => {
                                   className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-semibold text-[#385144] md:col-span-3"
                                   placeholder="Комментарий по занятию или домашке"
                                 />
+                                {(progress?.homework_submitted_text || files.length > 0) && (
+                                  <div className="rounded-xl bg-white p-3 text-sm font-semibold text-[#385144] md:col-span-3">
+                                    {progress?.homework_submitted_text && (
+                                      <p className="mb-2 whitespace-pre-wrap text-[#657066]">{progress.homework_submitted_text}</p>
+                                    )}
+                                    {files.length > 0 && (
+                                      <div className="flex flex-wrap gap-2">
+                                        {files.map(file => (
+                                          <a
+                                            key={file.path}
+                                            href={file.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]"
+                                          >
+                                            {file.name}
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-1 gap-2 md:col-span-3 md:grid-cols-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => upsertProgress(lesson.id, enrollment.id, { homework_status: 'accepted', homework_note: progress?.homework_note || 'ДЗ принято' })}
+                                    className="rounded-xl bg-[#385144] px-3 py-2 text-sm font-black text-white"
+                                  >
+                                    Принять ДЗ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => upsertProgress(lesson.id, enrollment.id, { homework_status: 'revise' })}
+                                    className="rounded-xl bg-[#FFF9F0] px-3 py-2 text-sm font-black text-[#8A5A3F]"
+                                  >
+                                    На доработку
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => upsertProgress(lesson.id, enrollment.id, { homework_unlocked_by_admin: true })}
+                                    className="rounded-xl bg-white px-3 py-2 text-sm font-black text-[#385144]"
+                                  >
+                                    Открыть сдачу
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
@@ -1227,6 +1407,19 @@ export const TrainingManager = () => {
                   onChange={(event) => updateEnrollment(enrollment.id, { final_price: Number(event.target.value) || 0 })}
                   className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
                 />
+                {enrollment.certificate_required && (
+                  <select
+                    value={enrollment.exam_status || 'pending'}
+                    onChange={(event) => updateEnrollment(enrollment.id, { exam_status: event.target.value })}
+                    className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-3"
+                  >
+                    <option value="pending">Экзамен ожидается</option>
+                    <option value="scheduled">Экзамен назначен</option>
+                    <option value="passed">Экзамен сдан</option>
+                    <option value="failed">Экзамен не сдан</option>
+                    <option value="not_required">Без экзамена</option>
+                  </select>
+                )}
                 <textarea
                   defaultValue={enrollment.admin_notes || ''}
                   onBlur={(event) => updateEnrollment(enrollment.id, { admin_notes: event.target.value || null })}

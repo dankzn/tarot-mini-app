@@ -8,13 +8,17 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  FileText,
   GraduationCap,
   HelpCircle,
   Home,
+  Lock,
   MessageSquare,
+  Paperclip,
   Route,
   Sparkles,
   Target,
+  Upload,
   UserCircle,
   Users,
 } from 'lucide-react';
@@ -29,6 +33,7 @@ import {
   trainingStatusLabels,
   type TrainingEnrollment,
   type TrainingGroup,
+  type TrainingHomeworkFile,
   type TrainingLesson,
   type TrainingLessonProgress,
   type TrainingProgram,
@@ -51,6 +56,66 @@ const getSafeDate = (value?: string | null) => {
 };
 
 const getGroupPlacesLeft = (group: TrainingGroup) => Math.max((group.capacity || 0) - (group.taken || 0), 0);
+
+const getHomeworkDeadline = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
+  if (progress?.homework_deadline_extended_until) return getSafeDate(progress.homework_deadline_extended_until);
+  const lessonDate = getSafeDate(lesson.lesson_at);
+  if (!lessonDate) return null;
+  const deadline = new Date(lessonDate);
+  deadline.setDate(deadline.getDate() + 2);
+  deadline.setHours(23, 59, 59, 999);
+  return deadline;
+};
+
+const isHomeworkOpen = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
+  if (progress?.homework_unlocked_by_admin) return true;
+  const deadline = getHomeworkDeadline(lesson, progress);
+  return Boolean(deadline && Date.now() <= deadline.getTime());
+};
+
+const getLessonVisualState = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
+  const lessonDate = getSafeDate(lesson.lesson_at);
+  const isFuture = lessonDate ? lessonDate.getTime() > Date.now() : true;
+  const attended = progress?.attended || progress?.attendance_status === 'attended';
+
+  if (progress?.homework_status === 'accepted') {
+    return {
+      label: 'ДЗ сдано',
+      shell: 'bg-[#E5F1E7] border-[#7EA083]/35',
+      badge: 'bg-[#385144] text-white',
+    };
+  }
+
+  if (attended && !isHomeworkOpen(lesson, progress)) {
+    return {
+      label: 'ДЗ просрочено',
+      shell: 'bg-[#FFF1EC] border-[#B8795C]/35',
+      badge: 'bg-[#B8795C] text-white',
+    };
+  }
+
+  if (attended || progress?.homework_status === 'submitted' || progress?.homework_status === 'revise') {
+    return {
+      label: progress?.homework_status === 'submitted' ? 'На проверке' : 'ДЗ открыто',
+      shell: 'bg-[#FFF8DF] border-[#D8B95A]/35',
+      badge: 'bg-[#E9D27A] text-[#385144]',
+    };
+  }
+
+  if (isFuture) {
+    return {
+      label: 'Скоро',
+      shell: 'bg-[#EEF1EE] border-[#AEB8B0]/25 opacity-75',
+      badge: 'bg-white text-[#8A938B]',
+    };
+  }
+
+  return {
+    label: 'Ожидает отметки',
+    shell: 'bg-[#F8F3EC] border-white/80',
+    badge: 'bg-white text-[#8A938B]',
+  };
+};
 
 const TRAINING_PATH = [
   { title: 'Диагностика', text: 'Смотрим стартовую точку, темп и формат, чтобы обучение не было “для всех”.' },
@@ -207,6 +272,10 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [lessons, setLessons] = useState<TrainingLesson[]>([]);
   const [lessonProgress, setLessonProgress] = useState<TrainingLessonProgress[]>([]);
   const [activeTab, setActiveTab] = useState<TrainingTab>('academy');
+  const [selectedLesson, setSelectedLesson] = useState<TrainingLesson | null>(null);
+  const [homeworkText, setHomeworkText] = useState('');
+  const [homeworkFiles, setHomeworkFiles] = useState<File[]>([]);
+  const [submittingHomework, setSubmittingHomework] = useState(false);
 
   useEffect(() => {
     loadTrainingData();
@@ -375,6 +444,8 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         status: 'pending',
         payment_status: 'not_requested',
         final_price: selectedProgram.price,
+        certificate_required: Boolean(selectedProgram.has_certificate),
+        exam_status: selectedProgram.has_certificate ? 'pending' : 'not_required',
         preferred_start: preferredStart || null,
         client_comment: clientComment || null,
       };
@@ -411,6 +482,90 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
       alert(`Не удалось отправить заявку: ${error instanceof Error ? error.message : 'проверьте подключение'}`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openLessonDetails = (lesson: TrainingLesson) => {
+    const progress = getProgressForLesson(lesson.id);
+    setSelectedLesson(lesson);
+    setHomeworkText(progress?.homework_submitted_text || '');
+    setHomeworkFiles([]);
+  };
+
+  const submitHomework = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedLesson || !activeStudentEnrollment) return;
+
+    const progress = getProgressForLesson(selectedLesson.id);
+    if (!isHomeworkOpen(selectedLesson, progress)) {
+      alert('Срок сдачи домашнего задания закрыт. Если нужно — админ может открыть сдачу вручную.');
+      return;
+    }
+
+    setSubmittingHomework(true);
+
+    try {
+      const uploadedFiles: TrainingHomeworkFile[] = [];
+
+      for (const file of homeworkFiles) {
+        const isAllowed = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ].includes(file.type) || /\.(pdf|docx)$/i.test(file.name);
+
+        if (!isAllowed) {
+          throw new Error(`Файл “${file.name}” не подходит. Можно прикрепить только PDF или DOCX.`);
+        }
+
+        const safeName = file.name.replace(/[^\wа-яА-ЯёЁ.\-]+/g, '_');
+        const path = `${user.id || user.telegram_id}/${activeStudentEnrollment.id}/${selectedLesson.id}/${Date.now()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('training-homework')
+          .upload(path, file, { upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('training-homework')
+          .getPublicUrl(path);
+
+        uploadedFiles.push({
+          name: file.name,
+          path,
+          url: publicUrlData.publicUrl,
+          size: file.size,
+          type: file.type,
+        });
+      }
+
+      const existingFiles = progress?.homework_files || [];
+      const payload = {
+        lesson_id: selectedLesson.id,
+        enrollment_id: activeStudentEnrollment.id,
+        homework_status: 'submitted',
+        homework_submitted_text: homeworkText.trim() || null,
+        homework_files: [...existingFiles, ...uploadedFiles],
+        homework_submitted_at: new Date().toISOString(),
+      };
+
+      const request = progress
+        ? supabase.from('training_lesson_progress').update(payload).eq('id', progress.id)
+        : supabase.from('training_lesson_progress').insert([payload]);
+
+      const { error } = await request;
+      if (error) throw error;
+
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+      setSelectedLesson(null);
+      setHomeworkText('');
+      setHomeworkFiles([]);
+      await loadTrainingData();
+      alert('Домашнее задание отправлено на проверку.');
+    } catch (error) {
+      console.error('Ошибка сдачи ДЗ:', error);
+      alert(`Не удалось отправить ДЗ: ${error instanceof Error ? error.message : 'ошибка'}`);
+    } finally {
+      setSubmittingHomework(false);
     }
   };
 
@@ -775,9 +930,16 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                   {studentLessons.map((lesson, index) => {
                     const progress = getProgressForLesson(lesson.id);
                     const lessonDate = getSafeDate(lesson.lesson_at);
+                    const visualState = getLessonVisualState(lesson, progress);
+                    const deadline = getHomeworkDeadline(lesson, progress);
 
                     return (
-                      <div key={lesson.id} className="relative rounded-[1.45rem] bg-[#F8F3EC] p-4">
+                      <button
+                        key={lesson.id}
+                        type="button"
+                        onClick={() => openLessonDetails(lesson)}
+                        className={`relative w-full rounded-[1.45rem] border p-4 text-left transition active:scale-[0.99] ${visualState.shell}`}
+                      >
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Занятие {index + 1}</p>
@@ -788,10 +950,8 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                               </p>
                             )}
                           </div>
-                          <span className={`rounded-full px-3 py-1 text-xs font-black ${
-                            progress?.attended ? 'bg-[#DDE9E0] text-[#385144]' : 'bg-white text-[#8FA092]'
-                          }`}>
-                            {progress?.attended ? 'Посещено' : 'Ожидает'}
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${visualState.badge}`}>
+                            {visualState.label}
                           </span>
                         </div>
 
@@ -810,10 +970,21 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                             {lesson.homework_description && (
                               <p className="text-xs font-semibold leading-relaxed text-[#6C756C]">{lesson.homework_description}</p>
                             )}
+                            {deadline && progress?.homework_status !== 'accepted' && (
+                              <p className="mt-2 text-xs font-black text-[#8A5A3F]">
+                                Сдать до {format(deadline, 'd MMMM, HH:mm', { locale: ru })}
+                              </p>
+                            )}
                             {progress?.homework_status === 'accepted' && (
                               <p className="mt-2 flex items-center text-xs font-black text-[#385144]">
                                 <CheckCircle2 className="mr-1 h-4 w-4" />
                                 Домашняя работа принята
+                              </p>
+                            )}
+                            {progress?.homework_status === 'submitted' && (
+                              <p className="mt-2 flex items-center text-xs font-black text-[#8A5A3F]">
+                                <Upload className="mr-1 h-4 w-4" />
+                                Отправлено на проверку
                               </p>
                             )}
                             {progress?.homework_note && (
@@ -823,7 +994,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                             )}
                           </div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -870,6 +1041,125 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </button>
         </div>
       </div>
+
+      {selectedLesson && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/42 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={submitHomework}
+            className="mx-auto max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#F8F3EC] p-5 shadow-2xl"
+          >
+            {(() => {
+              const progress = getProgressForLesson(selectedLesson.id);
+              const deadline = getHomeworkDeadline(selectedLesson, progress);
+              const homeworkOpen = isHomeworkOpen(selectedLesson, progress);
+              const files = progress?.homework_files || [];
+
+              return (
+                <>
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">урок</p>
+                      <h3 className="mt-1 text-2xl font-black text-[#385144]">{selectedLesson.title}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLesson(null)}
+                      className="rounded-2xl bg-white px-4 py-2 font-black text-[#385144]"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {selectedLesson.description && (
+                    <p className="mb-4 rounded-2xl bg-white/78 p-4 text-sm font-semibold leading-relaxed text-[#657066]">
+                      {selectedLesson.description}
+                    </p>
+                  )}
+
+                  <div className="mb-4 rounded-2xl bg-white/78 p-4">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#385144]">{selectedLesson.homework_title || 'Домашняя работа'}</p>
+                      <span className="rounded-full bg-[#EAF1EA] px-3 py-1 text-[10px] font-black text-[#385144]">
+                        {homeworkStatusLabels[progress?.homework_status || 'not_started']}
+                      </span>
+                    </div>
+                    {selectedLesson.homework_description && (
+                      <p className="text-sm font-semibold leading-relaxed text-[#657066]">{selectedLesson.homework_description}</p>
+                    )}
+                    {deadline && (
+                      <p className={`mt-3 text-xs font-black ${homeworkOpen ? 'text-[#8A5A3F]' : 'text-[#B8795C]'}`}>
+                        {homeworkOpen ? 'Сдать до' : 'Срок сдачи закрыт'}: {format(deadline, 'd MMMM, HH:mm', { locale: ru })}
+                      </p>
+                    )}
+                  </div>
+
+                  {files.length > 0 && (
+                    <div className="mb-4 rounded-2xl bg-white/78 p-4">
+                      <p className="mb-2 text-sm font-black text-[#385144]">Отправленные файлы</p>
+                      <div className="space-y-2">
+                        {files.map(file => (
+                          <a
+                            key={file.path}
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center rounded-xl bg-[#F8F3EC] p-3 text-sm font-bold text-[#385144]"
+                          >
+                            <FileText className="mr-2 h-4 w-4 shrink-0" />
+                            {file.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {homeworkOpen && progress?.homework_status !== 'accepted' ? (
+                    <>
+                      <textarea
+                        value={homeworkText}
+                        onChange={(event) => setHomeworkText(event.target.value)}
+                        className="mb-3 min-h-32 w-full rounded-2xl border border-[#385144]/10 bg-white p-4 font-semibold text-[#385144]"
+                        placeholder="Напишите ответ по домашнему заданию..."
+                      />
+                      <label className="mb-4 flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-[#385144]/25 bg-white/78 p-4 text-sm font-black text-[#385144]">
+                        <Paperclip className="mr-2 h-4 w-4" />
+                        PDF или DOCX
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          className="hidden"
+                          onChange={(event) => setHomeworkFiles(Array.from(event.target.files || []))}
+                        />
+                      </label>
+                      {homeworkFiles.length > 0 && (
+                        <div className="mb-4 rounded-2xl bg-white/70 p-3 text-xs font-bold text-[#6C756C]">
+                          {homeworkFiles.map(file => file.name).join(', ')}
+                        </div>
+                      )}
+                      <button
+                        disabled={submittingHomework}
+                        className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white disabled:opacity-60"
+                      >
+                        <Upload className="mr-2 h-5 w-5" />
+                        {submittingHomework ? 'Отправка...' : 'Сдать домашнее задание'}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold leading-relaxed text-[#6C756C]">
+                      <Lock className="mb-2 h-5 w-5 text-[#B8795C]" />
+                      {progress?.homework_status === 'accepted'
+                        ? 'Домашнее задание принято. Повторная сдача не нужна.'
+                        : 'Сдача закрыта. Если нужна пересдача, админ может открыть доступ вручную.'
+                      }
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </form>
+        </div>
+      )}
 
       {selectedProgram && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/42 p-4 backdrop-blur-sm">

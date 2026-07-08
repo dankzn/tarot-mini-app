@@ -9,6 +9,7 @@ export interface TrainingProgram {
   includes?: string[] | null;
   is_group: boolean;
   is_active: boolean;
+  has_certificate?: boolean | null;
   sort_order?: number | null;
 }
 
@@ -34,6 +35,8 @@ export interface TrainingEnrollment {
   preferred_start?: string | null;
   client_comment?: string | null;
   admin_notes?: string | null;
+  certificate_required?: boolean | null;
+  exam_status?: string | null;
   created_at: string;
   training_programs?: TrainingProgram | null;
   training_groups?: TrainingGroup | null;
@@ -56,8 +59,23 @@ export interface TrainingLessonProgress {
   lesson_id: string;
   enrollment_id: string;
   attended: boolean;
+  attendance_status?: string | null;
+  grade?: number | null;
   homework_status: string;
   homework_note?: string | null;
+  homework_submitted_text?: string | null;
+  homework_files?: TrainingHomeworkFile[] | null;
+  homework_submitted_at?: string | null;
+  homework_deadline_extended_until?: string | null;
+  homework_unlocked_by_admin?: boolean | null;
+}
+
+export interface TrainingHomeworkFile {
+  name: string;
+  path: string;
+  url?: string;
+  size?: number;
+  type?: string;
 }
 
 export const DEFAULT_TRAINING_PROGRAMS: TrainingProgram[] = [
@@ -130,6 +148,13 @@ export const homeworkStatusLabels: Record<string, string> = {
   submitted: 'Сдано',
   accepted: 'Принято',
   revise: 'Нужна доработка',
+  expired: 'Просрочено',
+};
+
+export const attendanceStatusLabels: Record<string, string> = {
+  pending: 'Ожидает',
+  attended: 'Был(а)',
+  absent: 'н',
 };
 
 export const trainingGroupStatusLabels: Record<string, string> = {
