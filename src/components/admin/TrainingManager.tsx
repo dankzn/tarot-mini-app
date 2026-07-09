@@ -130,6 +130,7 @@ export const TrainingManager = () => {
   const [loadWarning, setLoadWarning] = useState('');
   const [activeSection, setActiveSection] = useState<AdminTrainingSection>('enrollments');
   const [isProgramEditorOpen, setProgramEditorOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<TrainingLesson | null>(null);
   const [programForm, setProgramForm] = useState(createEmptyProgramForm());
   const [groupForm, setGroupForm] = useState({
     program_id: '',
@@ -522,6 +523,44 @@ export const TrainingManager = () => {
     await loadData();
   };
 
+  const addJournalColumn = async () => {
+    if (!selectedGroup) return;
+
+    const sortedLessons = [...selectedGroupLessons].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const nextSort = sortedLessons.reduce((max, lesson) => Math.max(max, lesson.sort_order || 0), 0) + 1;
+    const previousDate = getSafeDate(sortedLessons[sortedLessons.length - 1]?.lesson_at);
+    const groupStartDate = getSafeDate(selectedGroup.starts_at);
+    const lessonDate = previousDate || groupStartDate || new Date();
+
+    if (previousDate) {
+      lessonDate.setDate(lessonDate.getDate() + 7);
+    }
+
+    const payload = {
+      group_id: selectedGroup.id,
+      title: `Занятие ${nextSort}`,
+      lesson_at: lessonDate.toISOString(),
+      description: null,
+      homework_title: `ДЗ ${nextSort}`,
+      homework_description: null,
+      sort_order: nextSort,
+    };
+
+    const { data, error } = await supabase
+      .from('training_lessons')
+      .insert([payload])
+      .select('*')
+      .single();
+
+    if (error) {
+      alert(`Не удалось добавить столбец: ${error.message}`);
+      return;
+    }
+
+    await loadData();
+    if (data) setEditingLesson(data as TrainingLesson);
+  };
+
   const upsertProgress = async (lessonId: string, enrollmentId: string, payload: Record<string, any>) => {
     const existing = lessonProgress.find(progress => progress.lesson_id === lessonId && progress.enrollment_id === enrollmentId);
     const nextPayload = existing
@@ -857,6 +896,365 @@ export const TrainingManager = () => {
       )}
 
       {activeSection === 'journal' && (
+      <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">academy journal</p>
+            <h2 className="text-2xl font-black text-[#385144]">Журнал группы</h2>
+            <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+              Обычный электронный журнал: ученики в строках, занятия в столбцах. Нажмите дату, чтобы открыть урок, ДЗ и сдачи.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              value={selectedGroup?.id || ''}
+              onChange={(event) => {
+                setSelectedGroupId(event.target.value);
+                setLessonForm(current => ({ ...current, group_id: event.target.value }));
+                setEditingLesson(null);
+              }}
+              className="rounded-2xl border border-[#385144]/10 bg-white px-4 py-3 font-black text-[#385144]"
+            >
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>{group.title}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addJournalColumn}
+              disabled={!selectedGroup}
+              className="inline-flex items-center justify-center rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white transition hover:bg-[#2f4439] disabled:opacity-50"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Столбец
+            </button>
+          </div>
+        </div>
+
+        {!selectedGroup ? (
+          <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+            Сначала создайте группу обучения — после этого появится журнал.
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                { label: 'Ученики', value: selectedGroupStudents.length },
+                { label: 'Занятия', value: selectedGroupLessons.length },
+                { label: 'Посещения', value: selectedGroupAttendanceCount },
+                { label: 'ДЗ принято', value: selectedGroupAcceptedHomeworkCount },
+              ].map(item => (
+                <div key={item.label} className="rounded-2xl bg-[#F8F3EC] p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9AA39B]">{item.label}</p>
+                  <p className="mt-2 text-2xl font-black text-[#385144]">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-[1.35rem] border border-[#385144]/10 bg-white p-4">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#B8795C]/80">group register</p>
+                  <h3 className="text-xl font-black text-[#385144]">Учет занятий</h3>
+                  <p className="mt-1 text-sm font-semibold text-[#6C756C]">
+                    В ячейке — оценка, “✓” или “н”. Новая дата добавляется плюсом.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={seedLessonsFromProgram}
+                    className="rounded-2xl bg-[#F8F3EC] px-4 py-3 text-sm font-black text-[#385144] transition hover:bg-[#EAF1EA]"
+                  >
+                    <BookOpen className="mr-2 inline h-4 w-4 text-[#B8795C]" />
+                    Из программы
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addJournalColumn}
+                    className="rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white transition hover:bg-[#2f4439]"
+                  >
+                    <Plus className="mr-2 inline h-4 w-4" />
+                    Добавить дату
+                  </button>
+                </div>
+              </div>
+
+              {selectedGroupStudents.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+                  В группе пока нет учеников. Зачислите ученика — и здесь появится строка журнала.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-[#385144]/10 bg-white">
+                  <table className="min-w-full border-separate border-spacing-0 text-left text-sm text-[#385144]">
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 z-20 min-w-[220px] border-b border-[#385144]/10 bg-white p-4 text-xs font-black uppercase tracking-[0.16em] text-[#8FA092]">
+                          Ученик
+                        </th>
+                        {selectedGroupLessons.map(lesson => {
+                          const lessonDate = getSafeDate(lesson.lesson_at);
+                          return (
+                            <th key={lesson.id} className="min-w-[150px] border-b border-l border-[#385144]/10 bg-[#FBF8F2] p-0 align-top">
+                              <button
+                                type="button"
+                                onClick={() => setEditingLesson(lesson)}
+                                className="block h-full w-full p-4 text-left transition hover:bg-[#F8F3EC]"
+                                title="Открыть занятие и ДЗ"
+                              >
+                                <span className="block text-xs font-black uppercase tracking-[0.14em] text-[#B8795C]">
+                                  {lesson.sort_order || '—'} занятие
+                                </span>
+                                <span className="mt-1 block font-black leading-tight text-[#385144]">{lesson.title}</span>
+                                <span className="mt-2 block text-xs font-bold text-[#6C756C]">
+                                  {lessonDate ? format(lessonDate, 'd MMM, HH:mm', { locale: ru }) : 'без даты'}
+                                </span>
+                              </button>
+                            </th>
+                          );
+                        })}
+                        <th className="min-w-[92px] border-b border-l border-[#385144]/10 bg-[#FBF8F2] p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={addJournalColumn}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#385144] text-white transition hover:bg-[#2f4439]"
+                            title="Добавить столбец"
+                          >
+                            <Plus className="h-5 w-5" />
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedGroupLessons.length === 0 ? (
+                        <tr>
+                          <td className="sticky left-0 z-10 border-t border-[#385144]/10 bg-white p-4">
+                            <p className="font-black">Журнал пустой</p>
+                            <p className="text-xs font-semibold text-[#6C756C]">Нажмите “+”, чтобы добавить первую дату.</p>
+                          </td>
+                          <td className="border-l border-t border-[#385144]/10 p-4 text-sm font-semibold text-[#6C756C]">
+                            Или соберите даты из программы курса.
+                          </td>
+                        </tr>
+                      ) : selectedGroupStudents.map(enrollment => (
+                        <tr key={enrollment.id}>
+                          <td className="sticky left-0 z-10 border-t border-[#385144]/10 bg-white p-4">
+                            <p className="font-black">{enrollment.users?.name || 'Ученик'}</p>
+                            <p className="text-xs font-semibold text-[#6C756C]">
+                              @{enrollment.users?.username || enrollment.users?.telegram_id || 'без username'}
+                            </p>
+                          </td>
+                          {selectedGroupLessons.map(lesson => {
+                            const progress = getLessonProgress(lesson.id, enrollment.id);
+                            return (
+                              <td key={lesson.id} className="border-l border-t border-[#385144]/10 p-3">
+                                <select
+                                  value={getJournalCellValue(progress)}
+                                  onChange={(event) => updateJournalCell(lesson.id, enrollment.id, event.target.value)}
+                                  className="mx-auto block w-24 rounded-xl border border-[#385144]/10 bg-[#F8F3EC] p-2 text-center font-black text-[#385144]"
+                                >
+                                  <option value="">—</option>
+                                  <option value="attended">✓</option>
+                                  <option value="5">5</option>
+                                  <option value="4">4</option>
+                                  <option value="3">3</option>
+                                  <option value="2">2</option>
+                                  <option value="1">1</option>
+                                  <option value="absent">н</option>
+                                </select>
+                              </td>
+                            );
+                          })}
+                          <td className="border-l border-t border-[#385144]/10 bg-[#FBF8F2]" />
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {editingLesson && selectedGroup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#15211B]/50 p-4 backdrop-blur-sm">
+            <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] bg-[#FBF8F2] p-5 shadow-2xl">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">занятие {editingLesson.sort_order || '—'}</p>
+                  <h3 className="text-2xl font-black text-[#385144]">Дата, урок и домашка</h3>
+                  <p className="mt-1 text-sm font-semibold text-[#6C756C]">Изменения сохраняются после выхода из поля.</p>
+                </div>
+                <button type="button" onClick={() => setEditingLesson(null)} className="rounded-full bg-white p-3 text-[#385144] shadow-sm">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <input
+                  defaultValue={editingLesson.title}
+                  onBlur={(event) => event.target.value !== editingLesson.title && updateLesson(editingLesson.id, { title: event.target.value || `Занятие ${editingLesson.sort_order || ''}` })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                  placeholder="Тема занятия"
+                />
+                <input
+                  type="datetime-local"
+                  defaultValue={toDateTimeLocal(editingLesson.lesson_at)}
+                  onBlur={(event) => updateLesson(editingLesson.id, { lesson_at: fromDateTimeLocal(event.target.value) })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                />
+                <textarea
+                  defaultValue={editingLesson.description || ''}
+                  onBlur={(event) => updateLesson(editingLesson.id, { description: event.target.value || null })}
+                  className="min-h-28 rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144] md:col-span-2"
+                  placeholder="Что будет на занятии"
+                />
+                <input
+                  defaultValue={editingLesson.homework_title || ''}
+                  onBlur={(event) => updateLesson(editingLesson.id, { homework_title: event.target.value || null })}
+                  className="rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                  placeholder="Название ДЗ"
+                />
+                <textarea
+                  defaultValue={editingLesson.homework_description || ''}
+                  onBlur={(event) => updateLesson(editingLesson.id, { homework_description: event.target.value || null })}
+                  className="min-h-24 rounded-2xl border border-[#385144]/10 bg-white p-3 font-bold text-[#385144]"
+                  placeholder="Что сделать дома"
+                />
+              </div>
+
+              <div className="mt-5 rounded-[1.35rem] bg-white p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8FA092]">homework check</p>
+                    <h4 className="text-lg font-black text-[#385144]">Сдачи учеников</h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await deleteLesson(editingLesson.id);
+                      setEditingLesson(null);
+                    }}
+                    className="rounded-full bg-[#FFF1F0] p-3 text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {selectedGroupStudents.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
+                    Пока нет учеников для проверки.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedGroupStudents.map(enrollment => {
+                      const progress = getLessonProgress(editingLesson.id, enrollment.id);
+                      const files = progress?.homework_files || [];
+                      const deadline = getHomeworkDeadline(editingLesson, progress);
+
+                      return (
+                        <div key={enrollment.id} className="rounded-2xl bg-[#F8F3EC] p-4">
+                          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="font-black text-[#385144]">{enrollment.users?.name || 'Ученик'}</p>
+                              <p className="text-xs font-semibold text-[#6C756C]">
+                                @{enrollment.users?.username || enrollment.users?.telegram_id || 'без username'}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs font-black">
+                              {deadline && (
+                                <span className="rounded-full bg-white px-3 py-1 text-[#8A5A3F]">
+                                  Дедлайн: {format(deadline, 'd MMM, HH:mm', { locale: ru })}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-white px-3 py-1 text-[#385144]">
+                                {homeworkStatusLabels[progress?.homework_status || 'not_started'] || 'Не начато'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-[auto_190px_1fr]">
+                            <label className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-[#385144]">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(progress?.attended)}
+                                onChange={(event) => upsertProgress(editingLesson.id, enrollment.id, {
+                                  attended: event.target.checked,
+                                  attendance_status: event.target.checked ? 'attended' : 'pending',
+                                })}
+                              />
+                              Был(а)
+                            </label>
+                            <select
+                              value={progress?.homework_status || 'not_started'}
+                              onChange={(event) => upsertProgress(editingLesson.id, enrollment.id, { homework_status: event.target.value })}
+                              className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-bold text-[#385144]"
+                            >
+                              {homeworkStatuses.map(status => (
+                                <option key={status} value={status}>{homeworkStatusLabels[status] || status}</option>
+                              ))}
+                            </select>
+                            <textarea
+                              defaultValue={progress?.homework_note || ''}
+                              onBlur={(event) => upsertProgress(editingLesson.id, enrollment.id, { homework_note: event.target.value || null })}
+                              className="rounded-xl border border-[#385144]/10 bg-white p-2 text-sm font-semibold text-[#385144]"
+                              placeholder="Комментарий по домашке"
+                            />
+                          </div>
+
+                          {(progress?.homework_submitted_text || files.length > 0) && (
+                            <div className="mt-3 rounded-xl bg-white p-3 text-sm font-semibold text-[#385144]">
+                              {progress?.homework_submitted_text && (
+                                <p className="mb-2 whitespace-pre-wrap text-[#657066]">{progress.homework_submitted_text}</p>
+                              )}
+                              {files.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {files.map(file => (
+                                    <a key={file.path} href={file.url} target="_blank" rel="noreferrer" className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
+                                      {file.name}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                            <button
+                              type="button"
+                              onClick={() => upsertProgress(editingLesson.id, enrollment.id, { homework_status: 'accepted', homework_note: progress?.homework_note || 'ДЗ принято' })}
+                              className="rounded-xl bg-[#385144] px-3 py-2 text-sm font-black text-white"
+                            >
+                              Принять ДЗ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => upsertProgress(editingLesson.id, enrollment.id, { homework_status: 'revise' })}
+                              className="rounded-xl bg-[#FFF9F0] px-3 py-2 text-sm font-black text-[#8A5A3F]"
+                            >
+                              На доработку
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => upsertProgress(editingLesson.id, enrollment.id, { homework_unlocked_by_admin: true })}
+                              className="rounded-xl bg-white px-3 py-2 text-sm font-black text-[#385144]"
+                            >
+                              Открыть сдачу
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+      )}
+
+      {false && activeSection === 'journal' && (
       <section className="rounded-[1.75rem] border border-white/80 bg-white/82 p-5 shadow-[0_16px_40px_rgba(56,81,68,0.08)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
