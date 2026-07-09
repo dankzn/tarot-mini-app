@@ -73,6 +73,31 @@ const isHomeworkOpen = (lesson: TrainingLesson, progress?: TrainingLessonProgres
   return Boolean(deadline && Date.now() <= deadline.getTime());
 };
 
+const toStorageSegment = (value: unknown, fallback: string) => (
+  String(value || fallback)
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || fallback
+);
+
+const getHomeworkStoragePath = (
+  userId: unknown,
+  enrollmentId: string,
+  lessonId: string,
+  file: File
+) => {
+  const extension = file.name.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase() || 'file';
+  const randomPart = Math.random().toString(36).slice(2, 10);
+
+  return [
+    toStorageSegment(userId, 'student'),
+    toStorageSegment(enrollmentId, 'enrollment'),
+    toStorageSegment(lessonId, 'lesson'),
+    `${Date.now()}-${randomPart}.${extension}`,
+  ].join('/');
+};
+
 const getLessonVisualState = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
   const lessonDate = getSafeDate(lesson.lesson_at);
   const isFuture = lessonDate ? lessonDate.getTime() > Date.now() : true;
@@ -536,8 +561,12 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           throw new Error(`Файл “${file.name}” не подходит. Можно прикрепить только PDF или DOCX.`);
         }
 
-        const safeName = file.name.replace(/[^\wа-яА-ЯёЁ.\-]+/g, '_');
-        const path = `${user.id || user.telegram_id}/${activeStudentEnrollment.id}/${selectedLesson.id}/${Date.now()}-${safeName}`;
+        const path = getHomeworkStoragePath(
+          user.id || user.telegram_id,
+          activeStudentEnrollment.id,
+          selectedLesson.id,
+          file
+        );
         const { error: uploadError } = await supabase.storage
           .from('training-homework')
           .upload(path, file, { upsert: false });
