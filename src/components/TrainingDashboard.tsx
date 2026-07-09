@@ -377,6 +377,25 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   }) || studentLessons.find(lesson => !getProgressForLesson(lesson.id)?.attended);
   const canViewFullCurriculum = activeStudentEnrollment?.payment_status === 'paid';
   const fallbackCurriculum = getProgramCurriculum(activeStudentEnrollment?.training_programs);
+  const pendingHomeworkLessons = studentLessons.filter(lesson => {
+    const progress = getProgressForLesson(lesson.id);
+    return (
+      (progress?.attended || progress?.homework_status === 'assigned' || progress?.homework_status === 'revise') &&
+      progress?.homework_status !== 'accepted' &&
+      isHomeworkOpen(lesson, progress)
+    );
+  });
+  const overdueHomeworkLessons = studentLessons.filter(lesson => {
+    const progress = getProgressForLesson(lesson.id);
+    return (
+      progress?.attended &&
+      progress?.homework_status !== 'accepted' &&
+      !isHomeworkOpen(lesson, progress)
+    );
+  });
+  const nextActionLesson = pendingHomeworkLessons[0] || nextLesson;
+  const nextActionProgress = nextActionLesson ? getProgressForLesson(nextActionLesson.id) : undefined;
+  const nextActionDeadline = nextActionLesson ? getHomeworkDeadline(nextActionLesson, nextActionProgress) : null;
 
   const openRequests = enrollments.filter(enrollment => !['cancelled', 'completed'].includes(enrollment.status));
 
@@ -580,7 +599,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] pb-28 text-[#2F463B]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#E7EFE7_0,#F8F3EC_42%,#EFE6DA_100%)] pb-40 text-[#2F463B]">
       <div className="mx-auto max-w-md px-5 py-6">
         <div className="mb-5 flex items-center justify-between">
           <button
@@ -600,11 +619,13 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
           </button>
         </div>
 
-        <section className="mb-5 overflow-hidden rounded-[2.3rem] bg-[#385144] p-6 text-white shadow-[0_22px_48px_rgba(56,81,68,0.22)]">
+        <section className={`mb-5 overflow-hidden bg-[#385144] text-white shadow-[0_22px_48px_rgba(56,81,68,0.22)] ${
+          activeTab === 'cabinet' && activeStudentEnrollment ? 'rounded-[1.8rem] p-5' : 'rounded-[2.3rem] p-6'
+        }`}>
           <p className="mb-3 text-xs font-black uppercase tracking-[0.28em] text-[#F4E7C8]">
             {activeTab === 'cabinet' && activeStudentEnrollment ? 'student room' : 'tarot academy'}
           </p>
-          <h1 className="text-4xl font-black leading-none">
+          <h1 className={`${activeTab === 'cabinet' && activeStudentEnrollment ? 'text-3xl' : 'text-4xl'} font-black leading-none`}>
             {activeTab === 'cabinet' && activeStudentEnrollment ? 'Личный кабинет' : 'Обучение Таро'}
           </h1>
           <p className="mt-4 text-sm font-semibold leading-relaxed text-white/78">
@@ -842,28 +863,40 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         )}
 
         {activeTab === 'cabinet' && activeStudentEnrollment && (
-          <section className="space-y-5">
-            <div className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+          <section className="space-y-4">
+            <div className="rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">ваш курс</p>
-                  <h2 className="mt-1 text-2xl font-black text-[#385144]">
+                  <h2 className="mt-1 text-2xl font-black leading-tight text-[#385144]">
                     {activeStudentEnrollment.training_groups?.title || activeStudentEnrollment.training_programs?.title || 'Обучение Таро'}
                   </h2>
                   <p className="mt-1 text-sm font-semibold text-[#657066]">
-                    {trainingStatusLabels[activeStudentEnrollment.status] || activeStudentEnrollment.status}
+                    {activeStudentEnrollment.training_programs?.title || 'Учебная программа'}
                   </p>
                 </div>
-                <GraduationCap className="h-8 w-8 text-[#B8795C]" />
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1EA] text-[#385144]">
+                  <GraduationCap className="h-6 w-6" />
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-[1.35rem] bg-[#F8F3EC] p-4">
+                <div className="mb-2 flex items-center justify-between text-xs font-black uppercase tracking-[0.16em] text-[#8FA092]">
+                  <span>прогресс курса</span>
+                  <span>{learningProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[#E2DDD4]">
+                  <div className="h-full rounded-full bg-[#385144]" style={{ width: `${learningProgress}%` }} />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: 'Занятий', value: studentLessons.length },
-                  { label: 'Посещено', value: attendedLessons },
-                  { label: 'ДЗ принято', value: completedHomeworks },
+                  { label: 'уроков', value: studentLessons.length },
+                  { label: 'был(а)', value: attendedLessons },
+                  { label: 'дз принято', value: completedHomeworks },
                 ].map(item => (
-                  <div key={item.label} className="rounded-2xl bg-[#F8F3EC] p-3 text-center">
+                  <div key={item.label} className="rounded-2xl bg-white p-3 text-center shadow-sm">
                     <p className="text-2xl font-black text-[#385144]">{item.value}</p>
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8FA092]">{item.label}</p>
                   </div>
@@ -871,31 +904,94 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
               </div>
             </div>
 
-            <div className="rounded-[2rem] bg-[#385144] p-5 text-white shadow-[0_18px_44px_rgba(56,81,68,0.18)]">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#F4E7C8]/80">ближайший шаг</p>
-              {nextLesson ? (
+            <button
+              type="button"
+              disabled={!nextActionLesson}
+              onClick={() => nextActionLesson && openLessonDetails(nextActionLesson)}
+              className="w-full overflow-hidden rounded-[2rem] bg-[#385144] p-5 text-left text-white shadow-[0_18px_44px_rgba(56,81,68,0.18)] transition active:scale-[0.99] disabled:opacity-80"
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#F4E7C8]/80">
+                  {pendingHomeworkLessons.length > 0 ? 'нужно сдать' : 'ближайший шаг'}
+                </p>
+                <span className="rounded-full bg-white/14 px-3 py-1 text-xs font-black text-white">
+                  {pendingHomeworkLessons.length > 0 ? `${pendingHomeworkLessons.length} ДЗ` : 'Открыть'}
+                </span>
+              </div>
+              {nextActionLesson ? (
                 <>
-                  <h3 className="mt-2 text-2xl font-black">{nextLesson.title}</h3>
+                  <h3 className="text-2xl font-black leading-tight">{nextActionLesson.title}</h3>
                   <p className="mt-2 text-sm font-semibold leading-relaxed text-white/72">
-                    {getSafeDate(nextLesson.lesson_at)
-                      ? format(getSafeDate(nextLesson.lesson_at)!, 'd MMMM, HH:mm', { locale: ru })
+                    {getSafeDate(nextActionLesson.lesson_at)
+                      ? format(getSafeDate(nextActionLesson.lesson_at)!, 'd MMMM, HH:mm', { locale: ru })
                       : 'Дата появится после настройки расписания'
                     }
                   </p>
-                  {nextLesson.homework_title && (
-                    <p className="mt-3 rounded-2xl bg-white/12 p-3 text-sm font-black text-white">
-                      ДЗ: {nextLesson.homework_title}
-                    </p>
+                  {(nextActionLesson.homework_title || nextActionLesson.homework_description) && (
+                    <div className="mt-4 rounded-[1.35rem] bg-white/12 p-4">
+                      <p className="text-sm font-black">ДЗ: {nextActionLesson.homework_title || 'Домашняя работа'}</p>
+                      {nextActionDeadline && nextActionProgress?.homework_status !== 'accepted' && (
+                        <p className="mt-2 text-xs font-black text-[#F4E7C8]">
+                          Сдать до {format(nextActionDeadline, 'd MMMM, HH:mm', { locale: ru })}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </>
               ) : (
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-white/72">
+                <p className="text-sm font-semibold leading-relaxed text-white/72">
                   План появится здесь после добавления занятий в админке.
                 </p>
               )}
-            </div>
+            </button>
 
-            <div className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+            {(pendingHomeworkLessons.length > 0 || overdueHomeworkLessons.length > 0) && (
+              <div className="rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">homework</p>
+                    <h2 className="text-2xl font-black text-[#385144]">Домашки</h2>
+                  </div>
+                  <FileText className="h-6 w-6 text-[#B8795C]" />
+                </div>
+                <div className="space-y-2">
+                  {[...pendingHomeworkLessons, ...overdueHomeworkLessons].slice(0, 3).map(lesson => {
+                    const progress = getProgressForLesson(lesson.id);
+                    const deadline = getHomeworkDeadline(lesson, progress);
+                    const isOverdue = progress?.attended && progress?.homework_status !== 'accepted' && !isHomeworkOpen(lesson, progress);
+
+                    return (
+                      <button
+                        key={lesson.id}
+                        type="button"
+                        onClick={() => openLessonDetails(lesson)}
+                        className={`w-full rounded-[1.25rem] p-4 text-left transition active:scale-[0.99] ${
+                          isOverdue ? 'bg-[#FFF1EC]' : 'bg-[#F8F3EC]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black text-[#385144]">{lesson.homework_title || lesson.title}</p>
+                            {deadline && (
+                              <p className={`mt-1 text-xs font-black ${isOverdue ? 'text-[#B8795C]' : 'text-[#8A5A3F]'}`}>
+                                {isOverdue ? 'Срок закрыт' : 'До'} {format(deadline, 'd MMMM, HH:mm', { locale: ru })}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-black ${
+                            isOverdue ? 'bg-[#B8795C] text-white' : 'bg-white text-[#385144]'
+                          }`}>
+                            {isOverdue ? 'просрочено' : homeworkStatusLabels[progress?.homework_status || 'not_started']}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_44px_rgba(56,81,68,0.10)]">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]/80">course timeline</p>
@@ -908,92 +1004,58 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                 <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4">
                   <p className="text-sm font-black text-[#385144]">Подробная программа откроется после оплаты</p>
                   <p className="mt-2 text-sm font-semibold leading-relaxed text-[#6C756C]">
-                    Пока виден только общий маршрут обучения. После подтверждения оплаты здесь появятся занятия, домашние задания и разборы.
+                    После подтверждения оплаты здесь появятся занятия, ДЗ и разборы.
                   </p>
                 </div>
               ) : studentLessons.length === 0 && fallbackCurriculum.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {fallbackCurriculum.map((lesson, index) => (
-                    <div key={lesson.title} className="rounded-[1.45rem] bg-[#F8F3EC] p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Занятие {index + 1}</p>
-                      <h3 className="mt-1 font-black text-[#385144]">{lesson.title}</h3>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#657066]">{lesson.focus}</p>
+                    <div key={lesson.title} className="flex gap-3 rounded-[1.25rem] bg-[#F8F3EC] p-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[#385144]">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-[#385144]">{lesson.title}</h3>
+                        <p className="mt-1 text-xs font-semibold leading-relaxed text-[#657066]">{lesson.focus}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : studentLessons.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-[#B8795C]/30 bg-[#FFF9F0] p-4 text-sm font-semibold text-[#6C756C]">
-                  Пока занятий нет. Когда админ добавит план, он сразу появится здесь: темы, даты, домашки и статусы.
+                  Пока занятий нет. Когда админ добавит план, он сразу появится здесь.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {studentLessons.map((lesson, index) => {
                     const progress = getProgressForLesson(lesson.id);
                     const lessonDate = getSafeDate(lesson.lesson_at);
                     const visualState = getLessonVisualState(lesson, progress);
-                    const deadline = getHomeworkDeadline(lesson, progress);
+                    const isAccepted = progress?.homework_status === 'accepted';
 
                     return (
                       <button
                         key={lesson.id}
                         type="button"
                         onClick={() => openLessonDetails(lesson)}
-                        className={`relative w-full rounded-[1.45rem] border p-4 text-left transition active:scale-[0.99] ${visualState.shell}`}
+                        className={`flex w-full items-center gap-3 rounded-[1.25rem] border p-3 text-left transition active:scale-[0.99] ${visualState.shell}`}
                       >
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#B8795C]">Занятие {index + 1}</p>
-                            <h3 className="mt-1 font-black text-[#385144]">{lesson.title}</h3>
-                            {lessonDate && (
-                              <p className="mt-1 text-xs font-bold text-[#6C756C]">
-                                {format(lessonDate, 'd MMMM, HH:mm', { locale: ru })}
-                              </p>
-                            )}
-                          </div>
-                          <span className={`rounded-full px-3 py-1 text-xs font-black ${visualState.badge}`}>
-                            {visualState.label}
-                          </span>
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                          isAccepted ? 'bg-[#385144] text-white' : 'bg-white text-[#385144]'
+                        }`}>
+                          {isAccepted ? <CheckCircle2 className="h-5 w-5" /> : index + 1}
                         </div>
-
-                        {lesson.description && (
-                          <p className="mb-3 text-sm font-semibold leading-relaxed text-[#657066]">{lesson.description}</p>
-                        )}
-
-                        {(lesson.homework_title || lesson.homework_description) && (
-                          <div className="rounded-2xl bg-white/80 p-3">
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <p className="text-sm font-black text-[#385144]">{lesson.homework_title || 'Домашняя работа'}</p>
-                              <span className="rounded-full bg-[#EAF1EA] px-2 py-1 text-[10px] font-black text-[#385144]">
-                                {homeworkStatusLabels[progress?.homework_status || 'not_started']}
-                              </span>
-                            </div>
-                            {lesson.homework_description && (
-                              <p className="text-xs font-semibold leading-relaxed text-[#6C756C]">{lesson.homework_description}</p>
-                            )}
-                            {deadline && progress?.homework_status !== 'accepted' && (
-                              <p className="mt-2 text-xs font-black text-[#8A5A3F]">
-                                Сдать до {format(deadline, 'd MMMM, HH:mm', { locale: ru })}
-                              </p>
-                            )}
-                            {progress?.homework_status === 'accepted' && (
-                              <p className="mt-2 flex items-center text-xs font-black text-[#385144]">
-                                <CheckCircle2 className="mr-1 h-4 w-4" />
-                                Домашняя работа принята
-                              </p>
-                            )}
-                            {progress?.homework_status === 'submitted' && (
-                              <p className="mt-2 flex items-center text-xs font-black text-[#8A5A3F]">
-                                <Upload className="mr-1 h-4 w-4" />
-                                Отправлено на проверку
-                              </p>
-                            )}
-                            {progress?.homework_note && (
-                              <p className="mt-2 rounded-xl bg-[#F8F3EC] p-2 text-xs font-semibold leading-relaxed text-[#657066]">
-                                Комментарий: {progress.homework_note}
-                              </p>
-                            )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate font-black text-[#385144]">{lesson.title}</h3>
                           </div>
-                        )}
+                          <p className="mt-1 text-xs font-bold text-[#6C756C]">
+                            {lessonDate ? format(lessonDate, 'd MMMM, HH:mm', { locale: ru }) : 'без даты'}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${visualState.badge}`}>
+                          {visualState.label}
+                        </span>
                       </button>
                     );
                   })}
