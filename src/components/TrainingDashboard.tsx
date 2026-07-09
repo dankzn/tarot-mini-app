@@ -48,6 +48,12 @@ interface TrainingDashboardProps {
 
 type TrainingTab = 'academy' | 'cabinet';
 type EnrollmentKind = 'application' | 'waitlist';
+const MAX_HOMEWORK_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const ALLOWED_HOMEWORK_FILE_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 
 const getSafeDate = (value?: string | null) => {
   if (!value) return null;
@@ -73,30 +79,14 @@ const isHomeworkOpen = (lesson: TrainingLesson, progress?: TrainingLessonProgres
   return Boolean(deadline && Date.now() <= deadline.getTime());
 };
 
-const toStorageSegment = (value: unknown, fallback: string) => (
-  String(value || fallback)
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '') || fallback
+const escapeTelegramHtml = (value: string | number | null | undefined) => (
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 );
-
-const getHomeworkStoragePath = (
-  userId: unknown,
-  enrollmentId: string,
-  lessonId: string,
-  file: File
-) => {
-  const extension = file.name.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase() || 'file';
-  const randomPart = Math.random().toString(36).slice(2, 10);
-
-  return [
-    toStorageSegment(userId, 'student'),
-    toStorageSegment(enrollmentId, 'enrollment'),
-    toStorageSegment(lessonId, 'lesson'),
-    `${Date.now()}-${randomPart}.${extension}`,
-  ].join('/');
-};
 
 const getLessonVisualState = (lesson: TrainingLesson, progress?: TrainingLessonProgress) => {
   const lessonDate = getSafeDate(lesson.lesson_at);
@@ -536,6 +526,60 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     setHomeworkFiles([]);
   };
 
+  const sendHomeworkFileToAdmins = async (
+    file: File,
+    adminTelegramIds: Array<string | number>
+  ): Promise<TrainingHomeworkFile> => {
+    const formData = new FormData();
+    const lessonDate = selectedLesson?.lesson_at
+      ? format(new Date(selectedLesson.lesson_at), 'd MMMM yyyy, HH:mm', { locale: ru })
+      : 'дата занятия не указана';
+    const usernameText = user.username ? `@${user.username}` : `ID ${user.telegram_id || user.id || 'не указан'}`;
+    const groupTitle = activeStudentEnrollment?.training_groups?.title || 'без группы';
+    const textPreview = homeworkText.trim()
+      ? `\n\n<b>Ответ ученика:</b>\n${escapeTelegramHtml(homeworkText.trim()).slice(0, 650)}`
+      : '';
+    const caption = [
+      '📚 <b>Новое ДЗ на проверку</b>',
+      '',
+      `👤 <b>Ученик:</b> ${escapeTelegramHtml(user.name || 'Ученик')} (${escapeTelegramHtml(usernameText)})`,
+      `🎓 <b>Курс:</b> ${escapeTelegramHtml(activeStudentEnrollment?.training_programs?.title || 'Обучение Таро')}`,
+      `👥 <b>Группа:</b> ${escapeTelegramHtml(groupTitle)}`,
+      `📖 <b>Урок:</b> ${escapeTelegramHtml(selectedLesson?.title || 'Урок')}`,
+      `🗓 <b>Дата:</b> ${escapeTelegramHtml(lessonDate)}`,
+      selectedLesson?.homework_title ? `📝 <b>ДЗ:</b> ${escapeTelegramHtml(selectedLesson.homework_title)}` : '',
+      textPreview,
+    ].filter(Boolean).join('\n');
+
+    formData.append('chatIds', JSON.stringify(adminTelegramIds));
+    formData.append('caption', caption);
+    formData.append('parseMode', 'HTML');
+    formData.append('botToken', import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '');
+    formData.append('fileName', file.name);
+    formData.append('document', file, file.name);
+
+    const response = await fetch('/api/telegram/document', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || payload?.ok !== true) {
+      throw new Error(payload?.error || 'Telegram не подтвердил отправку файла');
+    }
+
+    const firstResult = payload.results?.[0];
+    return {
+      name: file.name,
+      path: `telegram:${firstResult?.chatId || 'admin'}:${firstResult?.messageId || Date.now()}`,
+      size: file.size,
+      type: file.type,
+      telegram_file_id: firstResult?.fileId || null,
+      telegram_message_id: firstResult?.messageId || null,
+      storage: 'telegram',
+    };
+  };
+
   const submitHomework = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedLesson || !activeStudentEnrollment) return;
@@ -549,41 +593,27 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     setSubmittingHomework(true);
 
     try {
-      const uploadedFiles: TrainingHomeworkFile[] = [];
+      const sentFiles: TrainingHomeworkFile[] = [];
 
       for (const file of homeworkFiles) {
-        const isAllowed = [
-          'application/pdf',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ].includes(file.type) || /\.(pdf|docx)$/i.test(file.name);
+        const isAllowed = ALLOWED_HOMEWORK_FILE_TYPES.includes(file.type) || /\.(pdf|doc|docx)$/i.test(file.name);
 
         if (!isAllowed) {
-          throw new Error(`Файл “${file.name}” не подходит. Можно прикрепить только PDF или DOCX.`);
+          throw new Error(`Файл “${file.name}” не подходит. Можно прикрепить только PDF, DOC или DOCX.`);
         }
 
-        const path = getHomeworkStoragePath(
-          user.id || user.telegram_id,
-          activeStudentEnrollment.id,
-          selectedLesson.id,
-          file
-        );
-        const { error: uploadError } = await supabase.storage
-          .from('training-homework')
-          .upload(path, file, { upsert: false });
+        if (file.size > MAX_HOMEWORK_FILE_SIZE_BYTES) {
+          throw new Error(`Файл “${file.name}” слишком большой. Максимум — 8 МБ.`);
+        }
+      }
 
-        if (uploadError) throw uploadError;
+      const adminTelegramIds = homeworkFiles.length > 0 ? await getAdminTelegramIds() : [];
+      if (homeworkFiles.length > 0 && adminTelegramIds.length === 0) {
+        throw new Error('Не нашёл админа для отправки файла в Telegram.');
+      }
 
-        const { data: publicUrlData } = supabase.storage
-          .from('training-homework')
-          .getPublicUrl(path);
-
-        uploadedFiles.push({
-          name: file.name,
-          path,
-          url: publicUrlData.publicUrl,
-          size: file.size,
-          type: file.type,
-        });
+      for (const file of homeworkFiles) {
+        sentFiles.push(await sendHomeworkFileToAdmins(file, adminTelegramIds));
       }
 
       const existingFiles = progress?.homework_files || [];
@@ -592,7 +622,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         enrollment_id: activeStudentEnrollment.id,
         homework_status: 'submitted',
         homework_submitted_text: homeworkText.trim() || null,
-        homework_files: [...existingFiles, ...uploadedFiles],
+        homework_files: [...existingFiles, ...sentFiles],
         homework_submitted_at: new Date().toISOString(),
       };
 
@@ -1189,16 +1219,18 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
                       <p className="mb-2 text-sm font-black text-[#385144]">Отправленные файлы</p>
                       <div className="space-y-2">
                         {files.map(file => (
-                          <a
+                          <span
                             key={file.path}
-                            href={file.url}
-                            target="_blank"
-                            rel="noreferrer"
                             className="flex items-center rounded-xl bg-[#F8F3EC] p-3 text-sm font-bold text-[#385144]"
                           >
                             <FileText className="mr-2 h-4 w-4 shrink-0" />
                             {file.name}
-                          </a>
+                            {file.storage === 'telegram' && (
+                              <span className="ml-auto rounded-full bg-[#EAF1EA] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#385144]">
+                                в боте
+                              </span>
+                            )}
+                          </span>
                         ))}
                       </div>
                     </div>

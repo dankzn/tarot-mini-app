@@ -76,6 +76,9 @@ export interface TrainingHomeworkFile {
   url?: string;
   size?: number;
   type?: string;
+  storage?: 'supabase' | 'telegram';
+  telegram_file_id?: string | null;
+  telegram_message_id?: number | null;
 }
 
 export const DEFAULT_TRAINING_PROGRAMS: TrainingProgram[] = [

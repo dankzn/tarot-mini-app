@@ -1210,9 +1210,10 @@ export const TrainingManager = () => {
                               {files.length > 0 && (
                                 <div className="flex flex-wrap gap-2">
                                   {files.map(file => (
-                                    <a key={file.path} href={file.url} target="_blank" rel="noreferrer" className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
+                                    <span key={file.path} className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]">
                                       {file.name}
-                                    </a>
+                                      {file.storage === 'telegram' ? ' · в Telegram' : ''}
+                                    </span>
                                   ))}
                                 </div>
                               )}
@@ -1576,15 +1577,13 @@ export const TrainingManager = () => {
                                     {files.length > 0 && (
                                       <div className="flex flex-wrap gap-2">
                                         {files.map(file => (
-                                          <a
+                                          <span
                                             key={file.path}
-                                            href={file.url}
-                                            target="_blank"
-                                            rel="noreferrer"
                                             className="rounded-full bg-[#EAF1EA] px-3 py-1 text-xs font-black text-[#385144]"
                                           >
                                             {file.name}
-                                          </a>
+                                            {file.storage === 'telegram' ? ' · в Telegram' : ''}
+                                          </span>
                                         ))}
                                       </div>
                                     )}
