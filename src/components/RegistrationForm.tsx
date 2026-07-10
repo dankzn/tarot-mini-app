@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, MapPin, Phone, Calendar, Save, Users } from 'lucide-react';
+import { notifyAdminNewUserRegistration } from '../lib/notifications';
 
 interface RegistrationFormProps {
   telegramUser: any;
@@ -129,6 +130,33 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       }
 
       console.log('✅ Пользователь создан:', user);
+
+      try {
+        const { data: adminsData } = await supabase
+          .from('users')
+          .select('telegram_id')
+          .eq('role', 'admin')
+          .not('telegram_id', 'is', null);
+
+        const adminTelegramIds = [
+          ...new Set((adminsData || []).map((admin: any) => admin.telegram_id).filter(Boolean)),
+        ];
+
+        const notificationResult = await notifyAdminNewUserRegistration(
+          adminTelegramIds,
+          user.name || name || 'Новый клиент',
+          user.username || telegramUser.username || null,
+          user.telegram_id || telegramUser.id,
+          user.city || city || null,
+          user.referred_by || null
+        );
+
+        if (!notificationResult.ok) {
+          console.warn('⚠️ Уведомление о новой регистрации не отправлено:', notificationResult.error);
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Ошибка уведомления о новой регистрации:', notificationError);
+      }
 
       // Помечаем pending referral как использованный
       if (referralCode && telegramUser?.id) {

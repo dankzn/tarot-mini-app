@@ -157,6 +157,38 @@ export const notifyAdminNewBooking = async (
     : { ok: true };
 };
 
+export const notifyAdminNewUserRegistration = async (
+  adminTelegramIds: Array<string | number>,
+  clientName: string,
+  clientUsername: string | null,
+  telegramId: string | number,
+  city?: string | null,
+  referredBy?: string | number | null
+) => {
+  if (adminTelegramIds.length === 0) {
+    return { ok: false, error: 'Admin Telegram ID was not found in users table' };
+  }
+
+  const usernameText = clientUsername ? ` (@${escapeHtml(clientUsername)})` : '';
+  const cityText = city ? `\n📍 <b>Город:</b> ${escapeHtml(city)}` : '';
+  const referralText = referredBy ? `\n🤝 <b>Пришёл по рекомендации:</b> ${escapeHtml(referredBy)}` : '';
+  const message = `
+✨ <b>Новый пользователь зарегистрировался</b>
+
+👤 <b>Клиент:</b> ${escapeHtml(clientName)}${usernameText}
+🆔 <b>Telegram ID:</b> ${escapeHtml(telegramId)}${cityText}${referralText}
+
+Профиль уже создан в базе. Можно посмотреть клиента в админке.
+  `.trim();
+
+  const results = await Promise.all(adminTelegramIds.map(chatId => sendTelegramNotification(chatId, message)));
+  const failed = results.filter(result => !result.ok);
+
+  return failed.length === results.length
+    ? { ok: false, error: failed.map(result => result.error).filter(Boolean).join('; ') }
+    : { ok: true };
+};
+
 export const notifyClientBookingCreated = async (
   clientTelegramId: string | number,
   serviceName: string,
