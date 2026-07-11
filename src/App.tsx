@@ -21,6 +21,7 @@ const AdminWebServices = lazy(() => import('./pages/AdminWebServices').then(modu
 const AdminWebAnalytics = lazy(() => import('./pages/AdminWebAnalytics').then(module => ({ default: module.AdminWebAnalytics })));
 const AdminWebClients = lazy(() => import('./pages/AdminWebClients').then(module => ({ default: module.AdminWebClients })));
 const AdminWebTraining = lazy(() => import('./pages/AdminWebTraining').then(module => ({ default: module.AdminWebTraining })));
+const StudioLanding = lazy(() => import('./pages/StudioLanding').then(module => ({ default: module.StudioLanding })));
 type ClientMode = 'consultations' | 'training';
 
 const getClientModuleStorageKey = (user: any) => `tarot-client-modules:${user?.id || user?.telegram_id || 'guest'}`;
@@ -69,14 +70,17 @@ export const App = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const [isPublicSiteRoute, setIsPublicSiteRoute] = useState(false);
   const [clientMode, setClientMode] = useState<ClientMode | null>(null);
 
   useEffect(() => {
     const path = window.location.pathname;
     const isAdmin = path.startsWith('/admin-web');
+    const isPublicSite = path.startsWith('/site') || path.startsWith('/studio');
     setIsAdminRoute(isAdmin);
+    setIsPublicSiteRoute(isPublicSite);
 
-    if (!isAdmin) {
+    if (!isAdmin && !isPublicSite) {
       initUser();
     } else {
       setLoading(false);
@@ -164,7 +168,7 @@ export const App = () => {
     setClientMode(mode);
   };
 
-  if (showSplash && !isAdminRoute) {
+  if (showSplash && !isAdminRoute && !isPublicSiteRoute) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
@@ -183,6 +187,8 @@ export const App = () => {
           <Route path="/admin-web/training" element={adminRoute(<AdminWebTraining />)} />
           <Route path="/admin-web/analytics" element={adminRoute(<AdminWebAnalytics />)} />
           <Route path="/admin-web/clients" element={adminRoute(<AdminWebClients />)} />
+          <Route path="/site" element={<StudioLanding />} />
+          <Route path="/studio" element={<StudioLanding />} />
 
           {/* Telegram Mini App */}
           <Route path="/*" element={

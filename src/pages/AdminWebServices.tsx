@@ -1,6 +1,7 @@
 import { ServicesManager } from '../components/admin/ServicesManager';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { PromoCodesManager } from '../components/admin/PromoCodesManager';
+import { PaymentMethodsManager } from '../components/admin/PaymentMethodsManager';
 
 export const AdminWebServices = () => {
   return (
@@ -21,6 +22,9 @@ export const AdminWebServices = () => {
         </div>
         <ServicesManager />
         <PromoCodesManager />
+        <div className="mt-8">
+          <PaymentMethodsManager />
+        </div>
       </div>
     </div>
   );
