@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Edit, Save, X, Users, Search, Crown, CalendarCheck, MessageSquare } from 'lucide-react';
+import { Edit, Save, X, Users, Search, Crown, CalendarCheck, MessageSquare, Trash2 } from 'lucide-react';
+import { deleteClientCompletely } from '../../lib/adminClientDeletion';
 
 interface User {
   id: string;
@@ -19,6 +20,7 @@ interface User {
   total_paid?: number;
   last_consultation_at?: string | null;
   upcoming_consultation_at?: string | null;
+  role?: string | null;
 }
 
 type ClientFilter = 'all' | 'new' | 'active' | 'upcoming' | 'sleeping' | 'vip';
@@ -36,6 +38,7 @@ export const ClientsManager = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<ClientFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
@@ -144,6 +147,33 @@ export const ClientsManager = () => {
     setFormData({ username: '', gender: 'other', referred_by: '', admin_private_notes: '' });
   };
 
+  const handleDeleteUser = async (user: User) => {
+    if (user.role === 'admin') {
+      alert('Админ-аккаунт нельзя удалить этой кнопкой.');
+      return;
+    }
+
+    const confirmation = window.prompt(
+      `Удалить клиента “${user.name || 'без имени'}” полностью?\n\nБудут удалены профиль, записи, история консультаций, заявки на обучение и связи с промокодами.\n\nЧтобы подтвердить, напишите: УДАЛИТЬ`
+    );
+
+    if (confirmation !== 'УДАЛИТЬ') return;
+
+    setDeletingId(user.id);
+
+    try {
+      await deleteClientCompletely(user);
+      setUsers((currentUsers) => currentUsers.filter((item) => item.id !== user.id));
+      if (selectedUser?.id === user.id) setSelectedUser(null);
+      if (editingId === user.id) handleCancel();
+    } catch (error: any) {
+      console.error('Ошибка удаления клиента:', error);
+      alert(`Не удалось удалить клиента: ${error?.message || 'ошибка'}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = !query
@@ -213,9 +243,21 @@ export const ClientsManager = () => {
               <h3 className="mt-1 text-2xl font-black">{selectedUser.name}</h3>
               <p className="mt-1 text-sm text-white/70">@{selectedUser.username || 'не указан'} · ID {selectedUser.telegram_id}</p>
             </div>
-            <button onClick={() => setSelectedUser(null)} className="rounded-2xl bg-white/10 p-3">
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex gap-2">
+              {selectedUser.role !== 'admin' && (
+                <button
+                  onClick={() => handleDeleteUser(selectedUser)}
+                  disabled={deletingId === selectedUser.id}
+                  className="rounded-2xl bg-red-500/15 p-3 text-red-100 transition hover:bg-red-500/25 disabled:opacity-50"
+                  title="Удалить клиента полностью"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              )}
+              <button onClick={() => setSelectedUser(null)} className="rounded-2xl bg-white/10 p-3">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div className="rounded-2xl bg-white/10 p-4">
@@ -325,9 +367,21 @@ export const ClientsManager = () => {
                     )}
                   </div>
                 </button>
-                <button onClick={() => handleEdit(user)} className="self-start rounded-2xl p-3 text-blue-600 hover:bg-blue-50 md:self-center">
-                  <Edit className="w-4 h-4" />
-                </button>
+                <div className="flex self-start gap-2 md:self-center">
+                  <button onClick={() => handleEdit(user)} className="rounded-2xl p-3 text-blue-600 hover:bg-blue-50" title="Редактировать">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  {user.role !== 'admin' && (
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      disabled={deletingId === user.id}
+                      className="rounded-2xl p-3 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                      title="Удалить клиента полностью"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

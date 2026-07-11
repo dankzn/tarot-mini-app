@@ -12,15 +12,18 @@ import {
   MapPin,
   DollarSign,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Trash2
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
+import { deleteClientCompletely } from '../lib/adminClientDeletion';
 
 export const AdminWebUsers = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -87,6 +90,31 @@ export const AdminWebUsers = () => {
     'Silver': 'bg-gray-200 text-gray-800',
     'Gold': 'bg-yellow-100 text-yellow-800',
     'Platinum': 'bg-purple-100 text-purple-800',
+  };
+
+  const handleDeleteUser = async (user: any) => {
+    if (user.role === 'admin') {
+      alert('Админ-аккаунт нельзя удалить этой кнопкой.');
+      return;
+    }
+
+    const confirmation = window.prompt(
+      `Удалить клиента “${user.name || 'без имени'}” полностью?\n\nБудут удалены профиль, записи, история консультаций, заявки на обучение и связи с промокодами.\n\nЧтобы подтвердить, напишите: УДАЛИТЬ`
+    );
+
+    if (confirmation !== 'УДАЛИТЬ') return;
+
+    setDeletingId(user.id);
+
+    try {
+      await deleteClientCompletely(user);
+      await loadUsers();
+    } catch (error: any) {
+      console.error('Ошибка удаления клиента:', error);
+      alert(`Не удалось удалить клиента: ${error?.message || 'ошибка'}`);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -203,12 +231,24 @@ export const AdminWebUsers = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-[#D4AF37] font-bold text-xl mb-1">
-                      <DollarSign className="w-6 h-6" />
-                      {user.bonus_balance || 0} ₽
+                  <div className="flex flex-col items-end gap-3 text-right">
+                    <div>
+                      <div className="flex items-center gap-2 text-[#D4AF37] font-bold text-xl mb-1">
+                        <DollarSign className="w-6 h-6" />
+                        {user.bonus_balance || 0} ₽
+                      </div>
+                      <p className="text-gray-500 text-sm">Бонусный баланс</p>
                     </div>
-                    <p className="text-gray-500 text-sm">Бонусный баланс</p>
+                    {user.role !== 'admin' && (
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={deletingId === user.id}
+                        className="inline-flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deletingId === user.id ? 'Удаляю...' : 'Удалить'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
