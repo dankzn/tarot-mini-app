@@ -187,8 +187,8 @@ export const App = () => {
           <Route path="/admin-web/training" element={adminRoute(<AdminWebTraining />)} />
           <Route path="/admin-web/analytics" element={adminRoute(<AdminWebAnalytics />)} />
           <Route path="/admin-web/clients" element={adminRoute(<AdminWebClients />)} />
-          <Route path="/site" element={<StudioLanding />} />
-          <Route path="/studio" element={<StudioLanding />} />
+          <Route path="/site/*" element={<StudioLanding />} />
+          <Route path="/studio/*" element={<StudioLanding />} />
 
           {/* Telegram Mini App */}
           <Route path="/*" element={
