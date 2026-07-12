@@ -43,9 +43,9 @@ const routes: { page: SitePage; label: string; href: string }[] = [
 ];
 
 const studioPrinciples = [
-  ['без шоу', 'без страшилок, давления и мистического спектакля'],
-  ['без публичности', 'личные темы остаются между нами'],
-  ['без спешки', 'решение должно созреть, а не быть продано'],
+  ['бережно', 'можно говорить прямо и не играть сильного человека'],
+  ['конфиденциально', 'личные темы не становятся контентом'],
+  ['по делу', 'после встречи остаётся понятный следующий шаг'],
 ];
 
 const consultationCards = [
@@ -90,6 +90,29 @@ const academyCards = [
 ];
 
 const academySteps = ['заявка', 'созвон', 'зачисление', 'занятия', 'домашки', 'практика'];
+
+const studioSpaces = [
+  {
+    title: 'Консультации',
+    label: 'личные вопросы',
+    text: 'Отношения, выбор, состояние, деньги, работа и ситуации, где нужен спокойный взгляд со стороны',
+    href: '/site/consultations',
+  },
+  {
+    title: 'Академия',
+    label: 'обучение Таро',
+    text: 'Индивидуальные и групповые программы с практикой, домашними заданиями и живым сопровождением',
+    href: '/site/academy',
+  },
+  {
+    title: 'Кабинет',
+    label: 'ваш профиль',
+    text: 'Записи, обучение, бонусы и оплата собраны там, где клиенту удобно возвращаться к своему пути',
+    href: '/site/profile',
+  },
+];
+
+const studioMoods = ['отношения', 'выбор', 'состояние', 'обучение', 'опора', 'ясность'];
 
 const openExternal = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -213,8 +236,8 @@ const BrandMark = () => (
       <MoonStar className="h-5 w-5 transition duration-500 group-hover:rotate-12" />
     </div>
     <div>
-      <p className="text-[10px] font-black uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil</p>
-      <p className="text-lg font-black lowercase leading-none text-[#F8F0E4]">studio</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil</p>
+      <p className="text-lg font-semibold lowercase leading-none text-[#F8F0E4]">studio</p>
     </div>
   </SiteLink>
 );
@@ -222,7 +245,7 @@ const BrandMark = () => (
 const MagneticLink = ({ href, children, variant = 'light' }: { href: string; children: React.ReactNode; variant?: 'light' | 'dark' }) => (
   <SiteLink
     href={href}
-    className={`site-magnetic inline-flex items-center justify-center rounded-full px-7 py-4 text-base font-black transition will-change-transform ${
+    className={`site-magnetic inline-flex items-center justify-center rounded-full px-7 py-4 text-base font-semibold transition will-change-transform ${
       variant === 'dark'
         ? 'bg-[#0E1511] text-[#F7EDE0] shadow-[0_22px_80px_rgba(0,0,0,0.28)]'
         : 'bg-[#F7EDE0] text-[#0E1511] shadow-[0_22px_80px_rgba(0,0,0,0.2)]'
@@ -258,7 +281,7 @@ const PageShell = ({
         <header className="site-header sticky top-0 z-40 mx-auto flex max-w-[1540px] items-center justify-between px-5 py-5 md:px-10 xl:px-16">
           <BrandMark />
 
-          <nav className="hidden items-center rounded-full border border-white/10 bg-white/[0.055] p-1 text-sm font-black text-[#F7EDE0]/60 shadow-[0_18px_80px_rgba(0,0,0,0.18)] backdrop-blur-2xl lg:flex">
+          <nav className="hidden items-center rounded-full border border-white/10 bg-white/[0.055] p-1 text-sm font-semibold text-[#F7EDE0]/58 shadow-[0_18px_80px_rgba(0,0,0,0.18)] backdrop-blur-2xl lg:flex">
             {routes.map((route) => (
               <SiteLink
                 key={route.page}
@@ -273,7 +296,7 @@ const PageShell = ({
           </nav>
 
           <div className="flex items-center gap-3">
-            <SiteLink href="/site/profile" className="hidden rounded-full bg-[#F7EDE0] px-6 py-3 text-sm font-black text-[#0D1510] shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 md:block">
+            <SiteLink href="/site/profile" className="hidden rounded-full bg-[#F7EDE0] px-6 py-3 text-sm font-semibold text-[#0D1510] shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 md:block">
               {user ? 'Кабинет' : 'Войти'}
             </SiteLink>
             <button
@@ -288,12 +311,12 @@ const PageShell = ({
 
         {children}
 
-        <footer className="mx-auto flex max-w-[1540px] flex-col gap-5 border-t border-white/10 px-5 py-10 text-sm font-bold text-[#F7EDE0]/48 md:flex-row md:items-center md:justify-between md:px-10 xl:px-16">
+        <footer className="mx-auto flex max-w-[1540px] flex-col gap-5 border-t border-white/10 px-5 py-10 text-sm font-medium text-[#F7EDE0]/48 md:flex-row md:items-center md:justify-between md:px-10 xl:px-16">
           <span>Tarot by Danil · private studio</span>
           <div className="flex flex-wrap gap-4">
             <SiteLink href="/site/consultations" className="transition hover:text-[#F7EDE0]">Консультации</SiteLink>
             <SiteLink href="/site/academy" className="transition hover:text-[#F7EDE0]">Академия</SiteLink>
-            <SiteLink href="/site/profile" className="transition hover:text-[#F7EDE0]">Вход через Telegram</SiteLink>
+            <SiteLink href="/site/profile" className="transition hover:text-[#F7EDE0]">Кабинет</SiteLink>
           </div>
         </footer>
       </div>
@@ -301,7 +324,7 @@ const PageShell = ({
       {menuOpen && (
         <div className="fixed inset-0 z-50 bg-[#0B120E]/94 p-5 backdrop-blur-2xl lg:hidden">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-black uppercase tracking-[0.32em] text-[#C79672]">Меню</p>
+            <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#C79672]">Меню</p>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
@@ -312,7 +335,7 @@ const PageShell = ({
           </div>
           <div className="mt-12 grid gap-3">
             {routes.map((route) => (
-              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-white/10 bg-white/[0.08] p-6 text-3xl font-black text-[#F7EDE0]">
+              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-white/10 bg-white/[0.08] p-6 text-3xl font-semibold text-[#F7EDE0]">
                 {route.label}
               </SiteLink>
             ))}
@@ -325,93 +348,95 @@ const PageShell = ({
 
 const SectionIntro = ({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) => (
   <div className="site-reveal max-w-3xl">
-    <p className="mb-4 text-xs font-black uppercase tracking-[0.42em] text-[#C79672]">{eyebrow}</p>
-    <h2 className="text-[clamp(3rem,7vw,7rem)] font-black leading-[0.88] tracking-[-0.075em] text-[#F8F0E4]">{title}</h2>
-    <p className="mt-6 text-xl font-semibold leading-relaxed text-[#F8F0E4]/58">{text}</p>
+    <p className="mb-4 text-xs font-bold uppercase tracking-[0.42em] text-[#C79672]">{eyebrow}</p>
+    <h2 className="site-display text-[clamp(3.4rem,7vw,7.6rem)] leading-[0.94] text-[#F8F0E4]">{title}</h2>
+    <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-[#F8F0E4]/60">{text}</p>
   </div>
 );
 
 const HomePage = () => (
   <>
-    <section className="mx-auto grid min-h-[calc(100vh-92px)] max-w-[1540px] items-center gap-12 px-5 pb-20 pt-10 md:px-10 xl:grid-cols-[1.05fr_0.95fr] xl:px-16">
+    <section className="mx-auto grid min-h-[calc(100vh-92px)] max-w-[1540px] items-center gap-14 px-5 pb-20 pt-10 md:px-10 xl:grid-cols-[0.94fr_1.06fr] xl:px-16">
       <div className="site-reveal">
-        <div className="mb-8 inline-flex rounded-full border border-white/12 bg-white/[0.055] px-5 py-3 text-xs font-black uppercase tracking-[0.34em] text-[#C79672] backdrop-blur-xl">
+        <div className="mb-8 inline-flex rounded-full border border-white/12 bg-white/[0.055] px-5 py-3 text-xs font-bold uppercase tracking-[0.34em] text-[#C79672] backdrop-blur-xl">
           private tarot studio
         </div>
-        <h1 aria-label="Таро без спектакля" className="max-w-5xl text-[clamp(4.7rem,11vw,11.6rem)] font-black leading-[0.82] tracking-[-0.095em] text-[#F8F0E4]">
-          Таро без
-          <span className="block text-[#B98266]">спектакля</span>
+        <h1 aria-label="Таро как честный разговор" className="site-display max-w-4xl text-[clamp(3.8rem,8vw,8.6rem)] leading-[0.92] text-[#F8F0E4]">
+          Таро как честный разговор
         </h1>
-        <p className="mt-8 max-w-2xl text-[clamp(1.25rem,2vw,2rem)] font-semibold leading-relaxed text-[#F8F0E4]/64">
-          Для моментов, когда внутри шумно, а решение нужно принимать не из паники
+        <p className="mt-8 max-w-2xl text-[clamp(1.18rem,1.8vw,1.72rem)] font-medium leading-relaxed text-[#F8F0E4]/66">
+          Для вопросов, где хочется ясности, бережности и нормального человеческого языка
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <MagneticLink href="/site/profile">
-            Войти через Telegram
+          <MagneticLink href="/site/consultations">
+            Записаться
             <ArrowRight className="ml-3 h-5 w-5" />
           </MagneticLink>
-          <MagneticLink href="/site/consultations" variant="dark">
-            Смотреть форматы
+          <MagneticLink href="/site/academy" variant="dark">
+            Обучение Таро
           </MagneticLink>
+        </div>
+        <div className="mt-10 flex flex-wrap gap-3">
+          {studioMoods.map((mood) => (
+            <span key={mood} className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-sm font-medium text-[#F8F0E4]/58 backdrop-blur-xl">
+              {mood}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div className="site-reveal site-delay-1 relative min-h-[620px]">
+      <div className="site-reveal site-delay-1 site-oracle-stage">
         <div className="site-hero-ring" />
-        <div className="site-hero-device absolute right-0 top-4 w-full max-w-[640px] rounded-[3.5rem] border border-white/18 bg-[#111B15]/86 p-7 shadow-[0_50px_160px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
-          <div className="rounded-[2.5rem] border border-white/12 bg-[radial-gradient(circle_at_16%_0%,rgba(199,150,114,0.24),transparent_34%),linear-gradient(150deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-7">
-            <p className="text-xs font-black uppercase tracking-[0.45em] text-[#C79672]">inside the room</p>
-            <h2 className="mt-5 text-[clamp(2.2rem,4vw,4.7rem)] font-black leading-[0.92] tracking-[-0.06em]">
-              меньше шума больше ясности
-            </h2>
-            <div className="mt-8 grid gap-4">
-              {studioPrinciples.map(([title, text]) => (
-                <div key={title} className="site-premium-card rounded-[1.7rem] border border-white/16 bg-black/14 p-5">
-                  <p className="text-2xl font-black">{title}</p>
-                  <p className="mt-2 font-semibold text-[#F8F0E4]/48">{text}</p>
-                </div>
-              ))}
-            </div>
+        <div className="site-oracle-card site-oracle-card-one">
+          <p className="text-xs font-bold uppercase tracking-[0.44em] text-[#C79672]">reading room</p>
+          <h2 className="site-display mt-7 text-[clamp(3rem,5.7vw,6.8rem)] leading-[0.9] text-[#F8F0E4]">
+            меньше шума
+            <span className="block text-[#D3A17F]">больше опоры</span>
+          </h2>
+          <div className="mt-10 grid gap-3">
+            {studioPrinciples.map(([title, text]) => (
+              <div key={title} className="site-premium-card rounded-[1.6rem] border border-white/12 bg-white/[0.055] p-5">
+                <p className="text-2xl font-semibold text-[#F8F0E4]">{title}</p>
+                <p className="mt-2 text-base font-medium leading-relaxed text-[#F8F0E4]/52">{text}</p>
+              </div>
+            ))}
           </div>
         </div>
-        <div className="site-floating-card absolute bottom-0 left-0 max-w-[410px] rounded-[2.4rem] bg-[#B98266] p-7 text-[#160E0A] shadow-[0_32px_100px_rgba(0,0,0,0.34)]">
-          <p className="text-xs font-black uppercase tracking-[0.34em] text-[#160E0A]/60">telegram вход</p>
-          <h3 className="mt-3 text-3xl font-black leading-tight">профиль открывается без пароля</h3>
-          <p className="mt-4 font-bold text-[#160E0A]/64">сайт, бот и mini app смотрят на одного клиента</p>
+        <div className="site-oracle-card site-oracle-card-two">
+          <p>clarity</p>
+        </div>
+        <div className="site-oracle-card site-oracle-card-three">
+          <p>care</p>
         </div>
       </div>
     </section>
 
-    <section className="site-marquee border-y border-white/10 bg-white/[0.04] py-5 text-sm font-black uppercase tracking-[0.38em] text-[#F8F0E4]/52">
+    <section className="site-marquee border-y border-white/10 bg-white/[0.04] py-5 text-sm font-semibold uppercase tracking-[0.38em] text-[#F8F0E4]/52">
       <div className="site-marquee-track">
         {Array.from({ length: 2 }).map((_, index) => (
           <div key={index} className="flex gap-10">
-            <span>консультации</span>
-            <span>обучение</span>
-            <span>кабинет через Telegram</span>
-            <span>ручное подтверждение оплаты</span>
-            <span>без публичности</span>
+            <span>бережно</span>
+            <span>конфиденциально</span>
+            <span>без давления</span>
+            <span>после встречи понятнее</span>
+            <span>живой разговор</span>
           </div>
         ))}
       </div>
     </section>
 
     <section className="mx-auto grid max-w-[1540px] gap-5 px-5 py-20 md:grid-cols-3 md:px-10 xl:px-16">
-      {[
-        ['Консультации', 'Выбрать формат, дату и перейти к записи', '/site/consultations'],
-        ['Академия', 'Посмотреть обучение и оставить заявку', '/site/academy'],
-        ['Кабинет', 'Войти через Telegram и увидеть свой профиль', '/site/profile'],
-      ].map(([title, text, href], index) => (
+      {studioSpaces.map((space, index) => (
         <SiteLink
-          key={title}
-          href={href}
+          key={space.title}
+          href={space.href}
           className={`site-reveal site-premium-card site-delay-${index + 1} group min-h-[320px] rounded-[2.8rem] border border-white/12 bg-white/[0.06] p-8 backdrop-blur-xl transition hover:-translate-y-2 hover:bg-white/[0.1]`}
         >
           <div className="flex h-full flex-col justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.38em] text-[#C79672]">space 0{index + 1}</p>
-              <h3 className="mt-5 text-5xl font-black leading-[0.9] tracking-[-0.06em] text-[#F8F0E4]">{title}</h3>
-              <p className="mt-6 text-lg font-semibold leading-relaxed text-[#F8F0E4]/56">{text}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{space.label}</p>
+              <h3 className="site-display mt-5 text-5xl leading-[0.96] text-[#F8F0E4]">{space.title}</h3>
+              <p className="mt-6 text-lg font-medium leading-relaxed text-[#F8F0E4]/56">{space.text}</p>
             </div>
             <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#F7EDE0] text-[#0D1510] transition group-hover:translate-x-2">
               <ArrowRight className="h-5 w-5" />
@@ -432,12 +457,12 @@ const ConsultationsPage = () => (
         text="В списке нет давления и лишней мистики, только понятный вход в разговор и честный выбор темпа"
       />
       <div className="site-reveal site-delay-1 rounded-[3rem] border border-white/12 bg-[#F7EDE0] p-7 text-[#0D1510] shadow-[0_42px_120px_rgba(0,0,0,0.3)]">
-        <p className="text-xs font-black uppercase tracking-[0.36em] text-[#B98266]">как проходит</p>
+        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">как проходит</p>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {['выбираете формат', 'оставляете заявку', 'получаете подтверждение'].map((step, index) => (
             <div key={step} className="rounded-[2rem] bg-[#0D1510]/6 p-5">
-              <p className="text-5xl font-black text-[#B98266]">0{index + 1}</p>
-              <p className="mt-5 text-xl font-black">{step}</p>
+              <p className="site-display text-5xl text-[#B98266]">0{index + 1}</p>
+              <p className="mt-5 text-xl font-semibold">{step}</p>
             </div>
           ))}
         </div>
@@ -449,17 +474,17 @@ const ConsultationsPage = () => (
         <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} rounded-[2.8rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl transition hover:-translate-y-2`}>
           <div className="mb-8 flex items-start justify-between gap-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.38em] text-[#C79672]">{card.tag}</p>
-              <h3 className="mt-4 text-[clamp(2.2rem,4vw,4.4rem)] font-black leading-[0.9] tracking-[-0.06em]">{card.title}</h3>
+              <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{card.tag}</p>
+              <h3 className="site-display mt-4 text-[clamp(2.6rem,4vw,4.8rem)] leading-[0.94]">{card.title}</h3>
             </div>
             <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#F7EDE0] text-[#0D1510]">
               <MoonStar className="h-5 w-5" />
             </div>
           </div>
-          <p className="min-h-[110px] text-xl font-semibold leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
+          <p className="min-h-[110px] text-xl font-medium leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <MagneticLink href="/site/profile">Записаться</MagneticLink>
-            <MagneticLink href={BOT_URL} variant="dark">Открыть bot</MagneticLink>
+            <MagneticLink href={BOT_URL} variant="dark">Открыть приложение</MagneticLink>
           </div>
         </div>
       ))}
@@ -476,12 +501,12 @@ const AcademyPage = () => (
         text="База, расширенная программа и группы выглядят как нормальная учебная система, а не как набор обещаний"
       />
       <div className="site-reveal site-delay-1 rounded-[3rem] border border-[#C79672]/26 bg-[#B98266] p-7 text-[#160E0A] shadow-[0_42px_130px_rgba(0,0,0,0.32)]">
-        <p className="text-xs font-black uppercase tracking-[0.36em] text-[#160E0A]/58">academy path</p>
+        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#160E0A]/58">academy path</p>
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
           {academySteps.map((step, index) => (
             <div key={step} className="rounded-[1.6rem] bg-[#160E0A]/9 p-4">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#160E0A]/56">0{index + 1}</p>
-              <p className="mt-2 text-xl font-black">{step}</p>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#160E0A]/56">0{index + 1}</p>
+              <p className="mt-2 text-xl font-semibold">{step}</p>
             </div>
           ))}
         </div>
@@ -492,10 +517,10 @@ const AcademyPage = () => (
       {academyCards.map((card, index) => (
         <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.8rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl transition hover:-translate-y-2`}>
           <BookOpen className="h-8 w-8 text-[#C79672]" />
-          <p className="mt-10 text-xs font-black uppercase tracking-[0.38em] text-[#C79672]">program 0{index + 1}</p>
-          <h3 className="mt-4 text-4xl font-black leading-[0.95] tracking-[-0.05em]">{card.title}</h3>
-          <p className="mt-5 text-5xl font-black text-[#B98266]">{card.price}</p>
-          <p className="mt-7 text-lg font-semibold leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
+          <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">program 0{index + 1}</p>
+          <h3 className="site-display mt-4 text-5xl leading-[0.96]">{card.title}</h3>
+          <p className="mt-5 text-4xl font-semibold text-[#B98266]">{card.price}</p>
+          <p className="mt-7 text-lg font-medium leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
           <div className="mt-9">
             <MagneticLink href="/site/profile">Оставить заявку</MagneticLink>
           </div>
@@ -515,9 +540,9 @@ const ProfilePage = ({
   <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
     <div className="grid gap-10 xl:grid-cols-[0.78fr_1.22fr]">
       <SectionIntro
-        eyebrow="telegram access"
-        title={user ? 'Кабинет открыт' : 'Вход через Telegram'}
-        text={user ? 'Сайт, bot и mini app используют один профиль, поэтому история не расползается' : 'Без паролей и длинных форм, Telegram подтверждает личность, а сайт открывает профиль'}
+        eyebrow="private room"
+        title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
+        text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Войдите через Telegram, чтобы открыть свой профиль'}
       />
 
       <div className="site-reveal site-delay-1 rounded-[3rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl">
@@ -525,16 +550,16 @@ const ProfilePage = ({
           <div>
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.36em] text-[#C79672]">client profile</p>
-                <h2 className="mt-4 text-5xl font-black tracking-[-0.06em]">{user.name}</h2>
-                <p className="mt-3 text-lg font-bold text-[#F8F0E4]/50">
-                  @{user.username || 'telegram'} · ID {user.telegram_id}
+                <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">client profile</p>
+                <h2 className="site-display mt-4 text-6xl leading-[0.96]">{user.name}</h2>
+                <p className="mt-3 text-lg font-medium text-[#F8F0E4]/50">
+                  @{user.username || 'telegram'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onLogout}
-                className="inline-flex items-center justify-center rounded-full bg-[#F7EDE0] px-5 py-3 text-sm font-black text-[#0D1510]"
+                className="inline-flex items-center justify-center rounded-full bg-[#F7EDE0] px-5 py-3 text-sm font-semibold text-[#0D1510]"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Выйти
@@ -547,22 +572,22 @@ const ProfilePage = ({
                 ['город', user.city || 'не указан'],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-[2rem] bg-black/16 p-5">
-                  <p className="text-xs font-black uppercase tracking-[0.3em] text-[#C79672]">{label}</p>
-                  <p className="mt-4 text-3xl font-black">{value}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C79672]">{label}</p>
+                  <p className="mt-4 text-3xl font-semibold">{value}</p>
                 </div>
               ))}
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <MagneticLink href={BOT_URL}>Открыть mini app</MagneticLink>
+              <MagneticLink href={BOT_URL}>Открыть приложение</MagneticLink>
               <MagneticLink href="/site/academy" variant="dark">Посмотреть академию</MagneticLink>
             </div>
           </div>
         ) : (
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.36em] text-[#C79672]">secure login</p>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.05em]">один вход для сайта и mini app</h2>
-            <p className="mt-4 text-lg font-semibold leading-relaxed text-[#F8F0E4]/58">
-              После входа сайт поймёт ваш Telegram ID и покажет личный кабинет без отдельной регистрации
+            <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">private access</p>
+            <h2 className="site-display mt-4 text-5xl leading-[0.96]">всё важное в одном месте</h2>
+            <p className="mt-4 text-lg font-medium leading-relaxed text-[#F8F0E4]/58">
+              После входа откроется личный кабинет с вашими записями, обучением и оплатой
             </p>
             <div className="mt-8 rounded-[2rem] bg-[#F7EDE0] p-5 text-[#0D1510]">
               <TelegramLoginWidget />
@@ -582,8 +607,8 @@ const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) =>
       <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">
         <SectionIntro
           eyebrow="payment"
-          title="Оплата без лишней сцены"
-          text="Рабочая ссылка живёт в админке, а подтверждение оплаты остаётся под ручным контролем"
+          title="Оплатить запись"
+          text="Выберите удобный способ и вернитесь в приложение после перевода"
         />
         <div className="site-reveal site-delay-1 rounded-[3rem] bg-[#F7EDE0] p-7 text-[#0D1510] shadow-[0_42px_130px_rgba(0,0,0,0.28)]">
           <div className="flex items-center gap-4">
@@ -591,18 +616,18 @@ const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) =>
               <CreditCard className="h-7 w-7" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.36em] text-[#B98266]">активная ссылка</p>
-              <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">{activeMethod?.title || 'Т-Банк'}</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">способ оплаты</p>
+              <h2 className="site-display mt-2 text-5xl leading-[0.96]">{activeMethod?.title || 'Т-Банк'}</h2>
             </div>
           </div>
-          <p className="mt-7 text-lg font-bold leading-relaxed text-[#0D1510]/58">
-            {activeMethod?.instructions || 'После перевода нажмите “я оплатил” в приложении, чтобы админ проверил оплату вручную'}
+          <p className="mt-7 text-lg font-medium leading-relaxed text-[#0D1510]/58">
+            {activeMethod?.instructions || 'После перевода вернитесь в приложение и нажмите “я оплатил”'}
           </p>
           <button
             type="button"
             onClick={() => activeMethod?.payment_url && openExternal(activeMethod.payment_url)}
             disabled={!activeMethod?.payment_url}
-            className="site-magnetic mt-8 inline-flex w-full items-center justify-center rounded-full bg-[#0D1510] px-7 py-5 text-lg font-black text-[#F7EDE0] transition disabled:opacity-40"
+            className="site-magnetic mt-8 inline-flex w-full items-center justify-center rounded-full bg-[#0D1510] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
             data-magnetic
           >
             Открыть оплату
@@ -673,7 +698,7 @@ export const StudioLanding = () => {
     <PageShell page={page} user={user}>
       {page !== 'home' && (
         <div className="mx-auto max-w-[1540px] px-5 pt-7 md:px-10 xl:px-16">
-          <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-white/10 bg-white/[0.065] px-5 py-3 text-sm font-black text-[#F7EDE0] backdrop-blur-xl transition hover:bg-white/12">
+          <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-white/10 bg-white/[0.065] px-5 py-3 text-sm font-semibold text-[#F7EDE0] backdrop-blur-xl transition hover:bg-white/12">
             <ChevronLeft className="mr-2 h-4 w-4" />
             На главную
           </SiteLink>

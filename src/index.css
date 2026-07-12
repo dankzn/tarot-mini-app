@@ -17,7 +17,7 @@ html {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: Inter, Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background:
     radial-gradient(circle at 18% 4%, rgba(221, 233, 224, 0.92), transparent 32%),
     radial-gradient(circle at 96% 12%, rgba(184, 121, 92, 0.13), transparent 28%),
@@ -139,9 +139,10 @@ select:focus-visible {
   --site-scroll: 0;
   isolation: isolate;
   background:
-    radial-gradient(circle at 18% 18%, rgba(85, 122, 93, 0.23), transparent 28rem),
-    radial-gradient(circle at 84% 8%, rgba(185, 130, 102, 0.22), transparent 26rem),
-    linear-gradient(145deg, #0A100D 0%, #101A13 42%, #070B09 100%);
+    radial-gradient(circle at 16% 18%, rgba(104, 137, 105, 0.26), transparent 30rem),
+    radial-gradient(circle at 82% 10%, rgba(190, 135, 105, 0.2), transparent 30rem),
+    radial-gradient(circle at 60% 115%, rgba(247, 237, 224, 0.08), transparent 34rem),
+    linear-gradient(145deg, #09100C 0%, #111A14 46%, #070B09 100%);
 }
 
 .site-stage::before {
@@ -151,10 +152,10 @@ select:focus-visible {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgba(247, 237, 224, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(247, 237, 224, 0.025) 1px, transparent 1px);
-  background-size: 88px 88px;
-  mask-image: radial-gradient(circle at 50% 18%, black, transparent 68%);
+    radial-gradient(circle at 18% 12%, rgba(247, 237, 224, 0.08), transparent 24rem),
+    radial-gradient(circle at 76% 46%, rgba(199, 150, 114, 0.08), transparent 30rem),
+    linear-gradient(120deg, transparent, rgba(247, 237, 224, 0.035), transparent);
+  mask-image: radial-gradient(circle at 50% 18%, black, transparent 74%);
 }
 
 .site-stage::after {
@@ -194,6 +195,13 @@ select:focus-visible {
   pointer-events: none;
   background: radial-gradient(circle 34rem at var(--site-x) var(--site-y), rgba(247, 237, 224, 0.09), transparent 56%);
   transition: background 0.18s ease-out;
+}
+
+.site-display {
+  font-family: 'New York', 'Iowan Old Style', ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: -0.048em;
+  text-wrap: balance;
 }
 
 .site-noise {
@@ -320,11 +328,11 @@ select:focus-visible {
 
 .site-hero-ring {
   position: absolute;
-  inset: 2rem 0 auto auto;
-  width: min(46vw, 700px);
+  inset: 2rem 4rem auto auto;
+  width: min(42vw, 620px);
   aspect-ratio: 1;
   border-radius: 9999px;
-  border: 1px solid rgba(247, 237, 224, 0.18);
+  border: 1px solid rgba(247, 237, 224, 0.14);
   animation: site-breathe 7s ease-in-out infinite;
 }
 
@@ -342,12 +350,89 @@ select:focus-visible {
   border-color: rgba(247, 237, 224, 0.12);
 }
 
-.site-hero-device {
-  animation: site-float 7.5s ease-in-out infinite;
+.site-oracle-stage {
+  position: relative;
+  min-height: 680px;
+  perspective: 1100px;
 }
 
-.site-floating-card {
-  animation: site-float 8.5s ease-in-out infinite reverse;
+.site-oracle-card {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 3.2rem;
+  border: 1px solid rgba(247, 237, 224, 0.16);
+  box-shadow: 0 48px 160px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(28px);
+  transform-style: preserve-3d;
+}
+
+.site-oracle-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(247, 237, 224, 0.17), transparent 24rem),
+    linear-gradient(125deg, rgba(255, 255, 255, 0.09), transparent 42%, rgba(199, 150, 114, 0.08));
+}
+
+.site-oracle-card::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.site-oracle-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.site-oracle-card-one {
+  right: 0;
+  top: 4rem;
+  z-index: 5;
+  width: min(100%, 650px);
+  min-height: 560px;
+  padding: clamp(1.7rem, 3vw, 3rem);
+  background:
+    radial-gradient(circle at 10% 20%, rgba(199, 150, 114, 0.18), transparent 22rem),
+    linear-gradient(145deg, rgba(19, 29, 23, 0.9), rgba(9, 14, 11, 0.88));
+  animation: site-float 8s ease-in-out infinite;
+}
+
+.site-oracle-card-two,
+.site-oracle-card-three {
+  display: grid;
+  place-items: end start;
+  width: min(55vw, 330px);
+  height: 460px;
+  padding: 2rem;
+  color: rgba(247, 237, 224, 0.34);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.48em;
+  text-transform: uppercase;
+}
+
+.site-oracle-card-two {
+  left: 2rem;
+  top: 7rem;
+  z-index: 2;
+  background: linear-gradient(150deg, rgba(185, 130, 102, 0.18), rgba(247, 237, 224, 0.035));
+  transform: rotate(-8deg) translateZ(-80px);
+  animation: site-card-drift 10s ease-in-out infinite;
+}
+
+.site-oracle-card-three {
+  left: 8rem;
+  bottom: 1rem;
+  z-index: 3;
+  background: linear-gradient(145deg, rgba(98, 134, 102, 0.22), rgba(247, 237, 224, 0.04));
+  transform: rotate(7deg) translateZ(-40px);
+  animation: site-card-drift 11s ease-in-out infinite reverse;
 }
 
 .site-marquee {
@@ -390,6 +475,11 @@ select:focus-visible {
   50% { transform: translate3d(0, -18px, 0) rotate(-0.7deg); }
 }
 
+@keyframes site-card-drift {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -16px; }
+}
+
 @keyframes site-orb {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
   45% { transform: translate3d(4vw, -3vh, 0) scale(1.12); }
@@ -413,7 +503,7 @@ select:focus-visible {
 
 @media (max-width: 768px) {
   .site-stage::before {
-    background-size: 58px 58px;
+    opacity: 0.72;
   }
 
   .site-hero-ring {
@@ -421,11 +511,28 @@ select:focus-visible {
     opacity: 0.45;
   }
 
-  .site-floating-card {
-    left: 0;
-    right: 0;
-    max-width: none;
+  .site-oracle-stage {
+    min-height: 620px;
   }
+
+  .site-oracle-card-one {
+    top: 4rem;
+    min-height: 500px;
+  }
+
+  .site-oracle-card-two {
+    left: -1rem;
+    width: 52vw;
+    height: 360px;
+  }
+
+  .site-oracle-card-three {
+    left: 28vw;
+    bottom: 3rem;
+    width: 58vw;
+    height: 340px;
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
