@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, MapPin, Phone, Calendar, Save, Users } from 'lucide-react';
+import { User, MapPin, Phone, Calendar, Save, Users, Mail, Lock } from 'lucide-react';
 import { notifyAdminNewUserRegistration } from '../lib/notifications';
 
 interface RegistrationFormProps {
@@ -14,6 +14,9 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('female');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordRepeat, setPasswordRepeat] = useState('');
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
@@ -91,6 +94,17 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (password.length < 8) {
+      alert('Пароль должен быть от 8 символов');
+      return;
+    }
+
+    if (password !== passwordRepeat) {
+      alert('Пароли не совпадают');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -102,6 +116,7 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
         phone: phone,
         birth_date: birthDate || null,
         gender: gender,
+        email: email.trim().toLowerCase(),
         status: 'Первое знакомство',
         bonus_balance: 0,
         role: 'client',
@@ -130,6 +145,21 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       }
 
       console.log('✅ Пользователь создан:', user);
+
+      const credentialsResponse = await fetch('/api/site/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: telegramUser.id,
+          email,
+          password,
+        }),
+      });
+      const credentialsPayload = await credentialsResponse.json().catch(() => null);
+
+      if (!credentialsResponse.ok || !credentialsPayload?.ok) {
+        throw new Error(credentialsPayload?.error || 'Не удалось сохранить вход на сайт');
+      }
 
       try {
         const { data: adminsData } = await supabase
@@ -237,6 +267,19 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
               <User className="w-4 h-4 mr-2" />
+              Telegram
+            </label>
+            <input
+              type="text"
+              readOnly
+              className="w-full p-3 bg-[#EDE7DE] border border-gray-200 rounded-lg text-gray-500 font-bold focus:outline-none"
+              value={telegramUser?.username ? `@${telegramUser.username}` : String(telegramUser?.id || '')}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <User className="w-4 h-4 mr-2" />
               Ваше имя *
             </label>
             <input
@@ -306,6 +349,55 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+              <Mail className="w-4 h-4 mr-2" />
+              Почта для входа на сайт *
+            </label>
+            <input
+              type="email"
+              required
+              className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+              placeholder="mail@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+                <Lock className="w-4 h-4 mr-2" />
+                Пароль *
+              </label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+                placeholder="от 8 символов"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+                <Lock className="w-4 h-4 mr-2" />
+                Повтор *
+              </label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+                placeholder="ещё раз"
+                value={passwordRepeat}
+                onChange={(e) => setPasswordRepeat(e.target.value)}
+              />
+            </div>
           </div>
 
           <button

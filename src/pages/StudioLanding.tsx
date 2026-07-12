@@ -4,9 +4,13 @@ import {
   BookOpen,
   ChevronLeft,
   CreditCard,
+  Lock,
   LogOut,
+  Mail,
   Menu,
   MoonStar,
+  Save,
+  UserRound,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -24,6 +28,11 @@ interface SiteUser {
   username?: string | null;
   name: string;
   city?: string | null;
+  phone?: string | null;
+  birth_date?: string | null;
+  gender?: 'male' | 'female' | 'other' | null;
+  email?: string | null;
+  has_site_password?: boolean;
   status?: string | null;
   bonus_balance?: number | null;
   role?: string | null;
@@ -232,8 +241,12 @@ const SiteLink = ({
 
 const BrandMark = () => (
   <SiteLink href="/site" className="group flex items-center gap-3">
-    <div className="site-brand-mark grid h-14 w-14 place-items-center rounded-[1.35rem] bg-[#2F463B] text-[#F7EDE0] shadow-[0_20px_60px_rgba(47,70,59,0.18)]">
-      <MoonStar className="h-5 w-5 transition duration-500 group-hover:rotate-12" />
+    <div className="site-brand-mark grid h-14 w-14 place-items-center overflow-hidden rounded-[1.35rem] bg-[#F8F3EC] shadow-[0_20px_60px_rgba(47,70,59,0.18)]">
+      <img
+        src="/logo.png"
+        alt="Tarot by Danil"
+        className="h-full w-full object-contain p-2 transition duration-500 group-hover:scale-105"
+      />
     </div>
     <div>
       <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil</p>
@@ -522,71 +535,325 @@ const AcademyPage = () => (
 const ProfilePage = ({
   user,
   onLogout,
+  onSessionRefresh,
 }: {
   user: SiteUser | null;
   onLogout: () => Promise<void>;
-}) => (
-  <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
-    <div className="grid gap-10 xl:grid-cols-[0.78fr_1.22fr]">
-      <SectionIntro
-        eyebrow="Кабинет"
-        title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
-        text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Войдите через Telegram, чтобы открыть свой профиль'}
-      />
+  onSessionRefresh: () => Promise<void>;
+}) => {
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [form, setForm] = useState({
+    name: user?.name || '',
+    city: user?.city || '',
+    phone: user?.phone || '',
+    birth_date: user?.birth_date || '',
+    gender: user?.gender || 'other',
+    email: user?.email || '',
+    password: '',
+    passwordRepeat: '',
+  });
+  const [loading, setLoading] = useState(false);
 
-      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
-        {user ? (
-          <div>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Профиль</p>
-                <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3rem)] leading-[1.06]">{user.name}</h2>
-                <p className="mt-3 text-lg font-medium text-[#2F463B]/50">
-                  @{user.username || 'telegram'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="inline-flex items-center justify-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Выйти
-              </button>
-            </div>
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              {[
-                ['статус', user.status || 'Первое знакомство'],
-                ['бонусы', `${user.bonus_balance || 0} ₽`],
-                ['город', user.city || 'не указан'],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-[1.7rem] bg-[#2F463B]/7 p-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C79672]">{label}</p>
-                  <p className="mt-4 text-3xl font-semibold">{value}</p>
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      ...current,
+      name: user.name || '',
+      city: user.city || '',
+      phone: user.phone || '',
+      birth_date: user.birth_date || '',
+      gender: user.gender || 'other',
+      email: user.email || '',
+    }));
+  }, [user]);
+
+  const loginWithEmail = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/site/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось войти');
+      }
+
+      await onSessionRefresh();
+    } catch (error: any) {
+      alert(error.message || 'Не удалось войти');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveProfileAccess = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!user?.telegram_id) return;
+
+    if (form.password.length < 8) {
+      alert('Пароль должен быть от 8 символов');
+      return;
+    }
+
+    if (form.password !== form.passwordRepeat) {
+      alert('Пароли не совпадают');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/site/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: user.telegram_id,
+          name: form.name,
+          city: form.city,
+          phone: form.phone,
+          birth_date: form.birth_date,
+          gender: form.gender,
+          email: form.email,
+          password: form.password,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось сохранить вход');
+      }
+
+      await onSessionRefresh();
+    } catch (error: any) {
+      alert(error.message || 'Не удалось сохранить вход');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const needsProfileAccess = Boolean(user && (!user.email || !user.has_site_password));
+
+  return (
+    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+      <div className="grid gap-10 xl:grid-cols-[0.78fr_1.22fr]">
+        <SectionIntro
+          eyebrow="Кабинет"
+          title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
+          text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Можно войти по почте или через Telegram'}
+        />
+
+        <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+          {user ? (
+            <div>
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Профиль</p>
+                  <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3rem)] leading-[1.06]">{user.name}</h2>
+                  <p className="mt-3 text-lg font-medium text-[#2F463B]/50">
+                    @{user.username || 'telegram'}
+                  </p>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="inline-flex items-center justify-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Выйти
+                </button>
+              </div>
+
+              {needsProfileAccess && (
+                <form onSubmit={saveProfileAccess} className="mt-8 rounded-[2rem] border border-[#C79672]/20 bg-[#F7EDE0]/74 p-5">
+                  <p className="mb-4 text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Вход на сайт</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 flex items-center text-sm font-semibold text-[#2F463B]">
+                        <UserRound className="mr-2 h-4 w-4" />
+                        Telegram
+                      </span>
+                      <input
+                        value={user.username ? `@${user.username}` : String(user.telegram_id)}
+                        readOnly
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#E7DED2] px-4 py-4 font-semibold text-[#2F463B]/58 outline-none"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold text-[#2F463B]">Имя</span>
+                      <input
+                        value={form.name}
+                        onChange={(event) => setForm({ ...form, name: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold text-[#2F463B]">Город</span>
+                      <input
+                        value={form.city}
+                        onChange={(event) => setForm({ ...form, city: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold text-[#2F463B]">Телефон</span>
+                      <input
+                        value={form.phone}
+                        onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold text-[#2F463B]">День рождения</span>
+                      <input
+                        type="date"
+                        value={form.birth_date || ''}
+                        onChange={(event) => setForm({ ...form, birth_date: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold text-[#2F463B]">Пол</span>
+                      <select
+                        value={form.gender || 'other'}
+                        onChange={(event) => setForm({ ...form, gender: event.target.value as 'male' | 'female' | 'other' })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      >
+                        <option value="female">Женский</option>
+                        <option value="male">Мужской</option>
+                        <option value="other">Не указывать</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 flex items-center text-sm font-semibold text-[#2F463B]">
+                        <Mail className="mr-2 h-4 w-4" />
+                        Почта
+                      </span>
+                      <input
+                        type="email"
+                        required
+                        value={form.email}
+                        onChange={(event) => setForm({ ...form, email: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 flex items-center text-sm font-semibold text-[#2F463B]">
+                        <Lock className="mr-2 h-4 w-4" />
+                        Пароль
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={form.password}
+                        onChange={(event) => setForm({ ...form, password: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block md:col-span-2">
+                      <span className="mb-2 flex items-center text-sm font-semibold text-[#2F463B]">
+                        <Lock className="mr-2 h-4 w-4" />
+                        Повтор пароля
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={form.passwordRepeat}
+                        onChange={(event) => setForm({ ...form, passwordRepeat: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white/74 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? 'Сохраняю' : 'Сохранить вход'}
+                  </button>
+                </form>
+              )}
+
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                {[
+                  ['статус', user.status || 'Первое знакомство'],
+                  ['бонусы', `${user.bonus_balance || 0} ₽`],
+                  ['город', user.city || 'не указан'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[1.7rem] bg-[#2F463B]/7 p-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C79672]">{label}</p>
+                    <p className="mt-4 text-3xl font-semibold">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <MagneticLink href={BOT_URL}>Открыть приложение</MagneticLink>
+                <MagneticLink href="/site/academy" variant="dark">Посмотреть академию</MagneticLink>
+              </div>
             </div>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <MagneticLink href={BOT_URL}>Открыть приложение</MagneticLink>
-              <MagneticLink href="/site/academy" variant="dark">Посмотреть академию</MagneticLink>
+          ) : (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Вход</p>
+              <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Личный кабинет</h2>
+              <div className="mt-8 grid gap-5 xl:grid-cols-2">
+                <form onSubmit={loginWithEmail} className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Войти по почте</p>
+                  <label className="mb-4 block">
+                    <span className="mb-2 flex items-center text-sm font-semibold">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Почта
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(event) => setLoginEmail(event.target.value)}
+                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                    />
+                  </label>
+                  <label className="mb-5 block">
+                    <span className="mb-2 flex items-center text-sm font-semibold">
+                      <Lock className="mr-2 h-4 w-4" />
+                      Пароль
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      value={loginPassword}
+                      onChange={(event) => setLoginPassword(event.target.value)}
+                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                  >
+                    {loading ? 'Вхожу' : 'Войти'}
+                  </button>
+                </form>
+
+                <div className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Первый вход через Telegram</p>
+                  <TelegramLoginWidget />
+                </div>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Вход</p>
-            <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Личный кабинет</h2>
-            <p className="mt-4 text-lg font-medium leading-relaxed text-[#2F463B]/58">
-              После входа откроется личный кабинет с вашими записями, обучением и оплатой
-            </p>
-            <div className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
-              <TelegramLoginWidget />
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) => {
   const activeMethod = paymentMethods[0];
@@ -633,6 +900,16 @@ export const StudioLanding = () => {
   const [user, setUser] = useState<SiteUser | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
+  const loadSession = async () => {
+    try {
+      const response = await fetch('/api/site/session', { credentials: 'include' });
+      const payload = await response.json().catch(() => null);
+      setUser(payload?.user || null);
+    } catch {
+      setUser(null);
+    }
+  };
+
   useEffect(() => {
     const onPopState = () => setPage(getCurrentPage());
     window.addEventListener('popstate', onPopState);
@@ -644,16 +921,6 @@ export const StudioLanding = () => {
   }, []);
 
   useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const response = await fetch('/api/site/session', { credentials: 'include' });
-        const payload = await response.json().catch(() => null);
-        setUser(payload?.user || null);
-      } catch {
-        setUser(null);
-      }
-    };
-
     const loadPayments = async () => {
       const { data } = await supabase
         .from('payment_methods')
@@ -678,7 +945,7 @@ export const StudioLanding = () => {
   const content = useMemo(() => {
     if (page === 'consultations') return <ConsultationsPage />;
     if (page === 'academy') return <AcademyPage />;
-    if (page === 'profile') return <ProfilePage user={user} onLogout={logout} />;
+    if (page === 'profile') return <ProfilePage user={user} onLogout={logout} onSessionRefresh={loadSession} />;
     if (page === 'payment') return <PaymentPage paymentMethods={paymentMethods} />;
     return <HomePage />;
   }, [page, paymentMethods, user]);

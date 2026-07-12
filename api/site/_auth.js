@@ -36,6 +36,35 @@ export const getSupabaseAdmin = () => {
   });
 };
 
+export const readJsonBody = async (request) => {
+  if (request.body && typeof request.body === 'object') return request.body;
+  if (typeof request.body === 'string') return JSON.parse(request.body || '{}');
+
+  const chunks = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  return raw ? JSON.parse(raw) : {};
+};
+
+export const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+
+export const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
+
+export const hashPassword = (password) => {
+  const salt = crypto.randomBytes(18).toString('base64url');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('base64url');
+  return `scrypt$${salt}$${hash}`;
+};
+
+export const verifyPassword = (password, storedHash) => {
+  const [method, salt, hash] = String(storedHash || '').split('$');
+  if (method !== 'scrypt' || !salt || !hash) return false;
+
+  const calculated = crypto.scryptSync(String(password), salt, 64);
+  const expected = Buffer.from(hash, 'base64url');
+  return calculated.length === expected.length && crypto.timingSafeEqual(calculated, expected);
+};
+
 const getSessionSecret = () => {
   const secret = process.env.SITE_AUTH_SECRET || getBotToken();
   if (!secret) throw new Error('SITE_AUTH_SECRET_OR_BOT_TOKEN_NOT_CONFIGURED');
@@ -168,6 +197,7 @@ export const sessionPayloadFromUser = (user) => ({
   telegram_id: user.telegram_id,
   username: user.username || null,
   name: user.name || 'Клиент',
+  email: user.email || null,
   role: user.role || 'client',
   exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
 });

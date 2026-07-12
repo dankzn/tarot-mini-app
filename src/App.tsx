@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { SplashScreen } from './components/SplashScreen';
 import { RegistrationForm } from './components/RegistrationForm';
+import { SiteCredentialsModal } from './components/SiteCredentialsModal';
 import { AdminWebGuard } from './components/admin/AdminWebGuard';
 // import { ErrorBoundary } from './components/ErrorBoundary'; // Временно закомментировано
 
@@ -72,6 +73,7 @@ export const App = () => {
   const [isAdminRoute, setIsAdminRoute] = useState(false);
   const [isPublicSiteRoute, setIsPublicSiteRoute] = useState(false);
   const [clientMode, setClientMode] = useState<ClientMode | null>(null);
+  const [needsSiteCredentials, setNeedsSiteCredentials] = useState(false);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -117,6 +119,7 @@ export const App = () => {
 
       if (existingUser) {
         setUser(existingUser);
+        await checkSiteCredentials(existingUser);
         await resolveInitialClientMode(existingUser);
       } else {
         setUser({ needsRegistration: true, telegramUser: tgUser });
@@ -130,6 +133,35 @@ export const App = () => {
 
   const handleRegistrationComplete = async (userData: any) => {
     setUser(userData);
+    setNeedsSiteCredentials(false);
+  };
+
+  const checkSiteCredentials = async (currentUser: any) => {
+    if (!currentUser?.telegram_id || currentUser.role === 'admin') {
+      setNeedsSiteCredentials(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/site/credentials-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_id: currentUser.telegram_id }),
+      });
+      const payload = await response.json().catch(() => null);
+      setNeedsSiteCredentials(Boolean(payload?.ok && payload.needs_credentials));
+    } catch (error) {
+      console.warn('Не удалось проверить вход на сайт:', error);
+      setNeedsSiteCredentials(false);
+    }
+  };
+
+  const handleSiteCredentialsComplete = (updatedUser: any) => {
+    setUser((currentUser: any) => ({
+      ...currentUser,
+      ...updatedUser,
+    }));
+    setNeedsSiteCredentials(false);
   };
 
   const resolveInitialClientMode = async (currentUser: any) => {
@@ -192,37 +224,42 @@ export const App = () => {
 
           {/* Telegram Mini App */}
           <Route path="/*" element={
-            loading ? (
-              <AppLoader />
-            ) : user?.needsRegistration ? (
-              <RegistrationForm
-                telegramUser={user.telegramUser}
-                onComplete={handleRegistrationComplete}
-              />
-            ) : !user ? (
-              <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center p-6">
-                <div className="premium-surface rounded-[2rem] px-6 py-5 text-center">
-                  <div className="premium-content text-sm font-black text-[#385144]">
-                    Ошибка загрузки пользователя
+            <>
+              {loading ? (
+                <AppLoader />
+              ) : user?.needsRegistration ? (
+                <RegistrationForm
+                  telegramUser={user.telegramUser}
+                  onComplete={handleRegistrationComplete}
+                />
+              ) : !user ? (
+                <div className="min-h-screen bg-[#F8F5F2] flex items-center justify-center p-6">
+                  <div className="premium-surface rounded-[2rem] px-6 py-5 text-center">
+                    <div className="premium-content text-sm font-black text-[#385144]">
+                      Ошибка загрузки пользователя
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : user.role === 'admin' ? (
-              <AdminDashboard currentUser={user} />
-            ) : clientMode === 'consultations' ? (
-              <Dashboard user={user} onOpenTraining={() => openClientMode('training')} />
-            ) : clientMode === 'training' ? (
-              <TrainingDashboard
-                user={user}
-                onBackToGateway={() => setClientMode(null)}
-                onOpenConsultations={() => openClientMode('consultations')}
-              />
-            ) : (
-              <ProductGateway
-                onChooseConsultations={() => openClientMode('consultations')}
-                onChooseTraining={() => openClientMode('training')}
-              />
-            )
+              ) : user.role === 'admin' ? (
+                <AdminDashboard currentUser={user} />
+              ) : clientMode === 'consultations' ? (
+                <Dashboard user={user} onOpenTraining={() => openClientMode('training')} />
+              ) : clientMode === 'training' ? (
+                <TrainingDashboard
+                  user={user}
+                  onBackToGateway={() => setClientMode(null)}
+                  onOpenConsultations={() => openClientMode('consultations')}
+                />
+              ) : (
+                <ProductGateway
+                  onChooseConsultations={() => openClientMode('consultations')}
+                  onChooseTraining={() => openClientMode('training')}
+                />
+              )}
+              {!loading && user && !user.needsRegistration && user.role !== 'admin' && needsSiteCredentials && (
+                <SiteCredentialsModal user={user} onComplete={handleSiteCredentialsComplete} />
+              )}
+            </>
           } />
         </Routes>
       </Suspense>
