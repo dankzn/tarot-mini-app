@@ -43,31 +43,31 @@ const routes: { page: SitePage; label: string; href: string }[] = [
 ];
 
 const studioPrinciples = [
-  ['бережно', 'можно говорить прямо и не играть сильного человека'],
-  ['конфиденциально', 'личные темы не становятся контентом'],
-  ['по делу', 'после встречи остаётся понятный следующий шаг'],
+  ['Консультации', 'Выбираете формат и оставляете заявку'],
+  ['Обучение', 'Смотрите программы и записываетесь на курс'],
+  ['Кабинет', 'Записи, оплата и материалы остаются под рукой'],
 ];
 
 const consultationCards = [
   {
     title: 'Личный разбор',
-    tag: 'сложная ситуация',
-    text: 'Смотрим, где факты, где тревога, где чужое влияние и какой шаг сейчас самый трезвый',
+    tag: 'когда нужно разобраться',
+    text: 'Подходит, если ситуация запуталась и хочется спокойно разложить её по шагам',
   },
   {
     title: 'Отношения',
-    tag: 'контакт и динамика',
-    text: 'Без гадания на чужую голову, с фокусом на вашу позицию, ожидания и реальные сигналы',
+    tag: 'отношения и контакт',
+    text: 'Разбор общения, ожиданий, поведения и того, что можно сделать со своей стороны',
   },
   {
     title: 'Выбор',
-    tag: 'работа, деньги, переезд',
-    text: 'Сравниваем варианты по последствиям, рискам и внутренней цене решения',
+    tag: 'несколько вариантов',
+    text: 'Когда есть несколько решений и нужно посмотреть, к чему может привести каждое',
   },
   {
     title: 'Карта дня',
     tag: 'отдельный формат',
-    text: 'Не отношения и не работа, а короткий ориентир на день, состояние и ближайший фокус',
+    text: 'Короткий формат на день, без привязки к отношениям, работе или большой теме',
   },
 ];
 
@@ -75,44 +75,44 @@ const academyCards = [
   {
     title: 'Индивидуальная база',
     price: '20 000 ₽',
-    text: 'Спокойный вход в Таро, структура колоды, первые расклады и практика без гонки',
+    text: 'Базовая программа один на один: структура колоды, первые расклады и практика',
   },
   {
     title: 'Расширенная программа',
     price: '40 000 ₽',
-    text: 'Глубже в трактовки, этику, сложные запросы, уверенность и собственный язык чтения',
+    text: 'Для тех, кто хочет глубже работать с трактовками, практикой и сложными запросами',
   },
   {
     title: 'Группа',
     price: '11 500 ₽ / с человека',
-    text: 'Камерный ритм, живые занятия, домашние задания и практика в общем учебном поле',
+    text: 'Групповое обучение с занятиями, домашними заданиями и разбором практики',
   },
 ];
 
-const academySteps = ['заявка', 'созвон', 'зачисление', 'занятия', 'домашки', 'практика'];
+const academySteps = ['заявка', 'детали', 'зачисление', 'занятия', 'домашние задания', 'практика'];
 
 const studioSpaces = [
   {
     title: 'Консультации',
-    label: 'личные вопросы',
-    text: 'Отношения, выбор, состояние, деньги, работа и ситуации, где нужен спокойный взгляд со стороны',
+    label: 'запись',
+    text: 'Выберите формат консультации, удобное время или оставьте заявку без окна',
     href: '/site/consultations',
   },
   {
     title: 'Академия',
     label: 'обучение Таро',
-    text: 'Индивидуальные и групповые программы с практикой, домашними заданиями и живым сопровождением',
+    text: 'Программы для индивидуального и группового обучения с личным кабинетом студента',
     href: '/site/academy',
   },
   {
     title: 'Кабинет',
-    label: 'ваш профиль',
-    text: 'Записи, обучение, бонусы и оплата собраны там, где клиенту удобно возвращаться к своему пути',
+    label: 'личный раздел',
+    text: 'Ваши записи, обучение, бонусы, статусы и оплата в одном месте',
     href: '/site/profile',
   },
 ];
 
-const studioMoods = ['отношения', 'выбор', 'состояние', 'обучение', 'опора', 'ясность'];
+const studioMoods = ['консультация', 'обучение', 'кабинет', 'оплата'];
 
 const openExternal = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -232,12 +232,12 @@ const SiteLink = ({
 
 const BrandMark = () => (
   <SiteLink href="/site" className="group flex items-center gap-3">
-    <div className="site-brand-mark grid h-14 w-14 place-items-center rounded-[1.35rem] bg-[#F4EBDD] text-[#0D1510] shadow-[0_20px_70px_rgba(0,0,0,0.34)]">
+    <div className="site-brand-mark grid h-14 w-14 place-items-center rounded-[1.35rem] bg-[#2F463B] text-[#F7EDE0] shadow-[0_20px_60px_rgba(47,70,59,0.18)]">
       <MoonStar className="h-5 w-5 transition duration-500 group-hover:rotate-12" />
     </div>
     <div>
       <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil</p>
-      <p className="text-lg font-semibold lowercase leading-none text-[#F8F0E4]">studio</p>
+      <p className="text-lg font-semibold lowercase leading-none text-[#2F463B]">studio</p>
     </div>
   </SiteLink>
 );
@@ -247,8 +247,8 @@ const MagneticLink = ({ href, children, variant = 'light' }: { href: string; chi
     href={href}
     className={`site-magnetic inline-flex items-center justify-center rounded-full px-7 py-4 text-base font-semibold transition will-change-transform ${
       variant === 'dark'
-        ? 'bg-[#0E1511] text-[#F7EDE0] shadow-[0_22px_80px_rgba(0,0,0,0.28)]'
-        : 'bg-[#F7EDE0] text-[#0E1511] shadow-[0_22px_80px_rgba(0,0,0,0.2)]'
+        ? 'bg-[#2F463B] text-[#F7EDE0] shadow-[0_22px_70px_rgba(47,70,59,0.18)]'
+        : 'bg-[#F7EDE0] text-[#2F463B] shadow-[0_22px_70px_rgba(47,70,59,0.12)]'
     }`}
     data-magnetic
   >
@@ -268,7 +268,7 @@ const PageShell = ({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <main className="site-stage min-h-screen overflow-x-hidden bg-[#0B120E] text-[#F7EDE0]">
+    <main className="site-stage min-h-screen overflow-x-hidden bg-[#F5EFE6] text-[#2F463B]">
       <MotionEngine />
       <div className="site-scroll-progress" />
       <div className="site-cursor-light" />
@@ -281,13 +281,13 @@ const PageShell = ({
         <header className="site-header sticky top-0 z-40 mx-auto flex max-w-[1540px] items-center justify-between px-5 py-5 md:px-10 xl:px-16">
           <BrandMark />
 
-          <nav className="hidden items-center rounded-full border border-white/10 bg-white/[0.055] p-1 text-sm font-semibold text-[#F7EDE0]/58 shadow-[0_18px_80px_rgba(0,0,0,0.18)] backdrop-blur-2xl lg:flex">
+          <nav className="hidden items-center rounded-full border border-[#2F463B]/10 bg-white/[0.68] p-1 text-sm font-semibold text-[#2F463B]/58 shadow-[0_18px_70px_rgba(47,70,59,0.1)] backdrop-blur-2xl lg:flex">
             {routes.map((route) => (
               <SiteLink
                 key={route.page}
                 href={route.href}
                 className={`rounded-full px-5 py-3 transition ${
-                  page === route.page ? 'bg-[#F7EDE0] text-[#0D1510]' : 'hover:bg-white/[0.08] hover:text-[#F7EDE0]'
+                  page === route.page ? 'bg-[#2F463B] text-[#F7EDE0]' : 'hover:bg-[#2F463B]/7 hover:text-[#2F463B]'
                 }`}
               >
                 {route.label}
@@ -296,13 +296,13 @@ const PageShell = ({
           </nav>
 
           <div className="flex items-center gap-3">
-            <SiteLink href="/site/profile" className="hidden rounded-full bg-[#F7EDE0] px-6 py-3 text-sm font-semibold text-[#0D1510] shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 md:block">
+            <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
               {user ? 'Кабинет' : 'Войти'}
             </SiteLink>
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.08] text-[#F7EDE0] lg:hidden"
+              className="grid h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] lg:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -311,31 +311,31 @@ const PageShell = ({
 
         {children}
 
-        <footer className="mx-auto flex max-w-[1540px] flex-col gap-5 border-t border-white/10 px-5 py-10 text-sm font-medium text-[#F7EDE0]/48 md:flex-row md:items-center md:justify-between md:px-10 xl:px-16">
-          <span>Tarot by Danil · private studio</span>
+        <footer className="mx-auto flex max-w-[1540px] flex-col gap-5 border-t border-[#2F463B]/10 px-5 py-10 text-sm font-medium text-[#2F463B]/48 md:flex-row md:items-center md:justify-between md:px-10 xl:px-16">
+          <span>Tarot by Danil studio</span>
           <div className="flex flex-wrap gap-4">
-            <SiteLink href="/site/consultations" className="transition hover:text-[#F7EDE0]">Консультации</SiteLink>
-            <SiteLink href="/site/academy" className="transition hover:text-[#F7EDE0]">Академия</SiteLink>
-            <SiteLink href="/site/profile" className="transition hover:text-[#F7EDE0]">Кабинет</SiteLink>
+            <SiteLink href="/site/consultations" className="transition hover:text-[#2F463B]">Консультации</SiteLink>
+            <SiteLink href="/site/academy" className="transition hover:text-[#2F463B]">Академия</SiteLink>
+            <SiteLink href="/site/profile" className="transition hover:text-[#2F463B]">Кабинет</SiteLink>
           </div>
         </footer>
       </div>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-[#0B120E]/94 p-5 backdrop-blur-2xl lg:hidden">
+        <div className="fixed inset-0 z-50 bg-[#F5EFE6]/94 p-5 backdrop-blur-2xl lg:hidden">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#C79672]">Меню</p>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
-              className="grid h-12 w-12 place-items-center rounded-2xl bg-[#F7EDE0] text-[#0D1510]"
+              className="grid h-12 w-12 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
           <div className="mt-12 grid gap-3">
             {routes.map((route) => (
-              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-white/10 bg-white/[0.08] p-6 text-3xl font-semibold text-[#F7EDE0]">
+              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-3xl font-semibold text-[#2F463B]">
                 {route.label}
               </SiteLink>
             ))}
@@ -349,79 +349,68 @@ const PageShell = ({
 const SectionIntro = ({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) => (
   <div className="site-reveal max-w-3xl">
     <p className="mb-4 text-xs font-bold uppercase tracking-[0.42em] text-[#C79672]">{eyebrow}</p>
-    <h2 className="site-display text-[clamp(3.4rem,7vw,7.6rem)] leading-[0.94] text-[#F8F0E4]">{title}</h2>
-    <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-[#F8F0E4]/60">{text}</p>
+    <h2 className="site-display text-[clamp(2.3rem,4vw,4.2rem)] leading-[1.05] text-[#2F463B]">{title}</h2>
+    <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-[#2F463B]/62">{text}</p>
   </div>
 );
 
 const HomePage = () => (
   <>
-    <section className="mx-auto grid min-h-[calc(100vh-92px)] max-w-[1540px] items-center gap-14 px-5 pb-20 pt-10 md:px-10 xl:grid-cols-[0.94fr_1.06fr] xl:px-16">
+    <section className="mx-auto grid min-h-[calc(100vh-92px)] max-w-[1540px] items-center gap-14 px-5 pb-20 pt-10 md:px-10 xl:grid-cols-[0.92fr_0.78fr] xl:px-16">
       <div className="site-reveal">
-        <div className="mb-8 inline-flex rounded-full border border-white/12 bg-white/[0.055] px-5 py-3 text-xs font-bold uppercase tracking-[0.34em] text-[#C79672] backdrop-blur-xl">
-          private tarot studio
+        <div className="mb-8 inline-flex rounded-full border border-[#2F463B]/10 bg-white/60 px-5 py-3 text-xs font-bold uppercase tracking-[0.32em] text-[#A9795F] backdrop-blur-xl">
+          Tarot by Danil
         </div>
-        <h1 aria-label="Таро как честный разговор" className="site-display max-w-4xl text-[clamp(3.8rem,8vw,8.6rem)] leading-[0.92] text-[#F8F0E4]">
-          Таро как честный разговор
+        <h1 className="site-display max-w-4xl text-[clamp(2.7rem,4.8vw,4.8rem)] leading-[1.04] text-[#2F463B]">
+          Консультации и обучение Таро
         </h1>
-        <p className="mt-8 max-w-2xl text-[clamp(1.18rem,1.8vw,1.72rem)] font-medium leading-relaxed text-[#F8F0E4]/66">
-          Для вопросов, где хочется ясности, бережности и нормального человеческого языка
+        <p className="mt-7 max-w-2xl text-[clamp(1.05rem,1.3vw,1.28rem)] font-medium leading-relaxed text-[#2F463B]/66">
+          Сайт для записи на консультации, обучения и входа в личный кабинет
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <MagneticLink href="/site/consultations">
-            Записаться
+          <MagneticLink href="/site/consultations" variant="dark">
+            Выбрать консультацию
             <ArrowRight className="ml-3 h-5 w-5" />
           </MagneticLink>
-          <MagneticLink href="/site/academy" variant="dark">
-            Обучение Таро
+          <MagneticLink href="/site/academy">
+            Посмотреть обучение
           </MagneticLink>
         </div>
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-4">
           {studioMoods.map((mood) => (
-            <span key={mood} className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-sm font-medium text-[#F8F0E4]/58 backdrop-blur-xl">
+            <span key={mood} className="rounded-[1.2rem] border border-[#2F463B]/10 bg-white/[0.58] px-4 py-3 text-center text-sm font-semibold text-[#2F463B]/62 backdrop-blur-xl">
               {mood}
             </span>
           ))}
         </div>
       </div>
 
-      <div className="site-reveal site-delay-1 site-oracle-stage">
-        <div className="site-hero-ring" />
-        <div className="site-oracle-card site-oracle-card-one">
-          <p className="text-xs font-bold uppercase tracking-[0.44em] text-[#C79672]">reading room</p>
-          <h2 className="site-display mt-7 text-[clamp(3rem,5.7vw,6.8rem)] leading-[0.9] text-[#F8F0E4]">
-            меньше шума
-            <span className="block text-[#D3A17F]">больше опоры</span>
-          </h2>
-          <div className="mt-10 grid gap-3">
+      <div className="site-reveal site-delay-1">
+        <div className="site-service-board rounded-[2.8rem] border border-[#2F463B]/12 bg-white/[0.62] p-6 shadow-[0_36px_120px_rgba(47,70,59,0.14)] backdrop-blur-2xl">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#A9795F]">Tarot by Danil</p>
+              <h2 className="site-display mt-5 text-[clamp(1.9rem,2.5vw,2.8rem)] leading-[1.08] text-[#2F463B]">
+                Что можно сделать на сайте
+              </h2>
+            </div>
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
+              <MoonStar className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-8 grid gap-3">
             {studioPrinciples.map(([title, text]) => (
-              <div key={title} className="site-premium-card rounded-[1.6rem] border border-white/12 bg-white/[0.055] p-5">
-                <p className="text-2xl font-semibold text-[#F8F0E4]">{title}</p>
-                <p className="mt-2 text-base font-medium leading-relaxed text-[#F8F0E4]/52">{text}</p>
+              <div key={title} className="site-service-row rounded-[1.5rem] border border-[#2F463B]/10 bg-[#F8F3EC]/72 p-5">
+                <p className="text-2xl font-semibold text-[#2F463B]">{title}</p>
+                <p className="mt-2 text-base font-medium leading-relaxed text-[#2F463B]/56">{text}</p>
               </div>
             ))}
           </div>
-        </div>
-        <div className="site-oracle-card site-oracle-card-two">
-          <p>clarity</p>
-        </div>
-        <div className="site-oracle-card site-oracle-card-three">
-          <p>care</p>
-        </div>
-      </div>
-    </section>
-
-    <section className="site-marquee border-y border-white/10 bg-white/[0.04] py-5 text-sm font-semibold uppercase tracking-[0.38em] text-[#F8F0E4]/52">
-      <div className="site-marquee-track">
-        {Array.from({ length: 2 }).map((_, index) => (
-          <div key={index} className="flex gap-10">
-            <span>бережно</span>
-            <span>конфиденциально</span>
-            <span>без давления</span>
-            <span>после встречи понятнее</span>
-            <span>живой разговор</span>
+          <div className="mt-8 rounded-[1.8rem] bg-[#2F463B] p-5 text-[#F7EDE0]">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E6CDBA]/70">Личный кабинет</p>
+            <p className="mt-3 text-2xl font-semibold">После входа видны записи, обучение и оплата</p>
           </div>
-        ))}
+        </div>
       </div>
     </section>
 
@@ -430,15 +419,15 @@ const HomePage = () => (
         <SiteLink
           key={space.title}
           href={space.href}
-          className={`site-reveal site-premium-card site-delay-${index + 1} group min-h-[320px] rounded-[2.8rem] border border-white/12 bg-white/[0.06] p-8 backdrop-blur-xl transition hover:-translate-y-2 hover:bg-white/[0.1]`}
+          className={`site-reveal site-premium-card site-delay-${index + 1} group min-h-[320px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.64] p-8 shadow-[0_24px_90px_rgba(47,70,59,0.1)] backdrop-blur-xl transition hover:-translate-y-2 hover:bg-white/[0.82]`}
         >
           <div className="flex h-full flex-col justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{space.label}</p>
-              <h3 className="site-display mt-5 text-5xl leading-[0.96] text-[#F8F0E4]">{space.title}</h3>
-              <p className="mt-6 text-lg font-medium leading-relaxed text-[#F8F0E4]/56">{space.text}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#A9795F]">{space.label}</p>
+              <h3 className="site-display mt-5 text-[clamp(1.8rem,2.5vw,2.6rem)] leading-[1.06] text-[#2F463B]">{space.title}</h3>
+              <p className="mt-6 text-lg font-medium leading-relaxed text-[#2F463B]/58">{space.text}</p>
             </div>
-            <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#F7EDE0] text-[#0D1510] transition group-hover:translate-x-2">
+            <div className="mt-10 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#2F463B] text-[#F7EDE0] transition group-hover:translate-x-2">
               <ArrowRight className="h-5 w-5" />
             </div>
           </div>
@@ -452,16 +441,16 @@ const ConsultationsPage = () => (
   <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
     <div className="grid gap-10 xl:grid-cols-[0.86fr_1.14fr]">
       <SectionIntro
-        eyebrow="consultation room"
-        title="Формат под ситуацию"
-        text="В списке нет давления и лишней мистики, только понятный вход в разговор и честный выбор темпа"
+        eyebrow="Консультации"
+        title="Выберите формат"
+        text="Можно записаться на конкретное время или оставить заявку без свободного окна"
       />
-      <div className="site-reveal site-delay-1 rounded-[3rem] border border-white/12 bg-[#F7EDE0] p-7 text-[#0D1510] shadow-[0_42px_120px_rgba(0,0,0,0.3)]">
-        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">как проходит</p>
+      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.72] p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.12)] backdrop-blur-xl">
+        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">Запись</p>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {['выбираете формат', 'оставляете заявку', 'получаете подтверждение'].map((step, index) => (
-            <div key={step} className="rounded-[2rem] bg-[#0D1510]/6 p-5">
-              <p className="site-display text-5xl text-[#B98266]">0{index + 1}</p>
+          {['выберите формат', 'оставьте заявку', 'дождитесь подтверждения'].map((step, index) => (
+            <div key={step} className="rounded-[1.7rem] bg-[#2F463B]/6 p-5">
+              <p className="site-display text-5xl text-[#A9795F]">0{index + 1}</p>
               <p className="mt-5 text-xl font-semibold">{step}</p>
             </div>
           ))}
@@ -471,17 +460,17 @@ const ConsultationsPage = () => (
 
     <div className="mt-14 grid gap-5 md:grid-cols-2">
       {consultationCards.map((card, index) => (
-        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} rounded-[2.8rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl transition hover:-translate-y-2`}>
+        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
           <div className="mb-8 flex items-start justify-between gap-5">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{card.tag}</p>
-              <h3 className="site-display mt-4 text-[clamp(2.6rem,4vw,4.8rem)] leading-[0.94]">{card.title}</h3>
+              <h3 className="site-display mt-4 text-[clamp(1.8rem,2.5vw,2.7rem)] leading-[1.06]">{card.title}</h3>
             </div>
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#F7EDE0] text-[#0D1510]">
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
               <MoonStar className="h-5 w-5" />
             </div>
           </div>
-          <p className="min-h-[110px] text-xl font-medium leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
+          <p className="min-h-[110px] text-xl font-medium leading-relaxed text-[#2F463B]/58">{card.text}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <MagneticLink href="/site/profile">Записаться</MagneticLink>
             <MagneticLink href={BOT_URL} variant="dark">Открыть приложение</MagneticLink>
@@ -496,16 +485,16 @@ const AcademyPage = () => (
   <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
     <div className="grid gap-10 xl:grid-cols-[0.9fr_1.1fr]">
       <SectionIntro
-        eyebrow="tarot academy"
-        title="Учиться без хаоса"
-        text="База, расширенная программа и группы выглядят как нормальная учебная система, а не как набор обещаний"
+        eyebrow="Академия"
+        title="Обучение Таро"
+        text="Индивидуальные и групповые программы с занятиями, домашними заданиями и кабинетом студента"
       />
-      <div className="site-reveal site-delay-1 rounded-[3rem] border border-[#C79672]/26 bg-[#B98266] p-7 text-[#160E0A] shadow-[0_42px_130px_rgba(0,0,0,0.32)]">
-        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#160E0A]/58">academy path</p>
+      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#C79672]/22 bg-[#C79672]/18 p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.1)] backdrop-blur-xl">
+        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#A9795F]">Этапы</p>
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
           {academySteps.map((step, index) => (
-            <div key={step} className="rounded-[1.6rem] bg-[#160E0A]/9 p-4">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#160E0A]/56">0{index + 1}</p>
+            <div key={step} className="rounded-[1.6rem] bg-white/[0.58] p-4">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#A9795F]/70">0{index + 1}</p>
               <p className="mt-2 text-xl font-semibold">{step}</p>
             </div>
           ))}
@@ -515,12 +504,12 @@ const AcademyPage = () => (
 
     <div className="mt-14 grid gap-5 lg:grid-cols-3">
       {academyCards.map((card, index) => (
-        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.8rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl transition hover:-translate-y-2`}>
+        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
           <BookOpen className="h-8 w-8 text-[#C79672]" />
-          <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">program 0{index + 1}</p>
-          <h3 className="site-display mt-4 text-5xl leading-[0.96]">{card.title}</h3>
+          <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">Программа 0{index + 1}</p>
+          <h3 className="site-display mt-4 text-[clamp(1.8rem,2.4vw,2.6rem)] leading-[1.06]">{card.title}</h3>
           <p className="mt-5 text-4xl font-semibold text-[#B98266]">{card.price}</p>
-          <p className="mt-7 text-lg font-medium leading-relaxed text-[#F8F0E4]/58">{card.text}</p>
+          <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">{card.text}</p>
           <div className="mt-9">
             <MagneticLink href="/site/profile">Оставить заявку</MagneticLink>
           </div>
@@ -540,26 +529,26 @@ const ProfilePage = ({
   <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
     <div className="grid gap-10 xl:grid-cols-[0.78fr_1.22fr]">
       <SectionIntro
-        eyebrow="private room"
+        eyebrow="Кабинет"
         title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
         text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Войдите через Telegram, чтобы открыть свой профиль'}
       />
 
-      <div className="site-reveal site-delay-1 rounded-[3rem] border border-white/12 bg-white/[0.065] p-7 backdrop-blur-xl">
+      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
         {user ? (
           <div>
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">client profile</p>
-                <h2 className="site-display mt-4 text-6xl leading-[0.96]">{user.name}</h2>
-                <p className="mt-3 text-lg font-medium text-[#F8F0E4]/50">
+                <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Профиль</p>
+                <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3rem)] leading-[1.06]">{user.name}</h2>
+                <p className="mt-3 text-lg font-medium text-[#2F463B]/50">
                   @{user.username || 'telegram'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onLogout}
-                className="inline-flex items-center justify-center rounded-full bg-[#F7EDE0] px-5 py-3 text-sm font-semibold text-[#0D1510]"
+                className="inline-flex items-center justify-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Выйти
@@ -571,7 +560,7 @@ const ProfilePage = ({
                 ['бонусы', `${user.bonus_balance || 0} ₽`],
                 ['город', user.city || 'не указан'],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-[2rem] bg-black/16 p-5">
+                <div key={label} className="rounded-[1.7rem] bg-[#2F463B]/7 p-5">
                   <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C79672]">{label}</p>
                   <p className="mt-4 text-3xl font-semibold">{value}</p>
                 </div>
@@ -584,12 +573,12 @@ const ProfilePage = ({
           </div>
         ) : (
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">private access</p>
-            <h2 className="site-display mt-4 text-5xl leading-[0.96]">всё важное в одном месте</h2>
-            <p className="mt-4 text-lg font-medium leading-relaxed text-[#F8F0E4]/58">
+            <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Вход</p>
+            <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Личный кабинет</h2>
+            <p className="mt-4 text-lg font-medium leading-relaxed text-[#2F463B]/58">
               После входа откроется личный кабинет с вашими записями, обучением и оплатой
             </p>
-            <div className="mt-8 rounded-[2rem] bg-[#F7EDE0] p-5 text-[#0D1510]">
+            <div className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
               <TelegramLoginWidget />
             </div>
           </div>
@@ -606,28 +595,28 @@ const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) =>
     <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
       <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">
         <SectionIntro
-          eyebrow="payment"
+          eyebrow="Оплата"
           title="Оплатить запись"
           text="Выберите удобный способ и вернитесь в приложение после перевода"
         />
-        <div className="site-reveal site-delay-1 rounded-[3rem] bg-[#F7EDE0] p-7 text-[#0D1510] shadow-[0_42px_130px_rgba(0,0,0,0.28)]">
+        <div className="site-reveal site-delay-1 rounded-[2.4rem] bg-white/[0.74] p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.12)] backdrop-blur-xl">
           <div className="flex items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#0D1510] text-[#F7EDE0]">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
               <CreditCard className="h-7 w-7" />
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">способ оплаты</p>
-              <h2 className="site-display mt-2 text-5xl leading-[0.96]">{activeMethod?.title || 'Т-Банк'}</h2>
+              <h2 className="site-display mt-2 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">{activeMethod?.title || 'Т-Банк'}</h2>
             </div>
           </div>
-          <p className="mt-7 text-lg font-medium leading-relaxed text-[#0D1510]/58">
+          <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">
             {activeMethod?.instructions || 'После перевода вернитесь в приложение и нажмите “я оплатил”'}
           </p>
           <button
             type="button"
             onClick={() => activeMethod?.payment_url && openExternal(activeMethod.payment_url)}
             disabled={!activeMethod?.payment_url}
-            className="site-magnetic mt-8 inline-flex w-full items-center justify-center rounded-full bg-[#0D1510] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
+            className="site-magnetic mt-8 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
             data-magnetic
           >
             Открыть оплату
@@ -698,7 +687,7 @@ export const StudioLanding = () => {
     <PageShell page={page} user={user}>
       {page !== 'home' && (
         <div className="mx-auto max-w-[1540px] px-5 pt-7 md:px-10 xl:px-16">
-          <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-white/10 bg-white/[0.065] px-5 py-3 text-sm font-semibold text-[#F7EDE0] backdrop-blur-xl transition hover:bg-white/12">
+          <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-[#2F463B]/10 bg-white/70 px-5 py-3 text-sm font-semibold text-[#2F463B] backdrop-blur-xl transition hover:bg-white">
             <ChevronLeft className="mr-2 h-4 w-4" />
             На главную
           </SiteLink>
