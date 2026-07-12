@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 
 interface PaymentMethod {
   id: string;
@@ -25,7 +26,7 @@ interface PaymentMethod {
 
 interface SiteUser {
   id: string;
-  telegram_id: number;
+  telegram_id?: number | null;
   username?: string | null;
   name: string;
   city?: string | null;
@@ -39,7 +40,7 @@ interface SiteUser {
   role?: string | null;
 }
 
-type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment';
+type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment' | 'privacy' | 'offer';
 
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
@@ -50,6 +51,11 @@ const routes: { page: SitePage; label: string; href: string }[] = [
   { page: 'academy', label: 'Академия', href: '/site/academy' },
   { page: 'profile', label: 'Кабинет', href: '/site/profile' },
   { page: 'payment', label: 'Оплата', href: '/site/payment' },
+];
+
+const legalRoutes = [
+  { page: 'privacy' as SitePage, label: 'Политика данных', href: '/site/privacy' },
+  { page: 'offer' as SitePage, label: 'Оферта', href: '/site/offer' },
 ];
 
 const studioPrinciples = [
@@ -123,7 +129,6 @@ const studioSpaces = [
 ];
 
 const studioMoods = ['консультация', 'обучение', 'кабинет', 'оплата'];
-const SITE_REGISTER_DRAFT_KEY = 'tarot-site-register-draft';
 
 const openExternal = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -135,6 +140,8 @@ const getCurrentPage = (): SitePage => {
   if (path.endsWith('/academy')) return 'academy';
   if (path.endsWith('/profile')) return 'profile';
   if (path.endsWith('/payment')) return 'payment';
+  if (path.endsWith('/privacy')) return 'privacy';
+  if (path.endsWith('/offer')) return 'offer';
   return 'home';
 };
 
@@ -382,6 +389,11 @@ const PageShell = ({
             <SiteLink href="/site/consultations" className="transition hover:text-[#2F463B]">Консультации</SiteLink>
             <SiteLink href="/site/academy" className="transition hover:text-[#2F463B]">Академия</SiteLink>
             <SiteLink href="/site/profile" className="transition hover:text-[#2F463B]">Кабинет</SiteLink>
+            {legalRoutes.map((route) => (
+              <SiteLink key={route.page} href={route.href} className="transition hover:text-[#2F463B]">
+                {route.label}
+              </SiteLink>
+            ))}
           </div>
         </footer>
       </div>
@@ -401,6 +413,11 @@ const PageShell = ({
           <div className="mt-12 grid gap-3">
             {routes.map((route) => (
               <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-3xl font-semibold text-[#2F463B]">
+                {route.label}
+              </SiteLink>
+            ))}
+            {legalRoutes.map((route) => (
+              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-2xl font-semibold text-[#2F463B]">
                 {route.label}
               </SiteLink>
             ))}
@@ -605,8 +622,11 @@ const ProfilePage = ({
     email: user?.email || '',
     password: '',
     passwordRepeat: '',
+    personalDataAccepted: false,
+    offerAccepted: false,
   });
   const [registrationDraft, setRegistrationDraft] = useState({
+    username: '',
     name: '',
     city: '',
     phone: '',
@@ -615,29 +635,26 @@ const ProfilePage = ({
     email: '',
     password: '',
     passwordRepeat: '',
+    personalDataAccepted: false,
+    offerAccepted: false,
   });
-  const [showTelegramStep, setShowTelegramStep] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    let draft: Partial<typeof registrationDraft> = {};
-    try {
-      draft = JSON.parse(window.localStorage.getItem(SITE_REGISTER_DRAFT_KEY) || '{}');
-    } catch {
-      draft = {};
-    }
 
     setForm((current) => ({
       ...current,
-      name: user.name || draft.name || '',
-      city: user.city || draft.city || '',
-      phone: user.phone || draft.phone || '',
-      birth_date: user.birth_date || draft.birth_date || '',
-      gender: user.gender || draft.gender || 'other',
-      email: user.email || draft.email || '',
-      password: draft.password || '',
-      passwordRepeat: draft.passwordRepeat || '',
+      name: user.name || '',
+      city: user.city || '',
+      phone: user.phone || '',
+      birth_date: user.birth_date || '',
+      gender: user.gender || 'other',
+      email: user.email || '',
+      password: '',
+      passwordRepeat: '',
+      personalDataAccepted: false,
+      offerAccepted: false,
     }));
   }, [user]);
 
@@ -681,6 +698,11 @@ const ProfilePage = ({
       return;
     }
 
+    if (!form.personalDataAccepted || !form.offerAccepted) {
+      alert('Нужно принять условия регистрации');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch('/api/site/credentials', {
@@ -695,6 +717,8 @@ const ProfilePage = ({
           gender: form.gender,
           email: form.email,
           password: form.password,
+          personalDataAccepted: form.personalDataAccepted,
+          offerAccepted: form.offerAccepted,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -704,7 +728,6 @@ const ProfilePage = ({
       }
 
       await onSessionRefresh();
-      window.localStorage.removeItem(SITE_REGISTER_DRAFT_KEY);
     } catch (error: any) {
       alert(error.message || 'Не удалось сохранить вход');
     } finally {
@@ -712,8 +735,15 @@ const ProfilePage = ({
     }
   };
 
-  const prepareSiteRegistration = (event: React.FormEvent) => {
+  const registerOnSite = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    const username = registrationDraft.username.trim().replace(/^@+/, '').toLowerCase();
+
+    if (!/^[a-z0-9_]{5,32}$/.test(username)) {
+      alert('Введите Telegram-ник без @, пробелов и русских букв');
+      return;
+    }
 
     if (registrationDraft.password.length < 8) {
       alert('Пароль должен быть от 8 символов');
@@ -725,8 +755,42 @@ const ProfilePage = ({
       return;
     }
 
-    window.localStorage.setItem(SITE_REGISTER_DRAFT_KEY, JSON.stringify(registrationDraft));
-    setShowTelegramStep(true);
+    if (!registrationDraft.personalDataAccepted || !registrationDraft.offerAccepted) {
+      alert('Нужно принять условия регистрации');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/site/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username,
+          name: registrationDraft.name,
+          city: registrationDraft.city,
+          phone: registrationDraft.phone,
+          birth_date: registrationDraft.birth_date,
+          gender: registrationDraft.gender,
+          email: registrationDraft.email,
+          password: registrationDraft.password,
+          personalDataAccepted: registrationDraft.personalDataAccepted,
+          offerAccepted: registrationDraft.offerAccepted,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось зарегистрироваться');
+      }
+
+      await onSessionRefresh();
+    } catch (error: any) {
+      alert(error.message || 'Не удалось зарегистрироваться');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const needsProfileAccess = Boolean(user && (!user.email || !user.has_site_password));
@@ -737,7 +801,7 @@ const ProfilePage = ({
         <SectionIntro
           eyebrow="Кабинет"
           title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
-          text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Вход для клиентов и регистрация через Telegram'}
+          text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Можно войти по почте или создать профиль на сайте'}
         />
 
         <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
@@ -863,6 +927,38 @@ const ProfilePage = ({
                       />
                     </label>
                   </div>
+                  <div className="mt-5 space-y-3 rounded-[1.5rem] border border-[#2F463B]/10 bg-white/62 p-4">
+                    <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#2F463B]">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={form.personalDataAccepted}
+                        onChange={(event) => setForm({ ...form, personalDataAccepted: event.target.checked })}
+                        className="mt-1 h-5 w-5 accent-[#2F463B]"
+                      />
+                      <span>
+                        Согласен на{' '}
+                        <SiteLink href="/site/privacy" className="underline decoration-[#C79672] underline-offset-4">
+                          обработку персональных данных
+                        </SiteLink>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#2F463B]">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={form.offerAccepted}
+                        onChange={(event) => setForm({ ...form, offerAccepted: event.target.checked })}
+                        className="mt-1 h-5 w-5 accent-[#2F463B]"
+                      />
+                      <span>
+                        Принимаю{' '}
+                        <SiteLink href="/site/offer" className="underline decoration-[#C79672] underline-offset-4">
+                          условия договора-оферты
+                        </SiteLink>
+                      </span>
+                    </label>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
@@ -961,18 +1057,23 @@ const ProfilePage = ({
                   </div>
                 </div>
               ) : (
-                <form onSubmit={prepareSiteRegistration} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                <form onSubmit={registerOnSite} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="block md:col-span-2">
                       <span className="mb-2 flex items-center text-sm font-semibold">
                         <UserRound className="mr-2 h-4 w-4" />
-                        Telegram
+                        Telegram-ник
                       </span>
                       <input
-                        value="подтянется автоматически"
-                        readOnly
-                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#E7DED2] px-4 py-4 font-semibold text-[#2F463B]/48 outline-none"
+                        required
+                        value={registrationDraft.username}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, username: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                        placeholder="например danil_tarot"
                       />
+                      <span className="mt-2 block text-xs font-semibold text-[#2F463B]/46">
+                        Если вход через Telegram, ник подтянется автоматически
+                      </span>
                     </label>
                     <label className="block">
                       <span className="mb-2 text-sm font-semibold">Имя</span>
@@ -1063,22 +1164,48 @@ const ProfilePage = ({
                       />
                     </label>
                   </div>
+
+                  <div className="mt-5 space-y-3 rounded-[1.5rem] border border-[#2F463B]/10 bg-white/62 p-4">
+                    <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#2F463B]">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={registrationDraft.personalDataAccepted}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, personalDataAccepted: event.target.checked })}
+                        className="mt-1 h-5 w-5 accent-[#2F463B]"
+                      />
+                      <span>
+                        Согласен на{' '}
+                        <SiteLink href="/site/privacy" className="underline decoration-[#C79672] underline-offset-4">
+                          обработку персональных данных
+                        </SiteLink>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#2F463B]">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={registrationDraft.offerAccepted}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, offerAccepted: event.target.checked })}
+                        className="mt-1 h-5 w-5 accent-[#2F463B]"
+                      />
+                      <span>
+                        Принимаю{' '}
+                        <SiteLink href="/site/offer" className="underline decoration-[#C79672] underline-offset-4">
+                          условия договора-оферты
+                        </SiteLink>
+                      </span>
+                    </label>
+                  </div>
+
                   <button
                     type="submit"
-                    className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0]"
+                    disabled={loading}
+                    className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
                   >
-                    Продолжить через Telegram
+                    {loading ? 'Регистрирую' : 'Зарегистрироваться'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </button>
-
-                  {showTelegramStep && (
-                    <div className="mt-5 rounded-[1.5rem] border border-[#2F463B]/10 bg-white/60 p-4">
-                      <p className="mb-4 text-sm font-semibold text-[#2F463B]/62">
-                        Осталось подтвердить Telegram, после входа форма заполнится автоматически
-                      </p>
-                      <TelegramLoginWidget />
-                    </div>
-                  )}
                 </form>
               )}
             </div>
@@ -1088,6 +1215,37 @@ const ProfilePage = ({
     </section>
   );
 };
+
+const LegalPage = ({ document }: { document: LegalDocument }) => (
+  <section className="mx-auto max-w-[1120px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+    <div className="site-reveal rounded-[2.6rem] border border-[#2F463B]/10 bg-white/[0.74] p-7 shadow-[0_32px_100px_rgba(47,70,59,0.1)] backdrop-blur-xl md:p-10">
+      <p className="text-xs font-bold uppercase tracking-[0.42em] text-[#C79672]">{document.subtitle}</p>
+      <h1 className="site-display mt-5 text-[clamp(2.4rem,5vw,5rem)] leading-[1.02] text-[#2F463B]">
+        {document.title}
+      </h1>
+      <p className="mt-6 max-w-3xl text-xl font-medium leading-relaxed text-[#2F463B]/62">
+        {document.intro}
+      </p>
+
+      <div className="mt-10 grid gap-4">
+        {document.sections.map((section, index) => (
+          <div
+            key={section.title}
+            className="rounded-[1.8rem] border border-[#2F463B]/10 bg-[#F7EDE0]/72 p-5 text-[#2F463B]"
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-white text-sm font-bold text-[#B98266]">
+                {index + 1}
+              </span>
+              <h2 className="text-xl font-semibold">{section.title}</h2>
+            </div>
+            <p className="text-base font-medium leading-relaxed text-[#2F463B]/62">{section.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
 
 const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) => {
   const activeMethod = paymentMethods[0];
@@ -1181,6 +1339,8 @@ export const StudioLanding = () => {
     if (page === 'academy') return <AcademyPage />;
     if (page === 'profile') return <ProfilePage user={user} onLogout={logout} onSessionRefresh={loadSession} />;
     if (page === 'payment') return <PaymentPage paymentMethods={paymentMethods} />;
+    if (page === 'privacy') return <LegalPage document={personalDataPolicy} />;
+    if (page === 'offer') return <LegalPage document={offerTerms} />;
     return <HomePage />;
   }, [page, paymentMethods, user]);
 

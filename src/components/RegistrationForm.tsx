@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, MapPin, Phone, Calendar, Save, Users, Mail, Lock } from 'lucide-react';
+import { User, MapPin, Phone, Calendar, Save, Users, Mail, Lock, ShieldCheck, X } from 'lucide-react';
 import { notifyAdminNewUserRegistration } from '../lib/notifications';
+import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 
 interface RegistrationFormProps {
   telegramUser: any;
@@ -20,6 +21,9 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  const [personalDataAccepted, setPersonalDataAccepted] = useState(false);
+  const [offerAccepted, setOfferAccepted] = useState(false);
+  const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(null);
 
   useEffect(() => {
     const initReferral = async () => {
@@ -105,6 +109,11 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
       return;
     }
 
+    if (!personalDataAccepted || !offerAccepted) {
+      alert('Нужно принять условия регистрации');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -153,6 +162,8 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           telegram_id: telegramUser.id,
           email,
           password,
+          personalDataAccepted,
+          offerAccepted,
         }),
       });
       const credentialsPayload = await credentialsResponse.json().catch(() => null);
@@ -400,6 +411,51 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
             </div>
           </div>
 
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
+            <div className="flex items-center gap-2 text-[#385144] font-bold">
+              <ShieldCheck className="w-5 h-5" />
+              <span>Согласия</span>
+            </div>
+            <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#385144]">
+              <input
+                type="checkbox"
+                required
+                checked={personalDataAccepted}
+                onChange={(event) => setPersonalDataAccepted(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#385144]"
+              />
+              <span>
+                Согласен на{' '}
+                <button
+                  type="button"
+                  onClick={() => setLegalDocument(personalDataPolicy)}
+                  className="underline decoration-[#B8795C] underline-offset-4"
+                >
+                  обработку персональных данных
+                </button>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm font-semibold leading-relaxed text-[#385144]">
+              <input
+                type="checkbox"
+                required
+                checked={offerAccepted}
+                onChange={(event) => setOfferAccepted(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#385144]"
+              />
+              <span>
+                Принимаю{' '}
+                <button
+                  type="button"
+                  onClick={() => setLegalDocument(offerTerms)}
+                  className="underline decoration-[#B8795C] underline-offset-4"
+                >
+                  условия договора-оферты
+                </button>
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -410,6 +466,39 @@ export const RegistrationForm = ({ telegramUser, onComplete }: RegistrationFormP
           </button>
         </form>
       </div>
+
+      {legalDocument && (
+        <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-[#15241D]/55 p-4 backdrop-blur-xl">
+          <div className="max-h-[82vh] w-full max-w-md overflow-hidden rounded-[2rem] bg-[#F8F3EC] shadow-[0_24px_80px_rgba(21,36,29,0.28)]">
+            <div className="flex items-start justify-between gap-4 bg-[#385144] p-5 text-white">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-white/55">
+                  {legalDocument.subtitle}
+                </p>
+                <h2 className="mt-2 text-2xl font-black">{legalDocument.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLegalDocument(null)}
+                className="rounded-2xl bg-white/10 p-3"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-5">
+              <p className="text-sm font-semibold leading-relaxed text-[#66746B]">{legalDocument.intro}</p>
+              <div className="mt-5 space-y-3">
+                {legalDocument.sections.map((section) => (
+                  <div key={section.title} className="rounded-2xl bg-white/80 p-4">
+                    <p className="font-black text-[#385144]">{section.title}</p>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#66746B]">{section.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

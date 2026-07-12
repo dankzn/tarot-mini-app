@@ -32,6 +32,10 @@ export default async function handler(request, response) {
       return response.status(400).json({ ok: false, error: 'Пароль должен быть от 8 символов' });
     }
 
+    if (body.personalDataAccepted !== true || body.offerAccepted !== true) {
+      return response.status(400).json({ ok: false, error: 'Нужно принять условия регистрации' });
+    }
+
     const supabase = getSupabaseAdmin();
     const { data: user, error: userError } = await supabase
       .from('users')

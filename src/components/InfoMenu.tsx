@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronRight, Heart, LockKeyhole, Scale, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { offerTerms, personalDataPolicy } from '../lib/legalContent';
 
 interface InfoMenuProps {
   onClose: () => void;
@@ -9,8 +10,8 @@ type InfoSection = 'about' | 'privacy' | 'terms';
 
 const tabs: Array<{ id: InfoSection; title: string; subtitle: string }> = [
   { id: 'about', title: 'Обо мне', subtitle: 'подход и ценности' },
-  { id: 'privacy', title: 'Приватность', subtitle: 'что остаётся между нами' },
-  { id: 'terms', title: 'Условия', subtitle: 'как проходят консультации' },
+  { id: 'privacy', title: 'Данные', subtitle: 'как храним' },
+  { id: 'terms', title: 'Оферта', subtitle: 'условия работы' },
 ];
 
 export const InfoMenu = ({ onClose }: InfoMenuProps) => {
@@ -121,71 +122,68 @@ export const InfoMenu = ({ onClose }: InfoMenuProps) => {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black text-[#385144]">Конфиденциальность</h3>
-                    <p className="text-sm font-semibold text-[#8A5A3F]">личные темы не выносятся наружу</p>
+                    <h3 className="text-xl font-black text-[#385144]">{personalDataPolicy.title}</h3>
+                    <p className="text-sm font-semibold text-[#8A5A3F]">{personalDataPolicy.subtitle}</p>
                   </div>
                 </div>
                 <p className="text-[15px] leading-relaxed text-[#4B5563]">
-                  Всё, чем вы делитесь во время консультации, остаётся между нами.
-                  Данные используются только для записи, связи и истории консультаций.
+                  {personalDataPolicy.intro}
                 </p>
               </div>
 
-              {[
-                ['Что хранится', 'Имя, Telegram ID, город, история записей и бонусный баланс.'],
-                ['Кто видит', 'Доступ к клиентской информации есть только у администратора сервиса.'],
-                ['Зачем это нужно', 'Чтобы записывать на консультации, начислять бонусы и не терять историю.'],
-              ].map(([title, text]) => (
-                <div key={title} className="flex items-start gap-3 rounded-[1.35rem] bg-white/80 p-4 shadow-sm">
+              {personalDataPolicy.sections.map((section) => (
+                <div key={section.title} className="flex items-start gap-3 rounded-[1.35rem] bg-white/80 p-4 shadow-sm">
                   <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[#385144]" />
                   <div>
-                    <p className="font-black text-[#385144]">{title}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-[#6C756C]">{text}</p>
+                    <p className="font-black text-[#385144]">{section.title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-[#6C756C]">{section.text}</p>
                   </div>
                 </div>
               ))}
-
-              <div className="rounded-[1.5rem] border border-[#E7D8C9] bg-[#FFF9F0] p-4 text-sm leading-relaxed text-[#6B4D3E]">
-                Персональные данные защищаются в рамках действующего законодательства о персональных данных.
-                Подробные юридические формулировки можно запросить отдельно перед консультацией.
-              </div>
             </div>
           )}
 
           {activeSection === 'terms' && (
             <div className="space-y-3">
-              {[
-                ['Оплата', '40% вносится как предоплата, оставшаяся часть — после консультации.'],
-                ['Перенос', 'Перенос возможен не позднее чем за 24 часа до назначенного времени.'],
-                ['Природа таро', 'Таро показывает вероятности и помогает увидеть варианты, но не отменяет вашу свободу выбора.'],
-                ['Ответственность', 'Решения после консультации клиент принимает самостоятельно.'],
-              ].map(([title, text], index) => (
-                <div key={title} className="rounded-[1.45rem] border border-white/80 bg-white/85 p-4 shadow-sm">
+              <div className="rounded-[1.6rem] border border-white/80 bg-white/85 p-5 shadow-[0_14px_34px_rgba(56,81,68,0.08)]">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#EAF1EA] text-[#385144]">
+                    <Scale className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-[#385144]">{offerTerms.title}</h3>
+                    <p className="text-sm font-semibold text-[#8A5A3F]">{offerTerms.subtitle}</p>
+                  </div>
+                </div>
+                <p className="text-[15px] leading-relaxed text-[#4B5563]">{offerTerms.intro}</p>
+              </div>
+
+              {offerTerms.sections.map((section, index) => (
+                <div key={section.title} className="rounded-[1.45rem] border border-white/80 bg-white/85 p-4 shadow-sm">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#EAF1EA] text-sm font-black text-[#385144]">
                         0{index + 1}
                       </div>
-                      <p className="font-black text-[#385144]">{title}</p>
+                      <p className="font-black text-[#385144]">{section.title}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-[#8FA092]" />
                   </div>
-                  <p className="text-sm leading-relaxed text-[#6C756C]">{text}</p>
+                  <p className="text-sm leading-relaxed text-[#6C756C]">{section.text}</p>
                 </div>
               ))}
 
               <div className="rounded-[1.5rem] border border-[#B8795C]/25 bg-[#FFF1E8] p-4">
                 <p className="flex items-start text-sm leading-relaxed text-[#6B4D3E]">
                   <AlertTriangle className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
-                  Таро не заменяет медицинскую, юридическую или психологическую помощь.
-                  В профильных вопросах лучше обращаться к соответствующим специалистам.
+                  Таро не заменяет медицинскую, юридическую, финансовую или психологическую помощь
                 </p>
               </div>
 
               <div className="rounded-[1.5rem] border border-[#385144]/15 bg-[#EAF1EA] p-4">
                 <p className="flex items-start text-sm leading-relaxed text-[#385144]">
                   <Scale className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
-                  Запись означает согласие с условиями оказания услуги, правилами переноса и политикой приватности.
+                  Регистрация и запись означают согласие с условиями оферты и обработкой персональных данных
                 </p>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Lock, Mail, Save, UserRound } from 'lucide-react';
+import { Lock, Mail, Save, ShieldCheck, UserRound, X } from 'lucide-react';
+import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 
 interface SiteCredentialsModalProps {
   user: any;
@@ -11,6 +12,9 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
   const [password, setPassword] = useState('');
   const [passwordRepeat, setPasswordRepeat] = useState('');
   const [loading, setLoading] = useState(false);
+  const [personalDataAccepted, setPersonalDataAccepted] = useState(false);
+  const [offerAccepted, setOfferAccepted] = useState(false);
+  const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(null);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -25,6 +29,11 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
       return;
     }
 
+    if (!personalDataAccepted || !offerAccepted) {
+      alert('Нужно принять условия регистрации');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch('/api/site/credentials', {
@@ -34,6 +43,8 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
           telegram_id: user.telegram_id,
           email,
           password,
+          personalDataAccepted,
+          offerAccepted,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -122,6 +133,53 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
           </div>
         </div>
 
+        <div className="mt-4 rounded-2xl border border-[#385144]/10 bg-white/70 p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-black text-[#385144]">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Согласия</span>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 text-sm font-bold leading-relaxed text-[#385144]">
+              <input
+                type="checkbox"
+                required
+                checked={personalDataAccepted}
+                onChange={(event) => setPersonalDataAccepted(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#385144]"
+              />
+              <span>
+                Согласен на{' '}
+                <button
+                  type="button"
+                  onClick={() => setLegalDocument(personalDataPolicy)}
+                  className="underline decoration-[#B8795C] underline-offset-4"
+                >
+                  обработку персональных данных
+                </button>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm font-bold leading-relaxed text-[#385144]">
+              <input
+                type="checkbox"
+                required
+                checked={offerAccepted}
+                onChange={(event) => setOfferAccepted(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-[#385144]"
+              />
+              <span>
+                Принимаю{' '}
+                <button
+                  type="button"
+                  onClick={() => setLegalDocument(offerTerms)}
+                  className="underline decoration-[#B8795C] underline-offset-4"
+                >
+                  условия договора-оферты
+                </button>
+              </span>
+            </label>
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={loading}
@@ -131,6 +189,39 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
           {loading ? 'Сохраняю' : 'Сохранить вход'}
         </button>
       </form>
+
+      {legalDocument && (
+        <div className="absolute inset-0 z-[10000] flex items-end justify-center bg-[#15241D]/55 p-4 backdrop-blur-xl sm:items-center">
+          <div className="max-h-[82vh] w-full max-w-md overflow-hidden rounded-[2rem] bg-[#F8F3EC] shadow-[0_24px_80px_rgba(21,36,29,0.28)]">
+            <div className="flex items-start justify-between gap-4 bg-[#385144] p-5 text-white">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-white/55">
+                  {legalDocument.subtitle}
+                </p>
+                <h2 className="mt-2 text-2xl font-black">{legalDocument.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLegalDocument(null)}
+                className="rounded-2xl bg-white/10 p-3"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-5">
+              <p className="text-sm font-semibold leading-relaxed text-[#66746B]">{legalDocument.intro}</p>
+              <div className="mt-5 space-y-3">
+                {legalDocument.sections.map((section) => (
+                  <div key={section.title} className="rounded-2xl bg-white/80 p-4">
+                    <p className="font-black text-[#385144]">{section.title}</p>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#66746B]">{section.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
