@@ -12,6 +12,14 @@ const buildName = (telegramUser) =>
   telegramUser.username ||
   'Клиент';
 
+const getReturnPath = (request) => {
+  const value = String(request.query?.return_to || '/site/profile');
+  if (!value.startsWith('/site') && !value.startsWith('/studio')) return '/site/profile';
+  return value;
+};
+
+const withAuthParam = (path, value) => `${path}${path.includes('?') ? '&' : '?'}auth=${value}`;
+
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
@@ -20,9 +28,10 @@ export default async function handler(request, response) {
 
   const verification = verifyTelegramLogin(request.query || {});
   const siteUrl = getSiteUrl(request);
+  const returnPath = getReturnPath(request);
 
   if (!verification.ok) {
-    return response.redirect(`${siteUrl}/site?auth=failed`);
+    return response.redirect(`${siteUrl}${withAuthParam(returnPath, 'failed')}`);
   }
 
   try {
@@ -78,9 +87,9 @@ export default async function handler(request, response) {
 
     const sessionToken = signSession(sessionPayloadFromUser(user));
     response.setHeader('Set-Cookie', buildSessionCookie(sessionToken, request));
-    return response.redirect(`${siteUrl}/site?auth=ok`);
+    return response.redirect(`${siteUrl}${withAuthParam(returnPath, 'ok')}`);
   } catch (error) {
     console.error('Site Telegram login failed:', error);
-    return response.redirect(`${siteUrl}/site?auth=failed`);
+    return response.redirect(`${siteUrl}${withAuthParam(returnPath, 'failed')}`);
   }
 }

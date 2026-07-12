@@ -10,6 +10,7 @@ import {
   Menu,
   MoonStar,
   Save,
+  Sparkles,
   UserRound,
   X,
 } from 'lucide-react';
@@ -122,6 +123,7 @@ const studioSpaces = [
 ];
 
 const studioMoods = ['консультация', 'обучение', 'кабинет', 'оплата'];
+const SITE_REGISTER_DRAFT_KEY = 'tarot-site-register-draft';
 
 const openExternal = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -204,12 +206,31 @@ const MotionEngine = () => {
   return null;
 };
 
+const TarotBackground = () => (
+  <div className="site-tarot-bg" aria-hidden="true">
+    <div className="site-tarot-card site-tarot-card-one">
+      <span>XVII</span>
+      <Sparkles className="h-10 w-10" />
+    </div>
+    <div className="site-tarot-card site-tarot-card-two">
+      <span>VI</span>
+      <MoonStar className="h-10 w-10" />
+    </div>
+    <div className="site-tarot-ring site-tarot-ring-one" />
+    <div className="site-tarot-ring site-tarot-ring-two" />
+    <div className="site-tarot-star site-tarot-star-one">✦</div>
+    <div className="site-tarot-star site-tarot-star-two">✧</div>
+  </div>
+);
+
 const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hasWidgetError, setHasWidgetError] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    setHasWidgetError(false);
     containerRef.current.innerHTML = '';
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-widget.js?22';
@@ -219,13 +240,43 @@ const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
     script.setAttribute('data-radius', '14');
     script.setAttribute('data-request-access', 'write');
     script.setAttribute('data-userpic', 'false');
-    script.setAttribute('data-auth-url', `${window.location.origin}/api/site/telegram-login`);
+    script.setAttribute('data-auth-url', `${window.location.origin}/api/site/telegram-login?return_to=/site/profile`);
     script.onload = () => onReady?.();
 
     containerRef.current.appendChild(script);
+
+    const timeout = window.setTimeout(() => {
+      const text = containerRef.current?.textContent || '';
+      const hasTelegramFrame = Boolean(containerRef.current?.querySelector('iframe'));
+      if (text.includes('Bot domain invalid') || !hasTelegramFrame) {
+        setHasWidgetError(true);
+      }
+    }, 2200);
+
+    return () => window.clearTimeout(timeout);
   }, [onReady]);
 
-  return <div ref={containerRef} className="min-h-[46px]" />;
+  return (
+    <div>
+      <div ref={containerRef} className={hasWidgetError ? 'hidden' : 'min-h-[46px]'} />
+      {hasWidgetError && (
+        <div className="rounded-[1.4rem] border border-[#2F463B]/10 bg-white/70 p-4">
+          <p className="text-base font-semibold text-[#2F463B]">Telegram-вход временно не открылся на сайте</p>
+          <p className="mt-2 text-sm font-medium leading-relaxed text-[#2F463B]/58">
+            Можно открыть бота и продолжить регистрацию там
+          </p>
+          <button
+            type="button"
+            onClick={() => openExternal(BOT_URL)}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
+          >
+            Открыть Telegram
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const SiteLink = ({
@@ -289,6 +340,7 @@ const PageShell = ({
       <div className="site-orb site-orb-one" />
       <div className="site-orb site-orb-two" />
       <div className="site-orb site-orb-three" />
+      <TarotBackground />
 
       <div className="relative z-10">
         <header className="site-header sticky top-0 z-40 mx-auto flex max-w-[1540px] items-center justify-between px-5 py-5 md:px-10 xl:px-16">
@@ -541,6 +593,7 @@ const ProfilePage = ({
   onLogout: () => Promise<void>;
   onSessionRefresh: () => Promise<void>;
 }) => {
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [form, setForm] = useState({
@@ -553,18 +606,38 @@ const ProfilePage = ({
     password: '',
     passwordRepeat: '',
   });
+  const [registrationDraft, setRegistrationDraft] = useState({
+    name: '',
+    city: '',
+    phone: '',
+    birth_date: '',
+    gender: 'other' as 'male' | 'female' | 'other',
+    email: '',
+    password: '',
+    passwordRepeat: '',
+  });
+  const [showTelegramStep, setShowTelegramStep] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
+    let draft: Partial<typeof registrationDraft> = {};
+    try {
+      draft = JSON.parse(window.localStorage.getItem(SITE_REGISTER_DRAFT_KEY) || '{}');
+    } catch {
+      draft = {};
+    }
+
     setForm((current) => ({
       ...current,
-      name: user.name || '',
-      city: user.city || '',
-      phone: user.phone || '',
-      birth_date: user.birth_date || '',
-      gender: user.gender || 'other',
-      email: user.email || '',
+      name: user.name || draft.name || '',
+      city: user.city || draft.city || '',
+      phone: user.phone || draft.phone || '',
+      birth_date: user.birth_date || draft.birth_date || '',
+      gender: user.gender || draft.gender || 'other',
+      email: user.email || draft.email || '',
+      password: draft.password || '',
+      passwordRepeat: draft.passwordRepeat || '',
     }));
   }, [user]);
 
@@ -631,11 +704,29 @@ const ProfilePage = ({
       }
 
       await onSessionRefresh();
+      window.localStorage.removeItem(SITE_REGISTER_DRAFT_KEY);
     } catch (error: any) {
       alert(error.message || 'Не удалось сохранить вход');
     } finally {
       setLoading(false);
     }
+  };
+
+  const prepareSiteRegistration = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (registrationDraft.password.length < 8) {
+      alert('Пароль должен быть от 8 символов');
+      return;
+    }
+
+    if (registrationDraft.password !== registrationDraft.passwordRepeat) {
+      alert('Пароли не совпадают');
+      return;
+    }
+
+    window.localStorage.setItem(SITE_REGISTER_DRAFT_KEY, JSON.stringify(registrationDraft));
+    setShowTelegramStep(true);
   };
 
   const needsProfileAccess = Boolean(user && (!user.email || !user.has_site_password));
@@ -646,7 +737,7 @@ const ProfilePage = ({
         <SectionIntro
           eyebrow="Кабинет"
           title={user ? 'Ваш кабинет' : 'Войти в кабинет'}
-          text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Можно войти по почте или через Telegram'}
+          text={user ? 'Здесь будут записи, обучение, бонусы и оплата' : 'Вход для клиентов и регистрация через Telegram'}
         />
 
         <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
@@ -802,51 +893,194 @@ const ProfilePage = ({
             </div>
           ) : (
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">Вход</p>
+              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">
+                {authMode === 'login' ? 'Вход' : 'Регистрация'}
+              </p>
               <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Личный кабинет</h2>
-              <div className="mt-8 grid gap-5 xl:grid-cols-2">
-                <form onSubmit={loginWithEmail} className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
-                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Войти по почте</p>
-                  <label className="mb-4 block">
-                    <span className="mb-2 flex items-center text-sm font-semibold">
-                      <Mail className="mr-2 h-4 w-4" />
-                      Почта
-                    </span>
-                    <input
-                      type="email"
-                      required
-                      value={loginEmail}
-                      onChange={(event) => setLoginEmail(event.target.value)}
-                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
-                    />
-                  </label>
-                  <label className="mb-5 block">
-                    <span className="mb-2 flex items-center text-sm font-semibold">
-                      <Lock className="mr-2 h-4 w-4" />
-                      Пароль
-                    </span>
-                    <input
-                      type="password"
-                      required
-                      value={loginPassword}
-                      onChange={(event) => setLoginPassword(event.target.value)}
-                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
-                    />
-                  </label>
+
+              <div className="mt-7 inline-flex rounded-full bg-[#F7EDE0] p-1">
+                {[
+                  ['login', 'Войти'],
+                  ['register', 'Регистрация'],
+                ].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setAuthMode(mode as 'login' | 'register')}
+                    className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+                      authMode === mode ? 'bg-[#2F463B] text-[#F7EDE0]' : 'text-[#2F463B]/62'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {authMode === 'login' ? (
+                <div className="mt-8 grid gap-5 xl:grid-cols-2">
+                  <form onSubmit={loginWithEmail} className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                    <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Войти по почте</p>
+                    <label className="mb-4 block">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <Mail className="mr-2 h-4 w-4" />
+                        Почта
+                      </span>
+                      <input
+                        type="email"
+                        required
+                        value={loginEmail}
+                        onChange={(event) => setLoginEmail(event.target.value)}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="mb-5 block">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <Lock className="mr-2 h-4 w-4" />
+                        Пароль
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        value={loginPassword}
+                        onChange={(event) => setLoginPassword(event.target.value)}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                    >
+                      {loading ? 'Вхожу' : 'Войти'}
+                    </button>
+                  </form>
+
+                  <div className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                    <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Первый вход через Telegram</p>
+                    <TelegramLoginWidget />
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={prepareSiteRegistration} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block md:col-span-2">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <UserRound className="mr-2 h-4 w-4" />
+                        Telegram
+                      </span>
+                      <input
+                        value="подтянется автоматически"
+                        readOnly
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#E7DED2] px-4 py-4 font-semibold text-[#2F463B]/48 outline-none"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold">Имя</span>
+                      <input
+                        required
+                        value={registrationDraft.name}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, name: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold">Город</span>
+                      <input
+                        required
+                        value={registrationDraft.city}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, city: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold">Телефон</span>
+                      <input
+                        value={registrationDraft.phone}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, phone: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold">День рождения</span>
+                      <input
+                        type="date"
+                        value={registrationDraft.birth_date}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, birth_date: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 text-sm font-semibold">Пол</span>
+                      <select
+                        value={registrationDraft.gender}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, gender: event.target.value as 'male' | 'female' | 'other' })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      >
+                        <option value="female">Женский</option>
+                        <option value="male">Мужской</option>
+                        <option value="other">Не указывать</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <Mail className="mr-2 h-4 w-4" />
+                        Почта
+                      </span>
+                      <input
+                        type="email"
+                        required
+                        value={registrationDraft.email}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, email: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <Lock className="mr-2 h-4 w-4" />
+                        Пароль
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={registrationDraft.password}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, password: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                    <label className="block md:col-span-2">
+                      <span className="mb-2 flex items-center text-sm font-semibold">
+                        <Lock className="mr-2 h-4 w-4" />
+                        Повтор пароля
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={registrationDraft.passwordRepeat}
+                        onChange={(event) => setRegistrationDraft({ ...registrationDraft, passwordRepeat: event.target.value })}
+                        className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                      />
+                    </label>
+                  </div>
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                    className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0]"
                   >
-                    {loading ? 'Вхожу' : 'Войти'}
+                    Продолжить через Telegram
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </button>
-                </form>
 
-                <div className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
-                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Первый вход через Telegram</p>
-                  <TelegramLoginWidget />
-                </div>
-              </div>
+                  {showTelegramStep && (
+                    <div className="mt-5 rounded-[1.5rem] border border-[#2F463B]/10 bg-white/60 p-4">
+                      <p className="mb-4 text-sm font-semibold text-[#2F463B]/62">
+                        Осталось подтвердить Telegram, после входа форма заполнится автоматически
+                      </p>
+                      <TelegramLoginWidget />
+                    </div>
+                  )}
+                </form>
+              )}
             </div>
           )}
         </div>
