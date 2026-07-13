@@ -18,7 +18,10 @@ const normalizeUsername = (value) =>
     .replace(/^@+/, '')
     .toLowerCase();
 
-const isValidUsername = (username) => /^[a-z0-9_]{5,32}$/.test(username);
+const isValidUsername = (username) =>
+  username.length >= 2 &&
+  username.length <= 64 &&
+  !/[\u0000-\u001F\u007F<>]/.test(username);
 
 const isAlreadyRegisteredAuthError = (error) =>
   /already|registered|exists|duplicate/i.test(String(error?.message || error || ''));
@@ -90,7 +93,7 @@ export default async function handler(request, response) {
     if (!isValidUsername(username)) {
       return response.status(400).json({
         ok: false,
-        error: 'Введите Telegram-ник без @, пробелов и русских букв',
+        error: 'Введите Telegram-ник или контактный ник от 2 символов',
       });
     }
 

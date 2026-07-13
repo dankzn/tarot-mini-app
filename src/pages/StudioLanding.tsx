@@ -740,8 +740,8 @@ const ProfilePage = ({
 
     const username = registrationDraft.username.trim().replace(/^@+/, '').toLowerCase();
 
-    if (!/^[a-z0-9_]{5,32}$/.test(username)) {
-      alert('Введите Telegram-ник без @, пробелов и русских букв');
+    if (username.length < 2 || username.length > 64 || /[\u0000-\u001F\u007F<>]/.test(username)) {
+      alert('Введите Telegram-ник или контактный ник от 2 символов');
       return;
     }
 
@@ -1069,10 +1069,10 @@ const ProfilePage = ({
                         value={registrationDraft.username}
                         onChange={(event) => setRegistrationDraft({ ...registrationDraft, username: event.target.value })}
                         className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
-                        placeholder="например danil_tarot"
+                        placeholder="например @tesr"
                       />
                       <span className="mt-2 block text-xs font-semibold text-[#2F463B]/46">
-                        Если вход через Telegram, ник подтянется автоматически
+                        Можно указать короткий ник вручную, при входе через Telegram он подтянется сам
                       </span>
                     </label>
                     <label className="block">
