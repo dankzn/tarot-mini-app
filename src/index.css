@@ -137,12 +137,85 @@ select:focus-visible {
   --site-x: 50vw;
   --site-y: 30vh;
   --site-scroll: 0;
+  --site-ink: #2F463B;
+  --site-paper: #F5EFE6;
+  --site-card: rgba(255, 255, 255, 0.74);
   isolation: isolate;
   background:
     radial-gradient(circle at 14% 8%, rgba(116, 149, 120, 0.2), transparent 28rem),
     radial-gradient(circle at 84% 12%, rgba(199, 150, 114, 0.18), transparent 30rem),
     radial-gradient(circle at 48% 92%, rgba(255, 255, 255, 0.8), transparent 34rem),
     linear-gradient(145deg, #F6F0E7 0%, #ECE7DD 46%, #F8F3EC 100%);
+}
+
+.site-theme-dark {
+  --site-ink: #F7EDE0;
+  --site-paper: #101813;
+  --site-card: rgba(23, 34, 28, 0.78);
+  color: #F7EDE0;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(79, 117, 85, 0.28), transparent 30rem),
+    radial-gradient(circle at 88% 4%, rgba(185, 130, 102, 0.18), transparent 31rem),
+    radial-gradient(circle at 48% 102%, rgba(247, 237, 224, 0.08), transparent 34rem),
+    linear-gradient(145deg, #111A14 0%, #16221B 52%, #0D120F 100%) !important;
+}
+
+.site-theme-dark::before {
+  background:
+    linear-gradient(rgba(247, 237, 224, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(247, 237, 224, 0.045) 1px, transparent 1px);
+}
+
+.site-theme-dark::after {
+  background:
+    linear-gradient(120deg, rgba(247, 237, 224, 0.06), transparent 24%, transparent 72%, rgba(185, 130, 102, 0.1)),
+    radial-gradient(circle at 50% 115%, rgba(199, 150, 114, 0.1), transparent 35rem);
+}
+
+.site-theme-dark .site-cursor-light {
+  background: radial-gradient(circle 34rem at var(--site-x) var(--site-y), rgba(247, 237, 224, 0.12), transparent 58%);
+}
+
+.site-theme-dark .site-noise {
+  opacity: 0.13;
+  mix-blend-mode: screen;
+}
+
+.site-theme-dark [class*='bg-white'] {
+  background-color: rgba(23, 34, 28, 0.78) !important;
+}
+
+.site-theme-dark [class*='bg-[#F7EDE0]'] {
+  background-color: rgba(247, 237, 224, 0.1) !important;
+}
+
+.site-theme-dark [class*='text-[#2F463B]'] {
+  color: #F7EDE0 !important;
+}
+
+.site-theme-dark [class*='text-[#2F463B]/'] {
+  color: rgba(247, 237, 224, 0.62) !important;
+}
+
+.site-theme-dark [class*='border-[#2F463B]'] {
+  border-color: rgba(247, 237, 224, 0.14) !important;
+}
+
+.site-theme-dark input,
+.site-theme-dark select,
+.site-theme-dark textarea {
+  background: rgba(247, 237, 224, 0.08) !important;
+  border-color: rgba(247, 237, 224, 0.12) !important;
+  color: #F7EDE0 !important;
+}
+
+.site-theme-dark input::placeholder,
+.site-theme-dark textarea::placeholder {
+  color: rgba(247, 237, 224, 0.38) !important;
+}
+
+.site-theme-dark option {
+  color: #2F463B;
 }
 
 .site-stage::before {

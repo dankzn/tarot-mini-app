@@ -2,16 +2,24 @@ import { type AnchorHTMLAttributes, useEffect, useMemo, useRef, useState } from 
 import {
   ArrowRight,
   BookOpen,
+  CalendarCheck,
   ChevronLeft,
+  Clock,
   CreditCard,
+  GraduationCap,
   Lock,
   LogOut,
   Mail,
   Menu,
+  Moon,
   MoonStar,
   Save,
+  ShoppingCart,
   Sparkles,
+  Sun,
+  Trash2,
   UserRound,
+  Wallet,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -40,7 +48,59 @@ interface SiteUser {
   role?: string | null;
 }
 
+interface SiteService {
+  id: string;
+  title: string;
+  description?: string | null;
+  price?: number | null;
+  duration_minutes?: number | null;
+  category?: string | null;
+  is_active?: boolean | null;
+}
+
+interface SiteConsultation {
+  id: string;
+  status?: string | null;
+  scheduled_at?: string | null;
+  requested_date?: string | null;
+  requested_time_text?: string | null;
+  scheduling_status?: string | null;
+  payment_status?: string | null;
+  payment_amount?: number | null;
+  price?: number | null;
+  priority_fee?: number | null;
+  services?: {
+    title?: string | null;
+    duration_minutes?: number | null;
+  } | null;
+}
+
+interface TrainingEnrollment {
+  id: string;
+  status?: string | null;
+  payment_status?: string | null;
+  final_price?: number | null;
+  created_at?: string | null;
+  training_programs?: {
+    title?: string | null;
+    price?: number | null;
+  } | null;
+  training_groups?: {
+    title?: string | null;
+    starts_at?: string | null;
+  } | null;
+}
+
+type CartItem = {
+  id: string;
+  source: 'service' | 'consultation' | 'training';
+  title: string;
+  price: number;
+  meta?: string;
+};
+
 type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment' | 'privacy' | 'offer';
+type SiteTheme = 'light' | 'dark';
 
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
@@ -132,6 +192,48 @@ const studioMoods = ['консультация', 'обучение', 'кабин
 
 const openExternal = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+const formatMoney = (value?: number | null) => `${Math.max(0, Number(value || 0)).toLocaleString('ru-RU')} ₽`;
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return 'время согласуется';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'время согласуется';
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getConsultationTitle = (item: SiteConsultation) => item.services?.title || 'Консультация';
+
+const getConsultationPrice = (item: SiteConsultation) => Number(item.payment_amount ?? item.price ?? 0);
+
+const needsPayment = (status?: string | null) => !['paid', 'confirmed', 'completed'].includes(String(status || '').toLowerCase());
+
+const getStoredTheme = (): SiteTheme => {
+  if (typeof window === 'undefined') return 'light';
+  const saved = window.localStorage.getItem('tarot-site-theme');
+  if (saved === 'dark' || saved === 'light') return saved;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
+
+const getStoredCart = (): CartItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('tarot-site-cart') || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item) => item?.id && item?.title) : [];
+  } catch {
+    return [];
+  }
+};
+
+const one = <T,>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
 };
 
 const getCurrentPage = (): SitePage => {
@@ -330,16 +432,22 @@ const MagneticLink = ({ href, children, variant = 'light' }: { href: string; chi
 const PageShell = ({
   page,
   user,
+  cartCount,
+  theme,
+  onToggleTheme,
   children,
 }: {
   page: SitePage;
   user: SiteUser | null;
+  cartCount: number;
+  theme: SiteTheme;
+  onToggleTheme: () => void;
   children: React.ReactNode;
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <main className="site-stage min-h-screen overflow-x-hidden bg-[#F5EFE6] text-[#2F463B]">
+    <main className={`site-stage site-theme-${theme} min-h-screen overflow-x-hidden bg-[#F5EFE6] text-[#2F463B]`}>
       <MotionEngine />
       <div className="site-scroll-progress" />
       <div className="site-cursor-light" />
@@ -368,6 +476,26 @@ const PageShell = ({
           </nav>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
+              aria-label="Переключить тему"
+            >
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            <SiteLink
+              href="/site/payment"
+              className="relative hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
+              aria-label="Корзина"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#B98266] px-1 text-[11px] font-bold text-white">
+                  {cartCount}
+                </span>
+              )}
+            </SiteLink>
             <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
               {user ? 'Кабинет' : 'Войти'}
             </SiteLink>
@@ -414,8 +542,16 @@ const PageShell = ({
             {routes.map((route) => (
               <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-3xl font-semibold text-[#2F463B]">
                 {route.label}
+                {route.page === 'payment' && cartCount > 0 ? ` · ${cartCount}` : ''}
               </SiteLink>
             ))}
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-left text-2xl font-semibold text-[#2F463B]"
+            >
+              {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            </button>
             {legalRoutes.map((route) => (
               <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-2xl font-semibold text-[#2F463B]">
                 {route.label}
@@ -1247,7 +1383,397 @@ const LegalPage = ({ document }: { document: LegalDocument }) => (
   </section>
 );
 
-const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) => {
+const SiteCartPanel = ({
+  cart,
+  paymentMethods,
+  onRemove,
+  onClear,
+  compact = false,
+}: {
+  cart: CartItem[];
+  paymentMethods: PaymentMethod[];
+  onRemove: (id: string) => void;
+  onClear: () => void;
+  compact?: boolean;
+}) => {
+  const activeMethod = paymentMethods[0];
+  const total = cart.reduce((sum, item) => sum + Number(item.price || 0), 0);
+
+  return (
+    <div className={`rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 text-[#2F463B] shadow-[0_26px_90px_rgba(47,70,59,0.1)] backdrop-blur-xl ${compact ? '' : 'md:p-7'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Корзина</p>
+          <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">К оплате</h2>
+        </div>
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
+          <ShoppingCart className="h-6 w-6" />
+        </div>
+      </div>
+
+      {cart.length === 0 ? (
+        <div className="mt-6 rounded-[1.5rem] border border-dashed border-[#2F463B]/16 bg-[#F7EDE0]/70 p-5">
+          <p className="text-base font-semibold">Корзина пока пустая</p>
+          <p className="mt-2 text-sm font-medium leading-relaxed text-[#2F463B]/58">
+            Добавьте консультацию, курс или услугу — оплата откроется отсюда
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-3">
+          {cart.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-4 rounded-[1.4rem] bg-[#F7EDE0]/82 p-4">
+              <div>
+                <p className="text-base font-semibold">{item.title}</p>
+                {item.meta && <p className="mt-1 text-sm font-medium text-[#2F463B]/50">{item.meta}</p>}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="whitespace-nowrap text-lg font-semibold text-[#8B604A]">{formatMoney(item.price)}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="grid h-10 w-10 place-items-center rounded-full bg-white text-[#2F463B]/52 transition hover:text-red-500"
+                  aria-label="Убрать из корзины"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between rounded-[1.5rem] bg-[#2F463B] p-5 text-[#F7EDE0]">
+            <span className="text-sm font-bold uppercase tracking-[0.28em] text-[#F7EDE0]/58">Итого</span>
+            <span className="text-3xl font-semibold">{formatMoney(total)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => activeMethod?.payment_url && openExternal(activeMethod.payment_url)}
+            disabled={!activeMethod?.payment_url}
+            className="site-magnetic inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
+            data-magnetic
+          >
+            Оплатить из корзины
+            <ArrowRight className="ml-3 h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex w-full items-center justify-center rounded-full border border-[#2F463B]/10 bg-white/70 px-6 py-4 text-sm font-semibold text-[#2F463B]/64"
+          >
+            Очистить корзину
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ProfileCabinetPage = ({
+  user,
+  onLogout,
+  onSessionRefresh,
+  cart,
+  paymentMethods,
+  onAddToCart,
+  onRemoveFromCart,
+  onClearCart,
+}: {
+  user: SiteUser | null;
+  onLogout: () => Promise<void>;
+  onSessionRefresh: () => Promise<void>;
+  cart: CartItem[];
+  paymentMethods: PaymentMethod[];
+  onAddToCart: (item: CartItem) => void;
+  onRemoveFromCart: (id: string) => void;
+  onClearCart: () => void;
+}) => {
+  const [services, setServices] = useState<SiteService[]>([]);
+  const [consultations, setConsultations] = useState<SiteConsultation[]>([]);
+  const [enrollments, setEnrollments] = useState<TrainingEnrollment[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let cancelled = false;
+    const loadCabinet = async () => {
+      setLoadingData(true);
+      try {
+        const [servicesResponse, consultationsResponse, enrollmentsResponse] = await Promise.allSettled([
+          supabase.from('services').select('*').eq('is_active', true).order('price', { ascending: true }),
+          supabase
+            .from('consultations')
+            .select('id, scheduled_at, requested_date, requested_time_text, scheduling_status, status, price, payment_status, payment_amount, priority_fee, services(title, duration_minutes)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(8),
+          supabase
+            .from('training_enrollments')
+            .select('id,status,payment_status,final_price,created_at,training_programs(title,price),training_groups(title,starts_at)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(8),
+        ]);
+
+        if (cancelled) return;
+
+        if (servicesResponse.status === 'fulfilled') setServices(((servicesResponse.value.data || []) as SiteService[]).filter((item) => item.title));
+        if (consultationsResponse.status === 'fulfilled') {
+          setConsultations(((consultationsResponse.value.data || []) as any[]).map((item) => ({ ...item, services: one(item.services) })));
+        }
+        if (enrollmentsResponse.status === 'fulfilled') {
+          setEnrollments(
+            ((enrollmentsResponse.value.data || []) as any[]).map((item) => ({
+              ...item,
+              training_programs: one(item.training_programs),
+              training_groups: one(item.training_groups),
+            })),
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    };
+
+    loadCabinet();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  if (!user) {
+    return <ProfilePage user={user} onLogout={onLogout} onSessionRefresh={onSessionRefresh} />;
+  }
+
+  const nextConsultation = consultations.find((item) => item.scheduled_at || item.requested_date) || consultations[0];
+  const dueConsultations = consultations.filter((item) => needsPayment(item.payment_status) && getConsultationPrice(item) > 0);
+  const dueEnrollments = enrollments.filter((item) => needsPayment(item.payment_status) && Number(item.final_price || item.training_programs?.price || 0) > 0);
+  const serviceCategories = Array.from(new Set(services.map((service) => service.category).filter(Boolean))) as string[];
+
+  return (
+    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+      <div className="grid gap-10 xl:grid-cols-[0.86fr_1.14fr]">
+        <div className="site-reveal rounded-[2.7rem] bg-[#2F463B] p-7 text-[#F7EDE0] shadow-[0_34px_110px_rgba(47,70,59,0.22)] md:p-9">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#E2CDB6]/70">Личный кабинет</p>
+              <h1 className="site-display mt-4 text-[clamp(2.6rem,5vw,5.8rem)] leading-[0.98]">{user.name}</h1>
+              <p className="mt-4 text-lg font-semibold text-[#F7EDE0]/58">@{user.username || 'telegram'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#F7EDE0] transition hover:bg-white/18"
+              aria-label="Выйти"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            {[
+              ['статус', user.status || 'Первое знакомство'],
+              ['бонусы', formatMoney(user.bonus_balance || 0)],
+              ['записи', consultations.length],
+              ['обучение', enrollments.length],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-[1.6rem] bg-white/10 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#E2CDB6]/58">{label}</p>
+                <p className="mt-3 text-2xl font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 rounded-[2rem] border border-white/12 bg-white/8 p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#E2CDB6]/70">Ближайшее</p>
+            {nextConsultation ? (
+              <>
+                <h2 className="mt-3 text-2xl font-semibold">{getConsultationTitle(nextConsultation)}</h2>
+                <p className="mt-2 text-base font-medium text-[#F7EDE0]/60">
+                  {formatDateTime(nextConsultation.scheduled_at || nextConsultation.requested_date)}
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-base font-medium text-[#F7EDE0]/60">Пока нет активной записи</p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-5">
+          <SiteCartPanel
+            cart={cart}
+            paymentMethods={paymentMethods}
+            onRemove={onRemoveFromCart}
+            onClear={onClearCart}
+            compact
+          />
+
+          <div className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl md:p-7">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Ожидает оплаты</p>
+                <h2 className="site-display mt-3 text-[clamp(1.8rem,3vw,3rem)] leading-[1.02]">Оплаты и заявки</h2>
+              </div>
+              <Wallet className="h-8 w-8 text-[#B98266]" />
+            </div>
+            <div className="mt-6 grid gap-3">
+              {[...dueConsultations, ...dueEnrollments].length === 0 && (
+                <div className="rounded-[1.5rem] bg-[#F7EDE0]/72 p-5 text-base font-semibold text-[#2F463B]/62">
+                  Сейчас нет неоплаченных позиций
+                </div>
+              )}
+              {dueConsultations.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() =>
+                    onAddToCart({
+                      id: `consultation:${item.id}`,
+                      source: 'consultation',
+                      title: getConsultationTitle(item),
+                      price: getConsultationPrice(item),
+                      meta: formatDateTime(item.scheduled_at || item.requested_date),
+                    })
+                  }
+                  className="flex items-center justify-between gap-4 rounded-[1.5rem] bg-[#F7EDE0]/72 p-5 text-left transition hover:-translate-y-0.5"
+                >
+                  <span>
+                    <span className="block text-lg font-semibold">{getConsultationTitle(item)}</span>
+                    <span className="mt-1 block text-sm font-medium text-[#2F463B]/52">{formatDateTime(item.scheduled_at || item.requested_date)}</span>
+                  </span>
+                  <span className="text-xl font-semibold text-[#8B604A]">{formatMoney(getConsultationPrice(item))}</span>
+                </button>
+              ))}
+              {dueEnrollments.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() =>
+                    onAddToCart({
+                      id: `training:${item.id}`,
+                      source: 'training',
+                      title: item.training_programs?.title || 'Обучение Таро',
+                      price: Number(item.final_price || item.training_programs?.price || 0),
+                      meta: item.training_groups?.title || 'курс',
+                    })
+                  }
+                  className="flex items-center justify-between gap-4 rounded-[1.5rem] bg-[#F7EDE0]/72 p-5 text-left transition hover:-translate-y-0.5"
+                >
+                  <span>
+                    <span className="block text-lg font-semibold">{item.training_programs?.title || 'Обучение Таро'}</span>
+                    <span className="mt-1 block text-sm font-medium text-[#2F463B]/52">{item.training_groups?.title || 'курс'}</span>
+                  </span>
+                  <span className="text-xl font-semibold text-[#8B604A]">{formatMoney(item.final_price || item.training_programs?.price)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Сервисы</p>
+              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Все форматы</h2>
+            </div>
+            <CalendarCheck className="h-8 w-8 text-[#2F463B]/64" />
+          </div>
+          {serviceCategories.length > 0 && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {serviceCategories.map((category) => (
+                <span key={category} className="rounded-full bg-[#F7EDE0] px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-[#8B604A]">
+                  {category}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="mt-6 grid gap-3">
+            {loadingData && <p className="rounded-[1.5rem] bg-[#F7EDE0]/70 p-5 font-semibold text-[#2F463B]/58">Загружаю данные</p>}
+            {!loadingData && services.length === 0 && (
+              <p className="rounded-[1.5rem] bg-[#F7EDE0]/70 p-5 font-semibold text-[#2F463B]/58">Услуги пока не загрузились</p>
+            )}
+            {services.map((service) => (
+              <div key={service.id} className="rounded-[1.7rem] bg-[#F7EDE0]/74 p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#B98266]">{service.category || 'формат'}</p>
+                    <h3 className="mt-2 text-2xl font-semibold">{service.title}</h3>
+                    {service.description && <p className="mt-2 max-w-2xl text-base font-medium leading-relaxed text-[#2F463B]/58">{service.description}</p>}
+                    {service.duration_minutes ? (
+                      <p className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/58">
+                        <Clock className="mr-2 h-4 w-4" />
+                        {service.duration_minutes} мин
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-2xl font-semibold text-[#8B604A]">{formatMoney(service.price)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onAddToCart({
+                          id: `service:${service.id}`,
+                          source: 'service',
+                          title: service.title,
+                          price: Number(service.price || 0),
+                          meta: service.category || 'услуга',
+                        })
+                      }
+                      className="inline-flex items-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
+                    >
+                      В корзину
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="site-reveal site-delay-1 rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Обучение</p>
+              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Ваши курсы</h2>
+            </div>
+            <GraduationCap className="h-8 w-8 text-[#2F463B]/64" />
+          </div>
+          <div className="mt-6 grid gap-3">
+            {enrollments.length === 0 && (
+              <div className="rounded-[1.5rem] bg-[#F7EDE0]/70 p-5">
+                <p className="font-semibold text-[#2F463B]/62">Курсов пока нет</p>
+                <SiteLink href="/site/academy" className="mt-4 inline-flex rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]">
+                  Посмотреть академию
+                </SiteLink>
+              </div>
+            )}
+            {enrollments.map((item) => (
+              <div key={item.id} className="rounded-[1.6rem] bg-[#F7EDE0]/74 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#B98266]">{item.status || 'заявка'}</p>
+                <h3 className="mt-2 text-2xl font-semibold">{item.training_programs?.title || 'Обучение Таро'}</h3>
+                <p className="mt-2 text-sm font-medium text-[#2F463B]/56">
+                  {item.training_groups?.title || 'группа согласуется'} · {formatDateTime(item.training_groups?.starts_at)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const PaymentPage = ({
+  paymentMethods,
+  cart,
+  onRemoveFromCart,
+  onClearCart,
+}: {
+  paymentMethods: PaymentMethod[];
+  cart: CartItem[];
+  onRemoveFromCart: (id: string) => void;
+  onClearCart: () => void;
+}) => {
   const activeMethod = paymentMethods[0];
 
   return (
@@ -1255,42 +1781,86 @@ const PaymentPage = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) =>
       <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">
         <SectionIntro
           eyebrow="Оплата"
-          title="Оплатить запись"
-          text="Выберите удобный способ и вернитесь в приложение после перевода"
+          title="Корзина и оплата"
+          text="Соберите консультации, обучение или услуги в корзину и оплачивайте одной кнопкой"
         />
-        <div className="site-reveal site-delay-1 rounded-[2.4rem] bg-white/[0.74] p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.12)] backdrop-blur-xl">
-          <div className="flex items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
-              <CreditCard className="h-7 w-7" />
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">способ оплаты</p>
-              <h2 className="site-display mt-2 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">{activeMethod?.title || 'Т-Банк'}</h2>
-            </div>
-          </div>
-          <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">
-            {activeMethod?.instructions || 'После перевода вернитесь в приложение и нажмите “я оплатил”'}
-          </p>
-          <button
-            type="button"
-            onClick={() => activeMethod?.payment_url && openExternal(activeMethod.payment_url)}
-            disabled={!activeMethod?.payment_url}
-            className="site-magnetic mt-8 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
-            data-magnetic
-          >
-            Открыть оплату
-            <ArrowRight className="ml-3 h-5 w-5" />
-          </button>
+        <div className="site-reveal site-delay-1">
+          <SiteCartPanel
+            cart={cart}
+            paymentMethods={paymentMethods}
+            onRemove={onRemoveFromCart}
+            onClear={onClearCart}
+          />
         </div>
       </div>
+
+      <div className="mt-8 grid gap-5 md:grid-cols-3">
+        <div className="site-reveal rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
+          <CreditCard className="h-7 w-7 text-[#B98266]" />
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.3em] text-[#B98266]">Способ</p>
+          <h3 className="mt-2 text-2xl font-semibold">{activeMethod?.title || 'Не настроен'}</h3>
+        </div>
+        <div className="site-reveal site-delay-1 rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
+          <Wallet className="h-7 w-7 text-[#B98266]" />
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.3em] text-[#B98266]">Итого</p>
+          <h3 className="mt-2 text-2xl font-semibold">{formatMoney(cart.reduce((sum, item) => sum + item.price, 0))}</h3>
+        </div>
+        <div className="site-reveal site-delay-2 rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
+          <Lock className="h-7 w-7 text-[#B98266]" />
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.3em] text-[#B98266]">Контроль</p>
+          <h3 className="mt-2 text-2xl font-semibold">Подтверждение вручную</h3>
+        </div>
+      </div>
+
+      {activeMethod?.instructions && (
+        <div className="site-reveal mt-8 rounded-[2rem] border border-[#2F463B]/10 bg-[#F7EDE0]/72 p-6 text-[#2F463B]">
+          <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#B98266]">Комментарий к оплате</p>
+          <p className="mt-3 text-base font-medium leading-relaxed text-[#2F463B]/62">{activeMethod.instructions}</p>
+        </div>
+      )}
     </section>
   );
 };
+
+const AuthMethodsNote = () => (
+  <div className="mt-5 grid gap-3 rounded-[1.5rem] border border-[#2F463B]/10 bg-white/60 p-4 text-[#2F463B] md:grid-cols-2">
+    {[
+      ['Почта и пароль', 'работает сейчас'],
+      ['Telegram', 'через официальный виджет'],
+    ].map(([title, text]) => (
+      <div key={title} className="rounded-[1.2rem] bg-[#F7EDE0]/76 p-4">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/42">{text}</p>
+      </div>
+    ))}
+  </div>
+);
+
+const SiteProfileAuth = ({
+  user,
+  onLogout,
+  onSessionRefresh,
+}: {
+  user: SiteUser | null;
+  onLogout: () => Promise<void>;
+  onSessionRefresh: () => Promise<void>;
+}) => (
+  <>
+    <ProfilePage user={user} onLogout={onLogout} onSessionRefresh={onSessionRefresh} />
+    {!user && (
+      <section className="mx-auto -mt-20 max-w-[1540px] px-5 pb-24 md:px-10 xl:px-16">
+        <AuthMethodsNote />
+      </section>
+    )}
+  </>
+);
 
 export const StudioLanding = () => {
   const [page, setPage] = useState<SitePage>(() => getCurrentPage());
   const [user, setUser] = useState<SiteUser | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => getStoredCart());
+  const [theme, setTheme] = useState<SiteTheme>(() => getStoredTheme());
 
   const loadSession = async () => {
     try {
@@ -1326,6 +1896,14 @@ export const StudioLanding = () => {
     loadPayments();
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem('tarot-site-cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    window.localStorage.setItem('tarot-site-theme', theme);
+  }, [theme]);
+
   const logout = async () => {
     try {
       await fetch('/api/site/logout', { method: 'POST', credentials: 'include' });
@@ -1334,18 +1912,54 @@ export const StudioLanding = () => {
     }
   };
 
+  const addToCart = (item: CartItem) => {
+    if (!item.price || item.price <= 0) return;
+    setCart((current) => {
+      if (current.some((existing) => existing.id === item.id)) return current;
+      return [...current, item];
+    });
+  };
+
+  const removeFromCart = (id: string) => setCart((current) => current.filter((item) => item.id !== id));
+  const clearCart = () => setCart([]);
+  const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+
   const content = useMemo(() => {
     if (page === 'consultations') return <ConsultationsPage />;
     if (page === 'academy') return <AcademyPage />;
-    if (page === 'profile') return <ProfilePage user={user} onLogout={logout} onSessionRefresh={loadSession} />;
-    if (page === 'payment') return <PaymentPage paymentMethods={paymentMethods} />;
+    if (page === 'profile') {
+      return user ? (
+        <ProfileCabinetPage
+          user={user}
+          onLogout={logout}
+          onSessionRefresh={loadSession}
+          cart={cart}
+          paymentMethods={paymentMethods}
+          onAddToCart={addToCart}
+          onRemoveFromCart={removeFromCart}
+          onClearCart={clearCart}
+        />
+      ) : (
+        <SiteProfileAuth user={user} onLogout={logout} onSessionRefresh={loadSession} />
+      );
+    }
+    if (page === 'payment') {
+      return (
+        <PaymentPage
+          paymentMethods={paymentMethods}
+          cart={cart}
+          onRemoveFromCart={removeFromCart}
+          onClearCart={clearCart}
+        />
+      );
+    }
     if (page === 'privacy') return <LegalPage document={personalDataPolicy} />;
     if (page === 'offer') return <LegalPage document={offerTerms} />;
     return <HomePage />;
-  }, [page, paymentMethods, user]);
+  }, [cart, page, paymentMethods, user]);
 
   return (
-    <PageShell page={page} user={user}>
+    <PageShell page={page} user={user} cartCount={cart.length} theme={theme} onToggleTheme={toggleTheme}>
       {page !== 'home' && (
         <div className="mx-auto max-w-[1540px] px-5 pt-7 md:px-10 xl:px-16">
           <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-[#2F463B]/10 bg-white/70 px-5 py-3 text-sm font-semibold text-[#2F463B] backdrop-blur-xl transition hover:bg-white">
