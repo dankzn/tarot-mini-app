@@ -87,12 +87,11 @@ export default async function handler(request, response) {
       return patch;
     }, {});
 
-    const { data: updatedUser, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('users')
       .update({
         ...profilePatch,
         email,
-        site_credentials_completed_at: new Date().toISOString(),
       })
       .eq('id', user.id)
       .select('id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role')
@@ -112,18 +111,33 @@ export default async function handler(request, response) {
       );
 
     if (credentialsError) {
-      console.warn('Site credentials fallback skipped:', credentialsError);
+      throw new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
     }
+
+    const { data: completedUser, error: completedError } = await supabase
+      .from('users')
+      .update({ site_credentials_completed_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select('id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role')
+      .single();
+
+    if (completedError) throw completedError;
 
     return response.status(200).json({
       ok: true,
       user: {
-        ...updatedUser,
+        ...completedUser,
         has_site_password: true,
       },
     });
   } catch (error) {
     console.error('Site credentials failed:', error);
-    return response.status(500).json({ ok: false, error: 'Не удалось сохранить данные для входа' });
+    return response.status(500).json({
+      ok: false,
+      error: 'Не удалось сохранить данные для входа',
+      reason: error?.message || String(error),
+      code: error?.code || null,
+      details: error?.details || null,
+    });
   }
 }

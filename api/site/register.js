@@ -34,7 +34,7 @@ const buildSiteOnlyTelegramId = (email, username) => {
   return 8_800_000_000_000 + numeric;
 };
 
-const buildProfilePayload = (payload) => ({
+const buildProfilePayload = (payload, credentialsCompleted = true) => ({
   username: payload.username,
   name: payload.name,
   city: payload.city || null,
@@ -42,7 +42,7 @@ const buildProfilePayload = (payload) => ({
   birth_date: payload.birth_date || null,
   gender: payload.gender,
   email: payload.email,
-  site_credentials_completed_at: new Date().toISOString(),
+  ...(credentialsCompleted ? { site_credentials_completed_at: new Date().toISOString() } : {}),
 });
 
 const syncAuthAccount = async (authClient, user, password) => {
@@ -76,7 +76,7 @@ const persistSiteCredentials = async (supabase, userId, password) => {
     );
 
   if (credentialsError) {
-    console.warn('Site credentials fallback skipped:', credentialsError);
+    throw new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
   }
 };
 
@@ -95,7 +95,7 @@ const sendSessionResponse = (request, response, user) => {
 
 const createSiteUser = async (supabase, payload) => {
   const basePayload = {
-    ...buildProfilePayload(payload),
+    ...buildProfilePayload(payload, false),
     status: 'Первое знакомство',
     bonus_balance: 0,
     role: 'client',
@@ -199,7 +199,7 @@ export default async function handler(request, response) {
 
       const { data: updatedUser, error: updateError } = await supabase
         .from('users')
-        .update(buildProfilePayload(profilePayload))
+        .update(buildProfilePayload(profilePayload, false))
         .eq('id', emailOwner.id)
         .select(selectUserFields)
         .single();
@@ -209,7 +209,16 @@ export default async function handler(request, response) {
       await syncAuthAccount(authClient, updatedUser, password);
       await persistSiteCredentials(supabase, updatedUser.id, password);
 
-      return sendSessionResponse(request, response, updatedUser);
+      const { data: completedUser, error: completedError } = await supabase
+        .from('users')
+        .update({ site_credentials_completed_at: new Date().toISOString() })
+        .eq('id', updatedUser.id)
+        .select(selectUserFields)
+        .single();
+
+      if (completedError) throw completedError;
+
+      return sendSessionResponse(request, response, completedUser);
     }
 
     const { data: usernameOwner, error: usernameOwnerError } = await supabase
@@ -231,7 +240,16 @@ export default async function handler(request, response) {
     await syncAuthAccount(authClient, user, password);
     await persistSiteCredentials(supabase, user.id, password);
 
-    return sendSessionResponse(request, response, user);
+    const { data: completedUser, error: completedError } = await supabase
+      .from('users')
+      .update({ site_credentials_completed_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select(selectUserFields)
+      .single();
+
+    if (completedError) throw completedError;
+
+    return sendSessionResponse(request, response, completedUser);
   } catch (error) {
     console.error('Site registration failed:', error);
 

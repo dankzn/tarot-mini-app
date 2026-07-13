@@ -45,9 +45,15 @@ export default async function handler(request, response) {
       .maybeSingle();
 
     let passwordIsValid = false;
+    let hasStoredSitePassword = false;
 
     if (!credentialsError && credentials?.password_hash) {
+      hasStoredSitePassword = true;
       passwordIsValid = verifyPassword(password, credentials.password_hash);
+    }
+
+    if (credentialsError) {
+      console.warn('Site credentials lookup failed:', credentialsError);
     }
 
     if (!passwordIsValid) {
@@ -56,7 +62,12 @@ export default async function handler(request, response) {
     }
 
     if (!passwordIsValid) {
-      return response.status(401).json({ ok: false, error: 'Неверная почта или пароль' });
+      return response.status(401).json({
+        ok: false,
+        error: hasStoredSitePassword
+          ? 'Неверная почта или пароль'
+          : 'Для этого профиля пароль на сайте ещё не создан. Откройте регистрацию с этой же почтой и задайте пароль заново',
+      });
     }
 
     const sessionToken = signSession(sessionPayloadFromUser(user));

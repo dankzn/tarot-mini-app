@@ -31,12 +31,20 @@ export default async function handler(request, response) {
       });
     }
 
+    const { data: credentials, error: credentialsError } = await supabase
+      .from('site_auth_credentials')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (credentialsError) throw credentialsError;
+
     return response.status(200).json({
       ok: true,
       authenticated: true,
       user: {
         ...user,
-        has_site_password: Boolean(user.site_credentials_completed_at || user.email),
+        has_site_password: Boolean(credentials),
       },
     });
   } catch (error) {
