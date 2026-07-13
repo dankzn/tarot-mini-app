@@ -36,6 +36,19 @@ export const getSupabaseAdmin = () => {
   });
 };
 
+export const getSupabaseAuthClient = () => {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || fallbackSupabaseUrl;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || fallbackSupabaseAnonKey;
+
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+};
+
 export const readJsonBody = async (request) => {
   if (request.body && typeof request.body === 'object') return request.body;
   if (typeof request.body === 'string') return JSON.parse(request.body || '{}');

@@ -1,6 +1,7 @@
 import {
   buildSessionCookie,
   getSupabaseAdmin,
+  getSupabaseAuthClient,
   hashPassword,
   normalizeEmail,
   readJsonBody,
@@ -9,6 +10,8 @@ import {
   validateEmail,
 } from './_auth.js';
 
+import crypto from 'crypto';
+
 const normalizeUsername = (value) =>
   String(value || '')
     .trim()
@@ -16,6 +19,58 @@ const normalizeUsername = (value) =>
     .toLowerCase();
 
 const isValidUsername = (username) => /^[a-z0-9_]{5,32}$/.test(username);
+
+const isAlreadyRegisteredAuthError = (error) =>
+  /already|registered|exists|duplicate/i.test(String(error?.message || error || ''));
+
+const buildSiteOnlyTelegramId = (email, username) => {
+  const hash = crypto.createHash('sha256').update(`${email}:${username}`).digest('hex');
+  const numeric = Number.parseInt(hash.slice(0, 8), 16) % 1_900_000_000;
+  return -(numeric + 10_000_000);
+};
+
+const createSiteUser = async (supabase, payload) => {
+  const selectFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
+  const basePayload = {
+    username: payload.username,
+    name: payload.name,
+    city: payload.city || null,
+    phone: payload.phone || null,
+    birth_date: payload.birth_date || null,
+    gender: payload.gender,
+    email: payload.email,
+    status: 'Первое знакомство',
+    bonus_balance: 0,
+    role: 'client',
+    site_credentials_completed_at: new Date().toISOString(),
+  };
+
+  const { data: nullableUser, error: nullableError } = await supabase
+    .from('users')
+    .insert({
+      ...basePayload,
+      telegram_id: null,
+    })
+    .select(selectFields)
+    .single();
+
+  if (!nullableError) return { data: nullableUser, error: null };
+
+  const shouldRetryWithSyntheticId =
+    nullableError.code === '23502' ||
+    /telegram_id|null value|not-null|null/i.test(String(nullableError.message || ''));
+
+  if (!shouldRetryWithSyntheticId) return { data: null, error: nullableError };
+
+  return supabase
+    .from('users')
+    .insert({
+      ...basePayload,
+      telegram_id: buildSiteOnlyTelegramId(payload.email, payload.username),
+    })
+    .select(selectFields)
+    .single();
+};
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -56,6 +111,7 @@ export default async function handler(request, response) {
     }
 
     const supabase = getSupabaseAdmin();
+    const authClient = getSupabaseAuthClient();
 
     const { data: emailOwner, error: emailOwnerError } = await supabase
       .from('users')
@@ -79,24 +135,33 @@ export default async function handler(request, response) {
       return response.status(409).json({ ok: false, error: 'Этот Telegram-ник уже есть в системе' });
     }
 
-    const { data: user, error: insertError } = await supabase
-      .from('users')
-      .insert({
-        telegram_id: null,
-        username,
-        name,
-        city: body.city ? String(body.city).trim() : null,
-        phone: body.phone ? String(body.phone).trim() : null,
-        birth_date: body.birth_date || null,
-        gender: ['male', 'female', 'other'].includes(body.gender) ? body.gender : 'other',
-        email,
-        status: 'Первое знакомство',
-        bonus_balance: 0,
-        role: 'client',
-        site_credentials_completed_at: new Date().toISOString(),
-      })
-      .select('id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role')
-      .single();
+    const { error: authError } = await authClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          name,
+        },
+      },
+    });
+
+    if (authError) {
+      if (isAlreadyRegisteredAuthError(authError)) {
+        return response.status(409).json({ ok: false, error: 'Эта почта уже используется' });
+      }
+      throw authError;
+    }
+
+    const { data: user, error: insertError } = await createSiteUser(supabase, {
+      username,
+      name,
+      city: body.city ? String(body.city).trim() : null,
+      phone: body.phone ? String(body.phone).trim() : null,
+      birth_date: body.birth_date || null,
+      gender: ['male', 'female', 'other'].includes(body.gender) ? body.gender : 'other',
+      email,
+    });
 
     if (insertError) throw insertError;
 
@@ -108,7 +173,9 @@ export default async function handler(request, response) {
         updated_at: new Date().toISOString(),
       });
 
-    if (credentialsError) throw credentialsError;
+    if (credentialsError) {
+      console.warn('Site credentials fallback skipped:', credentialsError);
+    }
 
     const sessionToken = signSession(sessionPayloadFromUser(user));
     response.setHeader('Set-Cookie', buildSessionCookie(sessionToken, request));

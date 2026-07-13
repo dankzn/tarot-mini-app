@@ -1,4 +1,5 @@
 import {
+  getSupabaseAuthClient,
   getSupabaseAdmin,
   hashPassword,
   normalizeEmail,
@@ -7,6 +8,9 @@ import {
 } from './_auth.js';
 
 const allowedProfileFields = ['name', 'city', 'phone', 'birth_date', 'gender'];
+
+const isAlreadyRegisteredAuthError = (error) =>
+  /already|registered|exists|duplicate/i.test(String(error?.message || error || ''));
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -37,6 +41,7 @@ export default async function handler(request, response) {
     }
 
     const supabase = getSupabaseAdmin();
+    const authClient = getSupabaseAuthClient();
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id, telegram_id, username, name, city, phone, birth_date, gender, email')
@@ -57,6 +62,22 @@ export default async function handler(request, response) {
     if (emailOwnerError) throw emailOwnerError;
     if (emailOwner && emailOwner.id !== user.id) {
       return response.status(409).json({ ok: false, error: 'Эта почта уже привязана к другому профилю' });
+    }
+
+    const { error: authError } = await authClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          telegram_id: telegramId,
+          username: user.username || null,
+          name: body.name || user.name || 'Клиент',
+        },
+      },
+    });
+
+    if (authError && !isAlreadyRegisteredAuthError(authError)) {
+      throw authError;
     }
 
     const profilePatch = allowedProfileFields.reduce((patch, field) => {
@@ -90,7 +111,9 @@ export default async function handler(request, response) {
         { onConflict: 'user_id' },
       );
 
-    if (credentialsError) throw credentialsError;
+    if (credentialsError) {
+      console.warn('Site credentials fallback skipped:', credentialsError);
+    }
 
     return response.status(200).json({
       ok: true,

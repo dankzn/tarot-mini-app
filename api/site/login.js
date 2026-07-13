@@ -1,6 +1,7 @@
 import {
   buildSessionCookie,
   getSupabaseAdmin,
+  getSupabaseAuthClient,
   normalizeEmail,
   readJsonBody,
   sessionPayloadFromUser,
@@ -25,6 +26,7 @@ export default async function handler(request, response) {
     }
 
     const supabase = getSupabaseAdmin();
+    const authClient = getSupabaseAuthClient();
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id, telegram_id, username, name, email, role')
@@ -42,8 +44,18 @@ export default async function handler(request, response) {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (credentialsError) throw credentialsError;
-    if (!credentials || !verifyPassword(password, credentials.password_hash)) {
+    let passwordIsValid = false;
+
+    if (!credentialsError && credentials?.password_hash) {
+      passwordIsValid = verifyPassword(password, credentials.password_hash);
+    }
+
+    if (!passwordIsValid) {
+      const { error: authError } = await authClient.auth.signInWithPassword({ email, password });
+      passwordIsValid = !authError;
+    }
+
+    if (!passwordIsValid) {
       return response.status(401).json({ ok: false, error: 'Неверная почта или пароль' });
     }
 
