@@ -12,6 +12,8 @@ import {
 
 import crypto from 'crypto';
 
+const selectUserFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
+
 const normalizeUsername = (value) =>
   String(value || '')
     .trim()
@@ -32,20 +34,71 @@ const buildSiteOnlyTelegramId = (email, username) => {
   return 8_800_000_000_000 + numeric;
 };
 
+const buildProfilePayload = (payload) => ({
+  username: payload.username,
+  name: payload.name,
+  city: payload.city || null,
+  phone: payload.phone || null,
+  birth_date: payload.birth_date || null,
+  gender: payload.gender,
+  email: payload.email,
+  site_credentials_completed_at: new Date().toISOString(),
+});
+
+const syncAuthAccount = async (authClient, user, password) => {
+  const { error: authError } = await authClient.auth.signUp({
+    email: user.email,
+    password,
+    options: {
+      data: {
+        username: user.username,
+        name: user.name,
+        site_user_id: user.id,
+      },
+    },
+  });
+
+  if (authError && !isAlreadyRegisteredAuthError(authError)) {
+    console.warn('Supabase Auth signup skipped:', authError);
+  }
+};
+
+const persistSiteCredentials = async (supabase, userId, password) => {
+  const { error: credentialsError } = await supabase
+    .from('site_auth_credentials')
+    .upsert(
+      {
+        user_id: userId,
+        password_hash: hashPassword(password),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+
+  if (credentialsError) {
+    console.warn('Site credentials fallback skipped:', credentialsError);
+  }
+};
+
+const sendSessionResponse = (request, response, user) => {
+  const sessionToken = signSession(sessionPayloadFromUser(user));
+  response.setHeader('Set-Cookie', buildSessionCookie(sessionToken, request));
+
+  return response.status(200).json({
+    ok: true,
+    user: {
+      ...user,
+      has_site_password: true,
+    },
+  });
+};
+
 const createSiteUser = async (supabase, payload) => {
-  const selectFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
   const basePayload = {
-    username: payload.username,
-    name: payload.name,
-    city: payload.city || null,
-    phone: payload.phone || null,
-    birth_date: payload.birth_date || null,
-    gender: payload.gender,
-    email: payload.email,
+    ...buildProfilePayload(payload),
     status: 'Первое знакомство',
     bonus_balance: 0,
     role: 'client',
-    site_credentials_completed_at: new Date().toISOString(),
   };
 
   const { data: nullableUser, error: nullableError } = await supabase
@@ -54,7 +107,7 @@ const createSiteUser = async (supabase, payload) => {
       ...basePayload,
       telegram_id: null,
     })
-    .select(selectFields)
+    .select(selectUserFields)
     .single();
 
   if (!nullableError) return { data: nullableUser, error: null };
@@ -71,7 +124,7 @@ const createSiteUser = async (supabase, payload) => {
       ...basePayload,
       telegram_id: buildSiteOnlyTelegramId(payload.email, payload.username),
     })
-    .select(selectFields)
+    .select(selectUserFields)
     .single();
 };
 
@@ -80,6 +133,9 @@ export default async function handler(request, response) {
     response.setHeader('Allow', 'POST');
     return response.status(405).json({ ok: false, error: 'Method not allowed' });
   }
+
+  let supabase = null;
+  let createdUserId = null;
 
   try {
     const body = await readJsonBody(request);
@@ -113,23 +169,52 @@ export default async function handler(request, response) {
       return response.status(400).json({ ok: false, error: 'Нужно принять условия регистрации' });
     }
 
-    const supabase = getSupabaseAdmin();
+    supabase = getSupabaseAdmin();
     const authClient = getSupabaseAuthClient();
+    const profilePayload = {
+      username,
+      name,
+      city: body.city ? String(body.city).trim() : null,
+      phone: body.phone ? String(body.phone).trim() : null,
+      birth_date: body.birth_date || null,
+      gender: ['male', 'female', 'other'].includes(body.gender) ? body.gender : 'other',
+      email,
+    };
 
     const { data: emailOwner, error: emailOwnerError } = await supabase
       .from('users')
-      .select('id')
+      .select(selectUserFields)
       .eq('email', email)
       .maybeSingle();
 
     if (emailOwnerError) throw emailOwnerError;
     if (emailOwner) {
-      return response.status(409).json({ ok: false, error: 'Эта почта уже используется' });
+      if (emailOwner.username && normalizeUsername(emailOwner.username) !== username) {
+        return response.status(409).json({
+          ok: false,
+          error: 'Эта почта уже привязана к другому профилю',
+          reason: `email_owner_username=${emailOwner.username}`,
+        });
+      }
+
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update(buildProfilePayload(profilePayload))
+        .eq('id', emailOwner.id)
+        .select(selectUserFields)
+        .single();
+
+      if (updateError) throw updateError;
+
+      await syncAuthAccount(authClient, updatedUser, password);
+      await persistSiteCredentials(supabase, updatedUser.id, password);
+
+      return sendSessionResponse(request, response, updatedUser);
     }
 
     const { data: usernameOwner, error: usernameOwnerError } = await supabase
       .from('users')
-      .select('id')
+      .select('id, email')
       .eq('username', username)
       .maybeSingle();
 
@@ -138,58 +223,29 @@ export default async function handler(request, response) {
       return response.status(409).json({ ok: false, error: 'Этот Telegram-ник уже есть в системе' });
     }
 
-    const { data: user, error: insertError } = await createSiteUser(supabase, {
-      username,
-      name,
-      city: body.city ? String(body.city).trim() : null,
-      phone: body.phone ? String(body.phone).trim() : null,
-      birth_date: body.birth_date || null,
-      gender: ['male', 'female', 'other'].includes(body.gender) ? body.gender : 'other',
-      email,
-    });
+    const { data: user, error: insertError } = await createSiteUser(supabase, profilePayload);
 
     if (insertError) throw insertError;
+    createdUserId = user.id;
 
-    const { error: authError } = await authClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          name,
-          site_user_id: user.id,
-        },
-      },
-    });
+    await syncAuthAccount(authClient, user, password);
+    await persistSiteCredentials(supabase, user.id, password);
 
-    if (authError && !isAlreadyRegisteredAuthError(authError)) {
-      console.warn('Supabase Auth signup skipped:', authError);
-    }
-
-    const { error: credentialsError } = await supabase
-      .from('site_auth_credentials')
-      .insert({
-        user_id: user.id,
-        password_hash: hashPassword(password),
-        updated_at: new Date().toISOString(),
-      });
-
-    if (credentialsError) {
-      console.warn('Site credentials fallback skipped:', credentialsError);
-    }
-
-    const sessionToken = signSession(sessionPayloadFromUser(user));
-    response.setHeader('Set-Cookie', buildSessionCookie(sessionToken, request));
-
-    return response.status(200).json({
-      ok: true,
-      user: {
-        ...user,
-        has_site_password: true,
-      },
-    });
+    return sendSessionResponse(request, response, user);
   } catch (error) {
     console.error('Site registration failed:', error);
-    return response.status(500).json({ ok: false, error: 'Не удалось зарегистрироваться' });
+
+    if (createdUserId && supabase) {
+      const { error: rollbackError } = await supabase.from('users').delete().eq('id', createdUserId);
+      if (rollbackError) console.error('Site registration rollback failed:', rollbackError);
+    }
+
+    return response.status(500).json({
+      ok: false,
+      error: 'Не удалось зарегистрироваться',
+      reason: error?.message || String(error),
+      code: error?.code || null,
+      details: error?.details || null,
+    });
   }
 }

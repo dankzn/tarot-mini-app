@@ -79,9 +79,18 @@ export const verifyPassword = (password, storedHash) => {
 };
 
 const getSessionSecret = () => {
-  const secret = process.env.SITE_AUTH_SECRET || getBotToken();
-  if (!secret) throw new Error('SITE_AUTH_SECRET_OR_BOT_TOKEN_NOT_CONFIGURED');
-  return secret;
+  const secret =
+    process.env.SITE_AUTH_SECRET ||
+    getBotToken() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    fallbackSupabaseAnonKey;
+
+  if (!secret) throw new Error('SITE_SESSION_SECRET_NOT_CONFIGURED');
+  return crypto.createHash('sha256').update(secret).digest('hex');
 };
 
 export const verifyTelegramLogin = (query) => {
