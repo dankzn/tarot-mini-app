@@ -25,8 +25,8 @@ const isAlreadyRegisteredAuthError = (error) =>
 
 const buildSiteOnlyTelegramId = (email, username) => {
   const hash = crypto.createHash('sha256').update(`${email}:${username}`).digest('hex');
-  const numeric = Number.parseInt(hash.slice(0, 8), 16) % 1_900_000_000;
-  return -(numeric + 10_000_000);
+  const numeric = Number.parseInt(hash.slice(0, 10), 16) % 999_999_999;
+  return 8_800_000_000_000 + numeric;
 };
 
 const createSiteUser = async (supabase, payload) => {
@@ -135,24 +135,6 @@ export default async function handler(request, response) {
       return response.status(409).json({ ok: false, error: 'Этот Telegram-ник уже есть в системе' });
     }
 
-    const { error: authError } = await authClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          name,
-        },
-      },
-    });
-
-    if (authError) {
-      if (isAlreadyRegisteredAuthError(authError)) {
-        return response.status(409).json({ ok: false, error: 'Эта почта уже используется' });
-      }
-      throw authError;
-    }
-
     const { data: user, error: insertError } = await createSiteUser(supabase, {
       username,
       name,
@@ -164,6 +146,22 @@ export default async function handler(request, response) {
     });
 
     if (insertError) throw insertError;
+
+    const { error: authError } = await authClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          name,
+          site_user_id: user.id,
+        },
+      },
+    });
+
+    if (authError && !isAlreadyRegisteredAuthError(authError)) {
+      console.warn('Supabase Auth signup skipped:', authError);
+    }
 
     const { error: credentialsError } = await supabase
       .from('site_auth_credentials')
