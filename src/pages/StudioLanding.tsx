@@ -459,55 +459,57 @@ const PageShell = ({
       <div className="site-orb site-orb-three" />
       <TarotBackground />
 
-      <div className="relative z-10">
-        <header className="site-header sticky top-0 z-40 mx-auto flex max-w-[1540px] items-center justify-between px-5 py-5 md:px-10 xl:px-16">
-          <BrandMark />
+      <div className="relative z-10 pt-24 md:pt-28">
+        <header className="site-header fixed inset-x-0 top-0 z-40 border-b border-[#2F463B]/8 bg-[#F5EFE6]/72 px-5 py-4 shadow-[0_18px_70px_rgba(47,70,59,0.08)] backdrop-blur-2xl md:px-10 xl:px-16">
+          <div className="mx-auto flex max-w-[1540px] items-center justify-between">
+            <BrandMark />
 
-          <nav className="hidden items-center rounded-full border border-[#2F463B]/10 bg-white/[0.68] p-1 text-sm font-semibold text-[#2F463B]/58 shadow-[0_18px_70px_rgba(47,70,59,0.1)] backdrop-blur-2xl lg:flex">
-            {routes.map((route) => (
-              <SiteLink
-                key={route.page}
-                href={route.href}
-                className={`site-nav-pill rounded-full px-5 py-3 transition ${
-                  page === route.page ? 'site-nav-pill-active' : 'site-nav-pill-idle'
-                }`}
+            <nav className="hidden items-center rounded-full border border-[#2F463B]/10 bg-white/[0.68] p-1 text-sm font-semibold text-[#2F463B]/58 shadow-[0_18px_70px_rgba(47,70,59,0.1)] backdrop-blur-2xl lg:flex">
+              {routes.map((route) => (
+                <SiteLink
+                  key={route.page}
+                  href={route.href}
+                  className={`site-nav-pill rounded-full px-5 py-3 transition ${
+                    page === route.page ? 'site-nav-pill-active' : 'site-nav-pill-idle'
+                  }`}
+                >
+                  {route.label}
+                </SiteLink>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className="hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
+                aria-label="Переключить тему"
               >
-                {route.label}
+                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+              <SiteLink
+                href="/site/payment"
+                className="relative hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
+                aria-label="Корзина"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#B98266] px-1 text-[11px] font-bold text-white">
+                    {cartCount}
+                  </span>
+                )}
               </SiteLink>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className="hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
-              aria-label="Переключить тему"
-            >
-              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
-            <SiteLink
-              href="/site/payment"
-              className="relative hidden h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:grid"
-              aria-label="Корзина"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              {cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#B98266] px-1 text-[11px] font-bold text-white">
-                  {cartCount}
-                </span>
-              )}
-            </SiteLink>
-            <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
-              {user ? 'Кабинет' : 'Войти'}
-            </SiteLink>
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="grid h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+              <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
+                {user ? 'Кабинет' : 'Войти'}
+              </SiteLink>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-[#2F463B]/10 bg-white/70 text-[#2F463B] lg:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </header>
 

@@ -277,6 +277,12 @@ select:focus-visible {
   backdrop-filter: blur(18px);
 }
 
+.site-theme-dark .site-header {
+  background: rgba(16, 24, 19, 0.76) !important;
+  border-color: rgba(247, 237, 224, 0.12) !important;
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.26);
+}
+
 .site-scroll-progress {
   position: fixed;
   left: 0;
