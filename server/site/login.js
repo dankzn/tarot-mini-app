@@ -2,6 +2,7 @@ import {
   buildSessionCookie,
   getSupabaseAdmin,
   getSupabaseAuthClient,
+  getSiteAuthEmailCandidates,
   hashPassword,
   normalizeEmail,
   readJsonBody,
@@ -60,9 +61,18 @@ export default async function handler(request, response) {
     let passwordWasVerifiedBySupabase = false;
 
     if (!passwordIsValid) {
-      const { error: authError } = await authClient.auth.signInWithPassword({ email, password });
-      passwordIsValid = !authError;
-      passwordWasVerifiedBySupabase = passwordIsValid;
+      for (const authEmail of getSiteAuthEmailCandidates(user)) {
+        const { error: authError } = await authClient.auth.signInWithPassword({
+          email: authEmail,
+          password,
+        });
+
+        if (!authError) {
+          passwordIsValid = true;
+          passwordWasVerifiedBySupabase = true;
+          break;
+        }
+      }
     }
 
     if (!passwordIsValid) {

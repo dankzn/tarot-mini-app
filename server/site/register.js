@@ -2,6 +2,7 @@ import {
   buildSessionCookie,
   getSupabaseAdmin,
   getSupabaseAuthClient,
+  getSiteAuthEmailCandidates,
   hashPassword,
   normalizeEmail,
   readJsonBody,
@@ -47,29 +48,36 @@ const buildProfilePayload = (payload, credentialsCompleted = true) => ({
 });
 
 const syncAuthAccount = async (authClient, user, password) => {
-  const { error: authError } = await authClient.auth.signUp({
-    email: user.email,
-    password,
-    options: {
-      data: {
-        username: user.username,
-        name: user.name,
-        site_user_id: user.id,
-      },
-    },
-  });
+  let lastError = null;
 
-  if (authError && !isAlreadyRegisteredAuthError(authError)) {
-    console.warn('Supabase Auth signup skipped:', authError);
-    return {
-      ok: false,
-      error: authError?.message || String(authError),
-    };
+  for (const authEmail of getSiteAuthEmailCandidates(user)) {
+    const { error: authError } = await authClient.auth.signUp({
+      email: authEmail,
+      password,
+      options: {
+        data: {
+          login_email: user.email,
+          username: user.username,
+          name: user.name,
+          site_user_id: user.id,
+        },
+      },
+    });
+
+    if (!authError || isAlreadyRegisteredAuthError(authError)) {
+      return {
+        ok: true,
+        authEmail,
+        alreadyRegistered: Boolean(authError),
+      };
+    }
+
+    lastError = authError;
   }
 
   return {
-    ok: true,
-    alreadyRegistered: Boolean(authError),
+    ok: false,
+    error: lastError?.message || String(lastError || 'Supabase Auth signup failed'),
   };
 };
 

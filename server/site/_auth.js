@@ -63,6 +63,18 @@ export const normalizeEmail = (email) => String(email || '').trim().toLowerCase(
 
 export const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
 
+export const getSiteAuthEmail = (userOrId) => {
+  const id = typeof userOrId === 'string' ? userOrId : userOrId?.id;
+  const safeId = String(id || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (!safeId) return '';
+  return `site-${safeId}@auth.tarot-by-danil.app`;
+};
+
+export const getSiteAuthEmailCandidates = (user) => {
+  const candidates = [normalizeEmail(user?.email), getSiteAuthEmail(user)].filter(Boolean);
+  return [...new Set(candidates)];
+};
+
 export const hashPassword = (password) => {
   const salt = crypto.randomBytes(18).toString('base64url');
   const hash = crypto.scryptSync(String(password), salt, 64).toString('base64url');

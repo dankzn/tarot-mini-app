@@ -32,13 +32,17 @@ export default async function handler(request, response) {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (credentialsError) throw credentialsError;
+    if (credentialsError) {
+      console.warn('Site credentials status lookup skipped:', credentialsError);
+    }
+
+    const hasSitePassword = Boolean(user.site_credentials_completed_at || credentials);
 
     return response.status(200).json({
       ok: true,
       email: user.email || null,
-      has_site_password: Boolean(credentials),
-      needs_credentials: !user.email || !credentials,
+      has_site_password: hasSitePassword,
+      needs_credentials: !user.email || !hasSitePassword,
       site_credentials_completed_at: user.site_credentials_completed_at || null,
     });
   } catch (error) {

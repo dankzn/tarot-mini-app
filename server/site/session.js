@@ -37,14 +37,16 @@ export default async function handler(request, response) {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (credentialsError) throw credentialsError;
+    if (credentialsError) {
+      console.warn('Site credentials lookup skipped in session:', credentialsError);
+    }
 
     return response.status(200).json({
       ok: true,
       authenticated: true,
       user: {
         ...user,
-        has_site_password: Boolean(credentials),
+        has_site_password: Boolean(user.site_credentials_completed_at || credentials),
       },
     });
   } catch (error) {

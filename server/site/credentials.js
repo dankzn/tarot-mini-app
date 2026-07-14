@@ -1,6 +1,7 @@
 import {
   getSupabaseAuthClient,
   getSupabaseAdmin,
+  getSiteAuthEmailCandidates,
   hashPassword,
   normalizeEmail,
   readJsonBody,
@@ -11,6 +12,34 @@ const allowedProfileFields = ['name', 'city', 'phone', 'birth_date', 'gender'];
 
 const isAlreadyRegisteredAuthError = (error) =>
   /already|registered|exists|duplicate/i.test(String(error?.message || error || ''));
+
+const syncAuthAccount = async (authClient, user, email, password) => {
+  let lastError = null;
+
+  for (const authEmail of getSiteAuthEmailCandidates({ ...user, email })) {
+    const { error: authError } = await authClient.auth.signUp({
+      email: authEmail,
+      password,
+      options: {
+        data: {
+          login_email: email,
+          telegram_id: user.telegram_id,
+          username: user.username || null,
+          name: user.name || 'Клиент',
+          site_user_id: user.id,
+        },
+      },
+    });
+
+    if (!authError || isAlreadyRegisteredAuthError(authError)) {
+      return { ok: true, authEmail, alreadyRegistered: Boolean(authError) };
+    }
+
+    lastError = authError;
+  }
+
+  return { ok: false, error: lastError?.message || String(lastError || 'Supabase Auth signup failed') };
+};
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -64,21 +93,7 @@ export default async function handler(request, response) {
       return response.status(409).json({ ok: false, error: 'Эта почта уже привязана к другому профилю' });
     }
 
-    const { error: authError } = await authClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          telegram_id: telegramId,
-          username: user.username || null,
-          name: body.name || user.name || 'Клиент',
-        },
-      },
-    });
-
-    if (authError && !isAlreadyRegisteredAuthError(authError)) {
-      throw authError;
-    }
+    const authResult = await syncAuthAccount(authClient, { ...user, name: body.name || user.name }, email, password);
 
     const profilePatch = allowedProfileFields.reduce((patch, field) => {
       if (Object.prototype.hasOwnProperty.call(body, field)) {
@@ -111,7 +126,16 @@ export default async function handler(request, response) {
       );
 
     if (credentialsError) {
-      throw new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
+      console.warn(
+        'Site credentials save skipped:',
+        credentialsError.message || credentialsError.code || 'unknown error',
+      );
+    }
+
+    if (!authResult.ok && credentialsError) {
+      throw new Error(
+        `${authResult.error}; SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`,
+      );
     }
 
     const { data: completedUser, error: completedError } = await supabase
