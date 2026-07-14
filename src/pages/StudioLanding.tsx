@@ -335,12 +335,12 @@ const TarotBackground = () => (
 
 const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [hasWidgetError, setHasWidgetError] = useState(false);
+  const [widgetState, setWidgetState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    setHasWidgetError(false);
+    setWidgetState('loading');
     containerRef.current.innerHTML = '';
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-widget.js?22';
@@ -351,7 +351,15 @@ const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
     script.setAttribute('data-request-access', 'write');
     script.setAttribute('data-userpic', 'false');
     script.setAttribute('data-auth-url', `${window.location.origin}/api/site/telegram-login?return_to=/site/profile`);
-    script.onload = () => onReady?.();
+    script.onload = () => {
+      onReady?.();
+      window.setTimeout(() => {
+        const text = containerRef.current?.textContent || '';
+        const hasTelegramFrame = Boolean(containerRef.current?.querySelector('iframe'));
+        setWidgetState(text.includes('Bot domain invalid') || !hasTelegramFrame ? 'error' : 'ready');
+      }, 450);
+    };
+    script.onerror = () => setWidgetState('error');
 
     containerRef.current.appendChild(script);
 
@@ -359,7 +367,7 @@ const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
       const text = containerRef.current?.textContent || '';
       const hasTelegramFrame = Boolean(containerRef.current?.querySelector('iframe'));
       if (text.includes('Bot domain invalid') || !hasTelegramFrame) {
-        setHasWidgetError(true);
+        setWidgetState('error');
       }
     }, 2200);
 
@@ -367,20 +375,25 @@ const TelegramLoginWidget = ({ onReady }: { onReady?: () => void }) => {
   }, [onReady]);
 
   return (
-    <div>
-      <div ref={containerRef} className={hasWidgetError ? 'hidden' : 'min-h-[46px]'} />
-      {hasWidgetError && (
-        <div className="rounded-[1.4rem] border border-[#2F463B]/10 bg-white/70 p-4">
-          <p className="text-base font-semibold text-[#2F463B]">Telegram-вход временно не открылся на сайте</p>
+    <div className="space-y-3">
+      <div ref={containerRef} className={widgetState === 'error' ? 'hidden' : 'min-h-[46px]'} />
+      {widgetState === 'loading' && (
+        <div className="rounded-full border border-[#2F463B]/10 bg-white/70 px-5 py-3 text-center text-sm font-semibold text-[#2F463B]/64">
+          Загружаю кнопку Telegram
+        </div>
+      )}
+      {widgetState === 'error' && (
+        <div className="rounded-[1.4rem] border border-[#2F463B]/10 bg-white/75 p-4 shadow-[0_16px_40px_rgba(47,70,59,0.08)]">
+          <p className="text-base font-semibold text-[#2F463B]">Кнопка Telegram не открылась на сайте</p>
           <p className="mt-2 text-sm font-medium leading-relaxed text-[#2F463B]/58">
-            Можно открыть бота и продолжить регистрацию там
+            Если вход нужен именно через Telegram, откройте бота и вернитесь в кабинет после привязки
           </p>
           <button
             type="button"
             onClick={() => openExternal(BOT_URL)}
             className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]"
           >
-            Открыть Telegram
+            Открыть бота
             <ArrowRight className="ml-2 h-4 w-4" />
           </button>
         </div>
