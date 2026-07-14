@@ -218,6 +218,10 @@ select:focus-visible {
   background-color: rgba(247, 237, 224, 0.1) !important;
 }
 
+.site-theme-dark [class*='bg-[#F8F3EC]'] {
+  background-color: rgba(247, 237, 224, 0.08) !important;
+}
+
 .site-theme-dark [class*='text-[#2F463B]'] {
   color: #F7EDE0 !important;
 }
@@ -557,6 +561,37 @@ select:focus-visible {
   transform: translate3d(8px, 0, 0);
   border-color: rgba(47, 70, 59, 0.2);
   background: rgba(255, 255, 255, 0.84);
+}
+
+.site-theme-dark .site-service-board {
+  background: rgba(18, 28, 22, 0.82) !important;
+  border-color: rgba(247, 237, 224, 0.16) !important;
+  box-shadow: 0 36px 120px rgba(0, 0, 0, 0.24) !important;
+}
+
+.site-theme-dark .site-service-board::before {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(247, 237, 224, 0.08), transparent 18rem),
+    linear-gradient(135deg, rgba(247, 237, 224, 0.08), transparent 46%, rgba(199, 150, 114, 0.1));
+}
+
+.site-theme-dark .site-service-row {
+  background: rgba(247, 237, 224, 0.07) !important;
+  border-color: rgba(247, 237, 224, 0.14) !important;
+  color: #F7EDE0 !important;
+}
+
+.site-theme-dark .site-service-row:hover {
+  background: rgba(199, 150, 114, 0.16) !important;
+  border-color: rgba(247, 237, 224, 0.24) !important;
+}
+
+.site-theme-dark .site-service-row p:first-child {
+  color: #F7EDE0 !important;
+}
+
+.site-theme-dark .site-service-row p:last-child {
+  color: rgba(247, 237, 224, 0.62) !important;
 }
 
 .site-premium-card:hover::before {

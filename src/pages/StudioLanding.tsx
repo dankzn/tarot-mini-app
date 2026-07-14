@@ -449,6 +449,7 @@ const PageShell = ({
   cartCount,
   theme,
   onToggleTheme,
+  onLogout,
   children,
 }: {
   page: SitePage;
@@ -456,6 +457,7 @@ const PageShell = ({
   cartCount: number;
   theme: SiteTheme;
   onToggleTheme: () => void;
+  onLogout?: () => Promise<void>;
   children: React.ReactNode;
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -512,9 +514,25 @@ const PageShell = ({
                   </span>
                 )}
               </SiteLink>
-              <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
-                {user ? 'Кабинет' : 'Войти'}
-              </SiteLink>
+              {user ? (
+                <>
+                  <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
+                    Кабинет
+                  </SiteLink>
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="hidden items-center rounded-full border border-[#2F463B]/10 bg-white/70 px-5 py-3 text-sm font-semibold text-[#2F463B] shadow-[0_18px_70px_rgba(47,70,59,0.08)] transition hover:-translate-y-0.5 md:inline-flex"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Выйти
+                  </button>
+                </>
+              ) : (
+                <SiteLink href="/site/profile" className="hidden rounded-full bg-[#2F463B] px-6 py-3 text-sm font-semibold text-[#F7EDE0] shadow-[0_18px_70px_rgba(47,70,59,0.18)] transition hover:-translate-y-0.5 md:block">
+                  Войти
+                </SiteLink>
+              )}
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
@@ -592,6 +610,15 @@ const PageShell = ({
                 {route.label}
               </SiteLink>
             ))}
+            {user && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-[#2F463B] p-6 text-left text-2xl font-semibold text-[#F7EDE0]"
+              >
+                Выйти из кабинета
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2004,6 +2031,72 @@ const ProfileCabinetPage = ({
         </div>
       </div>
 
+      <div className="mt-8 grid gap-6 xl:grid-cols-[0.86fr_1.14fr]">
+        <div className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Профиль</p>
+              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Данные клиента</h2>
+            </div>
+            <UserRound className="h-8 w-8 text-[#2F463B]/60" />
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {[
+              ['Telegram', user.username ? `@${user.username}` : 'не указан'],
+              ['Почта', user.email || 'не указана'],
+              ['Статус', user.status || 'Первое знакомство'],
+              ['Бонусы', formatMoney(user.bonus_balance || 0)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[1.5rem] bg-[#F7EDE0]/72 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#B98266]">{label}</p>
+                <p className="mt-2 text-lg font-semibold text-[#2F463B]">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="site-reveal site-delay-1 rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Записи</p>
+              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Последние действия</h2>
+            </div>
+            <CalendarCheck className="h-8 w-8 text-[#2F463B]/60" />
+          </div>
+          <div className="mt-6 grid gap-3">
+            {consultations.length === 0 && enrollments.length === 0 && (
+              <div className="rounded-[1.5rem] bg-[#F7EDE0]/72 p-5">
+                <p className="font-semibold text-[#2F463B]/62">Здесь появятся консультации, курсы и оплаты</p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <SiteLink href="/site/consultations" className="rounded-full bg-[#2F463B] px-5 py-3 text-sm font-semibold text-[#F7EDE0]">
+                    Выбрать консультацию
+                  </SiteLink>
+                  <SiteLink href="/site/academy" className="rounded-full bg-[#F7EDE0] px-5 py-3 text-sm font-semibold text-[#2F463B]">
+                    Смотреть обучение
+                  </SiteLink>
+                </div>
+              </div>
+            )}
+            {consultations.slice(0, 4).map((item) => (
+              <div key={item.id} className="flex flex-col gap-3 rounded-[1.5rem] bg-[#F7EDE0]/72 p-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-[#2F463B]">{getConsultationTitle(item)}</p>
+                  <p className="mt-1 text-sm font-medium text-[#2F463B]/56">{formatDateTime(item.scheduled_at || item.requested_date)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/58">
+                    {item.status || 'заявка'}
+                  </span>
+                  <span className="rounded-full bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8B604A]">
+                    {item.payment_status || 'оплата'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-4">
@@ -2294,7 +2387,7 @@ export const StudioLanding = () => {
   }, [cart, page, paymentMethods, user]);
 
   return (
-    <PageShell page={page} user={user} cartCount={cart.length} theme={theme} onToggleTheme={toggleTheme}>
+    <PageShell page={page} user={user} cartCount={cart.length} theme={theme} onToggleTheme={toggleTheme} onLogout={logout}>
       {page !== 'home' && (
         <div className="mx-auto max-w-[1540px] px-5 pt-7 md:px-10 xl:px-16">
           <SiteLink href="/site" className="site-reveal inline-flex items-center rounded-full border border-[#2F463B]/10 bg-white/70 px-5 py-3 text-sm font-semibold text-[#2F463B] backdrop-blur-xl transition hover:bg-white">

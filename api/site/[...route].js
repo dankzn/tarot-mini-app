@@ -55,5 +55,21 @@ export default async function handler(request, response) {
   }
 
   stripRouterQuery(request);
-  return routeHandler(request, response);
+  try {
+    return await routeHandler(request, response);
+  } catch (error) {
+    console.error('Site API route failed:', {
+      route: routeName,
+      message: error?.message || String(error),
+      code: error?.code || null,
+      details: error?.details || null,
+    });
+
+    return response.status(500).json({
+      ok: false,
+      error: `Ошибка /api/site/${routeName}: ${error?.message || 'unknown error'}`,
+      code: error?.code || null,
+      details: error?.details || null,
+    });
+  }
 }

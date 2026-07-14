@@ -77,8 +77,34 @@ const persistSiteCredentials = async (supabase, userId, password) => {
     );
 
   if (credentialsError) {
-    throw new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
+    const error = new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
+    error.code = credentialsError.code || null;
+    error.details = credentialsError.details || null;
+    error.hint = credentialsError.hint || null;
+    throw error;
   }
+};
+
+const getPublicRegistrationError = (error) => {
+  const message = error?.message || String(error || '');
+
+  if (/site_auth_credentials|SITE_CREDENTIALS_SAVE_FAILED/i.test(message)) {
+    return `Не удалось сохранить пароль сайта: ${message}`;
+  }
+
+  if (/duplicate key|already exists|23505/i.test(message)) {
+    return `Такой профиль уже есть в системе: ${message}`;
+  }
+
+  if (/column .* does not exist|relation .* does not exist|schema cache/i.test(message)) {
+    return `Не хватает поля или таблицы в Supabase: ${message}`;
+  }
+
+  if (/row-level security|RLS/i.test(message)) {
+    return `Supabase заблокировал запись политикой безопасности: ${message}`;
+  }
+
+  return `Не удалось зарегистрироваться: ${message || 'неизвестная ошибка'}`;
 };
 
 const sendSessionResponse = (request, response, user) => {
@@ -272,10 +298,11 @@ export default async function handler(request, response) {
 
     return response.status(500).json({
       ok: false,
-      error: 'Не удалось зарегистрироваться',
+      error: getPublicRegistrationError(error),
       reason: error?.message || String(error),
       code: error?.code || null,
       details: error?.details || null,
+      hint: error?.hint || null,
     });
   }
 }
