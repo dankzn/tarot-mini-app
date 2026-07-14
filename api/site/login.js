@@ -2,6 +2,7 @@ import {
   buildSessionCookie,
   getSupabaseAdmin,
   getSupabaseAuthClient,
+  hashPassword,
   normalizeEmail,
   readJsonBody,
   sessionPayloadFromUser,
@@ -56,9 +57,12 @@ export default async function handler(request, response) {
       console.warn('Site credentials lookup failed:', credentialsError);
     }
 
+    let passwordWasVerifiedBySupabase = false;
+
     if (!passwordIsValid) {
       const { error: authError } = await authClient.auth.signInWithPassword({ email, password });
       passwordIsValid = !authError;
+      passwordWasVerifiedBySupabase = passwordIsValid;
     }
 
     if (!passwordIsValid) {
@@ -68,6 +72,23 @@ export default async function handler(request, response) {
           ? 'Неверная почта или пароль'
           : 'Для этого профиля пароль на сайте ещё не создан. Откройте регистрацию с этой же почтой и задайте пароль заново',
       });
+    }
+
+    if (passwordWasVerifiedBySupabase) {
+      const { error: syncError } = await supabase
+        .from('site_auth_credentials')
+        .upsert(
+          {
+            user_id: user.id,
+            password_hash: hashPassword(password),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        );
+
+      if (syncError) {
+        console.warn('Site credentials sync after auth login failed:', syncError);
+      }
     }
 
     const sessionToken = signSession(sessionPayloadFromUser(user));

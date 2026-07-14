@@ -405,7 +405,7 @@ const BrandMark = () => (
       <img
         src="/logo.png"
         alt="Tarot by Danil"
-        className="h-full w-full object-contain p-2 transition duration-500 group-hover:scale-105"
+        className="site-brand-logo h-full w-full object-contain p-1.5 transition duration-500 group-hover:scale-105"
       />
     </div>
     <div>
@@ -746,7 +746,7 @@ const ProfilePage = ({
   onLogout: () => Promise<void>;
   onSessionRefresh: () => Promise<void>;
 }) => {
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset'>('login');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [form, setForm] = useState({
@@ -774,7 +774,31 @@ const ProfilePage = ({
     personalDataAccepted: false,
     offerAccepted: false,
   });
+  const [resetDraft, setResetDraft] = useState({
+    email: user?.email || '',
+    password: '',
+    passwordRepeat: '',
+  });
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const recoveryFromQuery = params.get('password_reset') === '1';
+    const recoveryFromHash = window.location.hash.includes('type=recovery');
+
+    if (!recoveryFromQuery && !recoveryFromHash) return;
+
+    setAuthMode('reset');
+    setIsPasswordRecovery(true);
+
+    supabase.auth.getSession().then(({ data }) => {
+      const email = data.session?.user?.email;
+      if (!email) return;
+      setResetDraft((current) => ({ ...current, email }));
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -791,6 +815,12 @@ const ProfilePage = ({
       passwordRepeat: '',
       personalDataAccepted: false,
       offerAccepted: false,
+    }));
+    setResetDraft((current) => ({
+      ...current,
+      email: user.email || current.email,
+      password: '',
+      passwordRepeat: '',
     }));
   }, [user]);
 
@@ -924,6 +954,79 @@ const ProfilePage = ({
       await onSessionRefresh();
     } catch (error: any) {
       alert(error.message || 'Не удалось зарегистрироваться');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestPasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/site/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: resetDraft.email }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось отправить письмо');
+      }
+
+      setResetEmailSent(true);
+    } catch (error: any) {
+      alert(error.message || 'Не удалось отправить письмо');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completePasswordReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (resetDraft.password.length < 8) {
+      alert('Пароль должен быть от 8 символов');
+      return;
+    }
+
+    if (resetDraft.password !== resetDraft.passwordRepeat) {
+      alert('Пароли не совпадают');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password: resetDraft.password });
+      if (updateError) throw updateError;
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const response = await fetch('/api/site/password-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          accessToken,
+          password: resetDraft.password,
+          passwordRepeat: resetDraft.passwordRepeat,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось сохранить новый пароль');
+      }
+
+      setResetDraft((current) => ({ ...current, password: '', passwordRepeat: '' }));
+      window.history.replaceState(null, '', '/site/profile');
+      await onSessionRefresh();
+      alert('Пароль обновлен');
+    } catch (error: any) {
+      alert(error.message || 'Не удалось обновить пароль');
     } finally {
       setLoading(false);
     }
@@ -1126,7 +1229,7 @@ const ProfilePage = ({
           ) : (
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#C79672]">
-                {authMode === 'login' ? 'Вход' : 'Регистрация'}
+                {authMode === 'login' ? 'Вход' : authMode === 'register' ? 'Регистрация' : 'Сброс пароля'}
               </p>
               <h2 className="site-display mt-4 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Личный кабинет</h2>
 
@@ -1134,11 +1237,12 @@ const ProfilePage = ({
                 {[
                   ['login', 'Войти'],
                   ['register', 'Регистрация'],
+                  ['reset', 'Сброс пароля'],
                 ].map(([mode, label]) => (
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => setAuthMode(mode as 'login' | 'register')}
+                    onClick={() => setAuthMode(mode as 'login' | 'register' | 'reset')}
                     className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
                       authMode === mode ? 'bg-[#2F463B] text-[#F7EDE0]' : 'text-[#2F463B]/62'
                     }`}
@@ -1185,6 +1289,13 @@ const ProfilePage = ({
                     >
                       {loading ? 'Вхожу' : 'Войти'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('reset')}
+                      className="mt-4 w-full text-center text-sm font-semibold text-[#2F463B]/58 underline decoration-[#C79672]/50 underline-offset-4"
+                    >
+                      Не помню пароль
+                    </button>
                   </form>
 
                   <div className="rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
@@ -1192,7 +1303,7 @@ const ProfilePage = ({
                     <TelegramLoginWidget />
                   </div>
                 </div>
-              ) : (
+              ) : authMode === 'register' ? (
                 <form onSubmit={registerOnSite} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="block md:col-span-2">
@@ -1343,6 +1454,79 @@ const ProfilePage = ({
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </button>
                 </form>
+              ) : isPasswordRecovery ? (
+                <form onSubmit={completePasswordReset} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Задайте новый пароль</p>
+                  {resetDraft.email && (
+                    <div className="mb-4 rounded-[1.4rem] bg-white/72 px-4 py-3 text-sm font-semibold text-[#2F463B]/62">
+                      {resetDraft.email}
+                    </div>
+                  )}
+                  <label className="mb-4 block">
+                    <span className="mb-2 flex items-center text-sm font-semibold">
+                      <Lock className="mr-2 h-4 w-4" />
+                      Новый пароль
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={resetDraft.password}
+                      onChange={(event) => setResetDraft({ ...resetDraft, password: event.target.value })}
+                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                    />
+                  </label>
+                  <label className="mb-5 block">
+                    <span className="mb-2 flex items-center text-sm font-semibold">
+                      <Lock className="mr-2 h-4 w-4" />
+                      Повтор пароля
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={resetDraft.passwordRepeat}
+                      onChange={(event) => setResetDraft({ ...resetDraft, passwordRepeat: event.target.value })}
+                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                  >
+                    {loading ? 'Сохраняю' : 'Сохранить новый пароль'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={requestPasswordReset} className="mt-8 rounded-[1.7rem] bg-[#F7EDE0] p-5 text-[#2F463B]">
+                  <p className="mb-4 text-sm font-semibold text-[#2F463B]/58">Ссылка для сброса придёт на почту</p>
+                  <label className="mb-5 block">
+                    <span className="mb-2 flex items-center text-sm font-semibold">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Почта
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      value={resetDraft.email}
+                      onChange={(event) => setResetDraft({ ...resetDraft, email: event.target.value })}
+                      className="w-full rounded-2xl border border-[#2F463B]/10 bg-white px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                    />
+                  </label>
+                  {resetEmailSent && (
+                    <div className="mb-5 rounded-[1.4rem] bg-white/72 px-4 py-3 text-sm font-semibold leading-relaxed text-[#2F463B]/62">
+                      Письмо отправлено, откройте ссылку и задайте новый пароль
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+                  >
+                    {loading ? 'Отправляю' : 'Отправить ссылку'}
+                  </button>
+                </form>
               )}
             </div>
           )}
@@ -1489,6 +1673,21 @@ const ProfileCabinetPage = ({
   const [consultations, setConsultations] = useState<SiteConsultation[]>([]);
   const [enrollments, setEnrollments] = useState<TrainingEnrollment[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [passwordDraft, setPasswordDraft] = useState({
+    email: user?.email || '',
+    password: '',
+    passwordRepeat: '',
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  useEffect(() => {
+    setPasswordDraft((current) => ({
+      ...current,
+      email: user?.email || current.email,
+      password: '',
+      passwordRepeat: '',
+    }));
+  }, [user?.email]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1543,6 +1742,43 @@ const ProfileCabinetPage = ({
     return <ProfilePage user={user} onLogout={onLogout} onSessionRefresh={onSessionRefresh} />;
   }
 
+  const updateCabinetPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (passwordDraft.password.length < 8) {
+      alert('Пароль должен быть от 8 символов');
+      return;
+    }
+
+    if (passwordDraft.password !== passwordDraft.passwordRepeat) {
+      alert('Пароли не совпадают');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const response = await fetch('/api/site/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(passwordDraft),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось обновить пароль');
+      }
+
+      setPasswordDraft((current) => ({ ...current, password: '', passwordRepeat: '' }));
+      await onSessionRefresh();
+      alert('Пароль обновлен');
+    } catch (error: any) {
+      alert(error.message || 'Не удалось обновить пароль');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const nextConsultation = consultations.find((item) => item.scheduled_at || item.requested_date) || consultations[0];
   const dueConsultations = consultations.filter((item) => needsPayment(item.payment_status) && getConsultationPrice(item) > 0);
   const dueEnrollments = enrollments.filter((item) => needsPayment(item.payment_status) && Number(item.final_price || item.training_programs?.price || 0) > 0);
@@ -1561,10 +1797,10 @@ const ProfileCabinetPage = ({
             <button
               type="button"
               onClick={onLogout}
-              className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#F7EDE0] transition hover:bg-white/18"
-              aria-label="Выйти"
+              className="inline-flex items-center rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-[#F7EDE0] transition hover:bg-white/18"
             >
-              <LogOut className="h-5 w-5" />
+              <LogOut className="mr-2 h-4 w-4" />
+              Выйти
             </button>
           </div>
 
@@ -1605,6 +1841,70 @@ const ProfileCabinetPage = ({
             onClear={onClearCart}
             compact
           />
+
+          <form
+            onSubmit={updateCabinetPassword}
+            className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 text-[#2F463B] shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl md:p-7"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Доступ</p>
+                <h2 className="site-display mt-3 text-[clamp(1.8rem,3vw,3rem)] leading-[1.02]">Пароль сайта</h2>
+              </div>
+              <Lock className="h-8 w-8 text-[#B98266]" />
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="mb-2 flex items-center text-sm font-semibold">
+                  <Mail className="mr-2 h-4 w-4" />
+                  Почта для входа
+                </span>
+                <input
+                  type="email"
+                  required
+                  value={passwordDraft.email}
+                  onChange={(event) => setPasswordDraft({ ...passwordDraft, email: event.target.value })}
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 flex items-center text-sm font-semibold">
+                  <Lock className="mr-2 h-4 w-4" />
+                  Новый пароль
+                </span>
+                <input
+                  type="password"
+                  minLength={8}
+                  required
+                  value={passwordDraft.password}
+                  onChange={(event) => setPasswordDraft({ ...passwordDraft, password: event.target.value })}
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 flex items-center text-sm font-semibold">
+                  <Lock className="mr-2 h-4 w-4" />
+                  Повтор пароля
+                </span>
+                <input
+                  type="password"
+                  minLength={8}
+                  required
+                  value={passwordDraft.passwordRepeat}
+                  onChange={(event) => setPasswordDraft({ ...passwordDraft, passwordRepeat: event.target.value })}
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                />
+              </label>
+            </div>
+            <button
+              type="submit"
+              disabled={passwordLoading}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {passwordLoading ? 'Сохраняю' : 'Обновить пароль'}
+            </button>
+          </form>
 
           <div className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl md:p-7">
             <div className="flex items-center justify-between gap-4">
