@@ -3,7 +3,6 @@ import {
   getSupabaseAdmin,
   getSupabaseAuthClient,
   getSiteAuthEmailCandidates,
-  hashPassword,
   normalizeEmail,
   readJsonBody,
   sessionPayloadFromUser,
@@ -11,6 +10,7 @@ import {
   validateEmail,
   verifyPassword,
 } from './_auth.js';
+import { getSitePasswordHash, saveSitePassword } from './_site-credentials.js';
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -40,22 +40,18 @@ export default async function handler(request, response) {
       return response.status(401).json({ ok: false, error: 'Неверная почта или пароль' });
     }
 
-    const { data: credentials, error: credentialsError } = await supabase
-      .from('site_auth_credentials')
-      .select('password_hash')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const credentialsResult = await getSitePasswordHash(supabase, user.id);
 
     let passwordIsValid = false;
     let hasStoredSitePassword = false;
 
-    if (!credentialsError && credentials?.password_hash) {
+    if (credentialsResult.passwordHash) {
       hasStoredSitePassword = true;
-      passwordIsValid = verifyPassword(password, credentials.password_hash);
+      passwordIsValid = verifyPassword(password, credentialsResult.passwordHash);
     }
 
-    if (credentialsError) {
-      console.warn('Site credentials lookup failed:', credentialsError);
+    if (!credentialsResult.ok) {
+      console.warn('Site credentials lookup failed:', credentialsResult.error);
     }
 
     let passwordWasVerifiedBySupabase = false;
@@ -85,19 +81,10 @@ export default async function handler(request, response) {
     }
 
     if (passwordWasVerifiedBySupabase) {
-      const { error: syncError } = await supabase
-        .from('site_auth_credentials')
-        .upsert(
-          {
-            user_id: user.id,
-            password_hash: hashPassword(password),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' },
-        );
+      const syncResult = await saveSitePassword(supabase, user.id, password, { required: false });
 
-      if (syncError) {
-        console.warn('Site credentials sync after auth login failed:', syncError);
+      if (!syncResult.ok) {
+        console.warn('Site credentials sync after auth login failed:', syncResult.error);
       }
     }
 

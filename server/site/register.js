@@ -3,7 +3,6 @@ import {
   getSupabaseAdmin,
   getSupabaseAuthClient,
   getSiteAuthEmailCandidates,
-  hashPassword,
   normalizeEmail,
   readJsonBody,
   sessionPayloadFromUser,
@@ -13,6 +12,7 @@ import {
 
 import crypto from 'crypto';
 import { notifyAdminsNewUserRegistration } from './_telegram-notify.js';
+import { saveSitePassword } from './_site-credentials.js';
 
 const selectUserFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
 
@@ -79,40 +79,6 @@ const syncAuthAccount = async (authClient, user, password) => {
     ok: false,
     error: lastError?.message || String(lastError || 'Supabase Auth signup failed'),
   };
-};
-
-const persistSiteCredentials = async (supabase, userId, password, { required = true } = {}) => {
-  const { error: credentialsError } = await supabase
-    .from('site_auth_credentials')
-    .upsert(
-      {
-        user_id: userId,
-        password_hash: hashPassword(password),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    );
-
-  if (credentialsError) {
-    const error = new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
-    error.code = credentialsError.code || null;
-    error.details = credentialsError.details || null;
-    error.hint = credentialsError.hint || null;
-
-    if (!required) {
-      return {
-        ok: false,
-        error: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      };
-    }
-
-    throw error;
-  }
-
-  return { ok: true };
 };
 
 const getPublicRegistrationError = (error) => {
@@ -264,7 +230,7 @@ export default async function handler(request, response) {
       if (updateError) throw updateError;
 
       const authResult = await syncAuthAccount(authClient, updatedUser, password);
-      const credentialsResult = await persistSiteCredentials(supabase, updatedUser.id, password, { required: false });
+      const credentialsResult = await saveSitePassword(supabase, updatedUser.id, password, { required: false });
 
       if (!credentialsResult.ok) {
         console.warn('Site credentials save skipped for existing user:', credentialsResult.error);
@@ -303,7 +269,7 @@ export default async function handler(request, response) {
     createdUserId = user.id;
 
     const authResult = await syncAuthAccount(authClient, user, password);
-    const credentialsResult = await persistSiteCredentials(supabase, user.id, password, { required: false });
+    const credentialsResult = await saveSitePassword(supabase, user.id, password, { required: false });
 
     if (!credentialsResult.ok) {
       console.warn('Site credentials save skipped for new user:', credentialsResult.error);

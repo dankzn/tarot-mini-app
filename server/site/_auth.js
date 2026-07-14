@@ -13,6 +13,12 @@ export const getBotToken = () =>
   process.env.VITE_TELEGRAM_BOT_TOKEN ||
   '';
 
+export const getSiteCredentialsSecret = () =>
+  process.env.SITE_AUTH_RPC_SECRET ||
+  process.env.SITE_AUTH_SECRET ||
+  getBotToken() ||
+  '';
+
 export const getSiteUrl = (request) => {
   const configured = process.env.SITE_URL || process.env.WEB_APP_URL || '';
   if (configured) return configured.replace(/\/$/, '');

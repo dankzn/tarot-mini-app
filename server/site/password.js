@@ -1,11 +1,11 @@
 import {
   getSupabaseAdmin,
-  hashPassword,
   normalizeEmail,
   readJsonBody,
   readSession,
   validateEmail,
 } from './_auth.js';
+import { saveSitePassword } from './_site-credentials.js';
 
 const selectUserFields =
   'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role, personal_tarologist_until, site_credentials_completed_at';
@@ -67,20 +67,7 @@ export default async function handler(request, response) {
     }
 
     const now = new Date().toISOString();
-    const { error: credentialsError } = await supabase
-      .from('site_auth_credentials')
-      .upsert(
-        {
-          user_id: user.id,
-          password_hash: hashPassword(password),
-          updated_at: now,
-        },
-        { onConflict: 'user_id' },
-      );
-
-    if (credentialsError) {
-      throw new Error(`SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`);
-    }
+    await saveSitePassword(supabase, user.id, password);
 
     const { data: updatedUser, error: updateError } = await supabase
       .from('users')

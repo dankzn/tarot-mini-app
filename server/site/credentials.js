@@ -2,11 +2,11 @@ import {
   getSupabaseAuthClient,
   getSupabaseAdmin,
   getSiteAuthEmailCandidates,
-  hashPassword,
   normalizeEmail,
   readJsonBody,
   validateEmail,
 } from './_auth.js';
+import { saveSitePassword } from './_site-credentials.js';
 
 const allowedProfileFields = ['name', 'city', 'phone', 'birth_date', 'gender'];
 
@@ -114,27 +114,18 @@ export default async function handler(request, response) {
 
     if (updateError) throw updateError;
 
-    const { error: credentialsError } = await supabase
-      .from('site_auth_credentials')
-      .upsert(
-        {
-          user_id: user.id,
-          password_hash: hashPassword(password),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' },
-      );
+    const credentialsResult = await saveSitePassword(supabase, user.id, password, { required: false });
 
-    if (credentialsError) {
+    if (!credentialsResult.ok) {
       console.warn(
         'Site credentials save skipped:',
-        credentialsError.message || credentialsError.code || 'unknown error',
+        credentialsResult.error || credentialsResult.code || 'unknown error',
       );
     }
 
-    if (!authResult.ok && credentialsError) {
+    if (!authResult.ok && !credentialsResult.ok) {
       throw new Error(
-        `${authResult.error}; SITE_CREDENTIALS_SAVE_FAILED: ${credentialsError.message || credentialsError.code || 'unknown error'}`,
+        `${authResult.error}; ${credentialsResult.error || 'SITE_CREDENTIALS_SAVE_FAILED'}`,
       );
     }
 
