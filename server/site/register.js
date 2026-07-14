@@ -61,10 +61,19 @@ const syncAuthAccount = async (authClient, user, password) => {
 
   if (authError && !isAlreadyRegisteredAuthError(authError)) {
     console.warn('Supabase Auth signup skipped:', authError);
+    return {
+      ok: false,
+      error: authError?.message || String(authError),
+    };
   }
+
+  return {
+    ok: true,
+    alreadyRegistered: Boolean(authError),
+  };
 };
 
-const persistSiteCredentials = async (supabase, userId, password) => {
+const persistSiteCredentials = async (supabase, userId, password, { required = true } = {}) => {
   const { error: credentialsError } = await supabase
     .from('site_auth_credentials')
     .upsert(
@@ -81,8 +90,21 @@ const persistSiteCredentials = async (supabase, userId, password) => {
     error.code = credentialsError.code || null;
     error.details = credentialsError.details || null;
     error.hint = credentialsError.hint || null;
+
+    if (!required) {
+      return {
+        ok: false,
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      };
+    }
+
     throw error;
   }
+
+  return { ok: true };
 };
 
 const getPublicRegistrationError = (error) => {
@@ -233,8 +255,16 @@ export default async function handler(request, response) {
 
       if (updateError) throw updateError;
 
-      await syncAuthAccount(authClient, updatedUser, password);
-      await persistSiteCredentials(supabase, updatedUser.id, password);
+      const authResult = await syncAuthAccount(authClient, updatedUser, password);
+      const credentialsResult = await persistSiteCredentials(supabase, updatedUser.id, password, { required: false });
+
+      if (!credentialsResult.ok) {
+        console.warn('Site credentials save skipped for existing user:', credentialsResult.error);
+      }
+
+      if (!authResult.ok && !credentialsResult.ok) {
+        throw new Error(`${authResult.error}; ${credentialsResult.error}`);
+      }
 
       const { data: completedUser, error: completedError } = await supabase
         .from('users')
@@ -264,8 +294,16 @@ export default async function handler(request, response) {
     if (insertError) throw insertError;
     createdUserId = user.id;
 
-    await syncAuthAccount(authClient, user, password);
-    await persistSiteCredentials(supabase, user.id, password);
+    const authResult = await syncAuthAccount(authClient, user, password);
+    const credentialsResult = await persistSiteCredentials(supabase, user.id, password, { required: false });
+
+    if (!credentialsResult.ok) {
+      console.warn('Site credentials save skipped for new user:', credentialsResult.error);
+    }
+
+    if (!authResult.ok && !credentialsResult.ok) {
+      throw new Error(`${authResult.error}; ${credentialsResult.error}`);
+    }
 
     const { data: completedUser, error: completedError } = await supabase
       .from('users')
