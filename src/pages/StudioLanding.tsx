@@ -117,6 +117,7 @@ const legalRoutes = [
   { page: 'privacy' as SitePage, label: 'Политика данных', href: '/site/privacy' },
   { page: 'offer' as SitePage, label: 'Оферта', href: '/site/offer' },
 ];
+const STUDIO_START_YEAR = 2018;
 
 const studioPrinciples = [
   ['Консультации', 'Выбираете формат и оставляете заявку'],
@@ -445,6 +446,7 @@ const PageShell = ({
   children: React.ReactNode;
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const studioYearRange = `${STUDIO_START_YEAR}—${new Date().getFullYear()}`;
 
   return (
     <main className={`site-stage site-theme-${theme} min-h-screen overflow-x-hidden bg-[#F5EFE6] text-[#2F463B]`}>
@@ -466,8 +468,8 @@ const PageShell = ({
               <SiteLink
                 key={route.page}
                 href={route.href}
-                className={`rounded-full px-5 py-3 transition ${
-                  page === route.page ? 'bg-[#2F463B] text-[#F7EDE0]' : 'hover:bg-[#2F463B]/7 hover:text-[#2F463B]'
+                className={`site-nav-pill rounded-full px-5 py-3 transition ${
+                  page === route.page ? 'site-nav-pill-active' : 'site-nav-pill-idle'
                 }`}
               >
                 {route.label}
@@ -511,17 +513,35 @@ const PageShell = ({
 
         {children}
 
-        <footer className="mx-auto flex max-w-[1540px] flex-col gap-5 border-t border-[#2F463B]/10 px-5 py-10 text-sm font-medium text-[#2F463B]/48 md:flex-row md:items-center md:justify-between md:px-10 xl:px-16">
-          <span>Tarot by Danil studio</span>
-          <div className="flex flex-wrap gap-4">
-            <SiteLink href="/site/consultations" className="transition hover:text-[#2F463B]">Консультации</SiteLink>
-            <SiteLink href="/site/academy" className="transition hover:text-[#2F463B]">Академия</SiteLink>
-            <SiteLink href="/site/profile" className="transition hover:text-[#2F463B]">Кабинет</SiteLink>
-            {legalRoutes.map((route) => (
-              <SiteLink key={route.page} href={route.href} className="transition hover:text-[#2F463B]">
-                {route.label}
-              </SiteLink>
-            ))}
+        <footer className="mx-auto max-w-[1540px] border-t border-[#2F463B]/10 px-5 py-10 text-sm font-medium text-[#2F463B]/52 md:px-10 xl:px-16">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr_1fr] lg:items-start">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil studio</p>
+              <p className="mt-3 text-lg font-semibold text-[#2F463B]">© {studioYearRange}</p>
+              <p className="mt-3 max-w-md leading-relaxed text-[#2F463B]/58">
+                Консультации, обучение Таро, личный кабинет, оплата и материалы курса в одной системе
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#C79672]">География</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-white/70 px-4 py-2 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)]">🇪🇺 Испания</span>
+                <span className="rounded-full bg-white/70 px-4 py-2 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)]">🇷🇺 Российская Федерация</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4 lg:justify-end">
+              <SiteLink href="/site/consultations" className="transition hover:text-[#2F463B]">Консультации</SiteLink>
+              <SiteLink href="/site/academy" className="transition hover:text-[#2F463B]">Академия</SiteLink>
+              <SiteLink href="/site/profile" className="transition hover:text-[#2F463B]">Кабинет</SiteLink>
+              <SiteLink href="/site/payment" className="transition hover:text-[#2F463B]">Оплата</SiteLink>
+              {legalRoutes.map((route) => (
+                <SiteLink key={route.page} href={route.href} className="transition hover:text-[#2F463B]">
+                  {route.label}
+                </SiteLink>
+              ))}
+            </div>
           </div>
         </footer>
       </div>

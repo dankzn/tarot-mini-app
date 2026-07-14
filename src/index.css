@@ -181,6 +181,35 @@ select:focus-visible {
   mix-blend-mode: screen;
 }
 
+.site-nav-pill {
+  color: rgba(47, 70, 59, 0.58);
+}
+
+.site-nav-pill-idle:hover {
+  background: rgba(47, 70, 59, 0.07);
+  color: #2F463B;
+}
+
+.site-nav-pill-active {
+  background: #2F463B;
+  color: #F7EDE0;
+}
+
+.site-theme-dark .site-nav-pill {
+  color: rgba(247, 237, 224, 0.68) !important;
+}
+
+.site-theme-dark .site-nav-pill-idle:hover {
+  background: rgba(247, 237, 224, 0.1) !important;
+  color: #F7EDE0 !important;
+}
+
+.site-theme-dark .site-nav-pill-active {
+  background: #F7EDE0 !important;
+  color: #16221B !important;
+  box-shadow: 0 14px 46px rgba(247, 237, 224, 0.14);
+}
+
 .site-theme-dark [class*='bg-white'] {
   background-color: rgba(23, 34, 28, 0.78) !important;
 }

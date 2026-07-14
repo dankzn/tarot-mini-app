@@ -11,6 +11,7 @@ import {
 } from './_auth.js';
 
 import crypto from 'crypto';
+import { notifyAdminsNewUserRegistration } from './_telegram-notify.js';
 
 const selectUserFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
 
@@ -248,6 +249,17 @@ export default async function handler(request, response) {
       .single();
 
     if (completedError) throw completedError;
+
+    const notificationResult = await notifyAdminsNewUserRegistration(supabase, completedUser, 'site_registration').catch(
+      (notificationError) => ({
+        ok: false,
+        error: notificationError?.message || String(notificationError),
+      }),
+    );
+
+    if (!notificationResult.ok) {
+      console.warn('New site user notification failed:', notificationResult.error);
+    }
 
     return sendSessionResponse(request, response, completedUser);
   } catch (error) {

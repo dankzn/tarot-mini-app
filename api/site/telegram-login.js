@@ -6,6 +6,7 @@ import {
   signSession,
   verifyTelegramLogin,
 } from './_auth.js';
+import { notifyAdminsNewUserRegistration } from './_telegram-notify.js';
 
 const buildName = (telegramUser) =>
   [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim() ||
@@ -47,6 +48,7 @@ export default async function handler(request, response) {
       .maybeSingle();
 
     let user = existingUser;
+    let isNewUser = false;
 
     if (existingUser) {
       const { data: updatedUser, error: updateError } = await supabase
@@ -83,6 +85,20 @@ export default async function handler(request, response) {
 
       if (insertError) throw insertError;
       user = createdUser;
+      isNewUser = true;
+    }
+
+    if (isNewUser) {
+      const notificationResult = await notifyAdminsNewUserRegistration(supabase, user, 'telegram_login').catch(
+        (notificationError) => ({
+          ok: false,
+          error: notificationError?.message || String(notificationError),
+        }),
+      );
+
+      if (!notificationResult.ok) {
+        console.warn('New Telegram site user notification failed:', notificationResult.error);
+      }
     }
 
     const sessionToken = signSession(sessionPayloadFromUser(user));
