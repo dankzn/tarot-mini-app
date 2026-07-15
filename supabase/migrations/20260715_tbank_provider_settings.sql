@@ -1,4 +1,4 @@
-create extension if not exists pgcrypto;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.payment_provider_settings (
   provider text primary key,
@@ -383,7 +383,7 @@ begin
     where key <> 'Token'
       and jsonb_typeof(value) not in ('object', 'array', 'null');
 
-  return encode(digest(coalesce(signing_string, ''), 'sha256'), 'hex');
+  return encode(extensions.digest(coalesce(signing_string, '')::text, 'sha256'::text), 'hex');
 end;
 $$;
 
