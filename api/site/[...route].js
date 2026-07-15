@@ -6,6 +6,7 @@ import passwordResetHandler from '../../server/site/password-reset.js';
 import passwordSyncHandler from '../../server/site/password-sync.js';
 import passwordHandler from '../../server/site/password.js';
 import registerHandler from '../../server/site/register.js';
+import servicesHandler from '../../server/site/services.js';
 import sessionHandler from '../../server/site/session.js';
 import telegramLoginHandler from '../../server/site/telegram-login.js';
 import { tbankInitHandler, tbankNotificationHandler } from '../../server/site/tbank.js';
@@ -19,6 +20,7 @@ const routeHandlers = {
   'password-sync': passwordSyncHandler,
   password: passwordHandler,
   register: registerHandler,
+  services: servicesHandler,
   session: sessionHandler,
   'telegram-login': telegramLoginHandler,
   'tbank-init': tbankInitHandler,

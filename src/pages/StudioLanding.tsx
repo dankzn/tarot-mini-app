@@ -410,7 +410,30 @@ const SiteLink = ({
   className = '',
   ...props
 }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: React.ReactNode }) => (
-  <a href={href} className={className} {...props}>
+  <a
+    href={href}
+    className={className}
+    {...props}
+    onClick={(event) => {
+      props.onClick?.(event);
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        props.target ||
+        !href.startsWith('/site')
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      window.history.pushState({}, '', href);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }}
+  >
     {children}
   </a>
 );
@@ -738,28 +761,21 @@ const ConsultationsPage = ({
 
     const loadServices = async () => {
       setLoading(true);
-      const orderedRequest = await supabase
-        .from('services')
-        .select('*')
-        .order('sort_order', { ascending: true })
-        .order('price', { ascending: true });
+      try {
+        const response = await fetch('/api/site/services', { credentials: 'include' });
+        const payload = await response.json().catch(() => null);
 
-      let data = orderedRequest.data;
-      let error = orderedRequest.error;
-
-      if (error) {
-        const fallbackRequest = await supabase
-          .from('services')
-          .select('*')
-          .order('price', { ascending: true });
-
-        data = fallbackRequest.data;
-        error = fallbackRequest.error;
-      }
-
-      if (!cancelled) {
-        setServices(error ? [] : ((data || []) as SiteService[]).filter((service) => service.title && getSiteServicePrice(service) > 0));
-        setLoading(false);
+        if (!cancelled) {
+          setServices(
+            response.ok && payload?.ok
+              ? ((payload.services || []) as SiteService[]).filter((service) => service.title && getSiteServicePrice(service) > 0)
+              : [],
+          );
+        }
+      } catch {
+        if (!cancelled) setServices([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -2450,8 +2466,30 @@ export const StudioLanding = () => {
   }, [cart]);
 
   useEffect(() => {
+    const syncCartFromStorage = () => setCart(getStoredCart());
+
+    window.addEventListener('focus', syncCartFromStorage);
+    window.addEventListener('storage', syncCartFromStorage);
+    window.addEventListener('popstate', syncCartFromStorage);
+
+    return () => {
+      window.removeEventListener('focus', syncCartFromStorage);
+      window.removeEventListener('storage', syncCartFromStorage);
+      window.removeEventListener('popstate', syncCartFromStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem('tarot-site-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!user?.id || page !== 'profile' || cart.length === 0) return;
+    if (window.localStorage.getItem('tarot-site-return-to-payment') !== '1') return;
+
+    window.localStorage.removeItem('tarot-site-return-to-payment');
+    goToPayment();
+  }, [cart.length, page, user?.id]);
 
   const logout = async () => {
     try {
@@ -2494,6 +2532,7 @@ export const StudioLanding = () => {
     if (cart.length === 0 || paymentBusy) return;
 
     if (!user?.id) {
+      window.localStorage.setItem('tarot-site-return-to-payment', '1');
       alert('Сначала войдите в кабинет');
       goToProfile();
       return;
@@ -2519,13 +2558,11 @@ export const StudioLanding = () => {
         return;
       }
 
-      const fallbackMethod = paymentMethods[0];
-      if (payload?.code === 'TBANK_NOT_CONFIGURED' && fallbackMethod?.payment_url) {
-        openExternal(fallbackMethod.payment_url);
-        return;
-      }
-
-      throw new Error(payload?.error || 'Не удалось создать оплату');
+      throw new Error(
+        payload?.code === 'TBANK_NOT_CONFIGURED'
+          ? 'Эквайринг Т-Банка не настроен на сервере. Старую ссылку перевода больше не открываю вместо оплаты'
+          : payload?.error || 'Не удалось создать оплату',
+      );
     } catch (error: any) {
       alert(error?.message || 'Не удалось создать оплату');
     } finally {
