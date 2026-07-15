@@ -82,15 +82,32 @@ export default async function handler(request, response) {
 
   const body = await readJsonBody(request);
 
-  const { error } = await supabase.rpc('upsert_tbank_provider_settings_admin_rpc', {
-    p_is_active: Boolean(body.is_active),
-    p_terminal_key: String(body.terminal_key || '').trim(),
-    p_terminal_password: String(body.terminal_password || ''),
-    p_api_url: String(body.api_url || '').trim() || 'https://rest-api-test.tinkoff.ru/v2/Init',
-    p_success_url: String(body.success_url || '').trim() || null,
-    p_fail_url: String(body.fail_url || '').trim() || null,
-    p_notification_url: String(body.notification_url || '').trim() || null,
+  const settingsPayload = {
+    is_active: Boolean(body.is_active),
+    terminal_key: String(body.terminal_key || '').trim(),
+    terminal_password: String(body.terminal_password || ''),
+    api_url: String(body.api_url || '').trim() || 'https://rest-api-test.tinkoff.ru/v2/Init',
+    success_url: String(body.success_url || '').trim() || null,
+    fail_url: String(body.fail_url || '').trim() || null,
+    notification_url: String(body.notification_url || '').trim() || null,
+  };
+
+  let { error } = await supabase.rpc('upsert_tbank_provider_settings_admin_json_rpc', {
+    p_settings: settingsPayload,
   });
+
+  if (error?.code === 'PGRST202') {
+    const fallback = await supabase.rpc('upsert_tbank_provider_settings_admin_rpc', {
+      p_is_active: settingsPayload.is_active,
+      p_terminal_key: settingsPayload.terminal_key,
+      p_terminal_password: settingsPayload.terminal_password,
+      p_api_url: settingsPayload.api_url,
+      p_success_url: settingsPayload.success_url,
+      p_fail_url: settingsPayload.fail_url,
+      p_notification_url: settingsPayload.notification_url,
+    });
+    error = fallback.error;
+  }
 
   if (error) {
     return json(response, 400, {

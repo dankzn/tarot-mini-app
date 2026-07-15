@@ -255,6 +255,65 @@ begin
 end;
 $$;
 
+create or replace function public.upsert_tbank_provider_settings_admin_json_rpc(
+  p_settings jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  existing_password text;
+  incoming_password text;
+begin
+  if not public.is_site_admin_user() then
+    raise exception 'ADMIN_REQUIRED' using errcode = '28000';
+  end if;
+
+  select terminal_password
+    into existing_password
+    from public.payment_provider_settings
+    where provider = 'tbank';
+
+  incoming_password := coalesce(p_settings ->> 'terminal_password', '');
+
+  insert into public.payment_provider_settings (
+    provider,
+    is_active,
+    terminal_key,
+    terminal_password,
+    api_url,
+    success_url,
+    fail_url,
+    notification_url,
+    updated_at
+  )
+  values (
+    'tbank',
+    coalesce((p_settings ->> 'is_active')::boolean, false),
+    nullif(trim(coalesce(p_settings ->> 'terminal_key', '')), ''),
+    coalesce(nullif(incoming_password, ''), existing_password),
+    coalesce(nullif(trim(coalesce(p_settings ->> 'api_url', '')), ''), 'https://rest-api-test.tinkoff.ru/v2/Init'),
+    nullif(trim(coalesce(p_settings ->> 'success_url', '')), ''),
+    nullif(trim(coalesce(p_settings ->> 'fail_url', '')), ''),
+    nullif(trim(coalesce(p_settings ->> 'notification_url', '')), ''),
+    now()
+  )
+  on conflict (provider) do update set
+    is_active = excluded.is_active,
+    terminal_key = excluded.terminal_key,
+    terminal_password = coalesce(excluded.terminal_password, public.payment_provider_settings.terminal_password),
+    api_url = excluded.api_url,
+    success_url = excluded.success_url,
+    fail_url = excluded.fail_url,
+    notification_url = excluded.notification_url,
+    updated_at = now();
+
+  return true;
+end;
+$$;
+
 create or replace function public.get_tbank_runtime_settings_rpc()
 returns table(
   is_active boolean,
@@ -354,12 +413,16 @@ $$;
 revoke all on function public.is_site_admin_user() from public;
 revoke all on function public.get_tbank_provider_settings_admin_rpc() from public;
 revoke all on function public.upsert_tbank_provider_settings_admin_rpc(boolean, text, text, text, text, text, text) from public;
+revoke all on function public.upsert_tbank_provider_settings_admin_json_rpc(jsonb) from public;
 revoke all on function public.get_tbank_runtime_settings_rpc() from public;
 revoke all on function public.sign_tbank_payload_rpc(jsonb) from public;
 revoke all on function public.verify_tbank_payload_token_rpc(jsonb) from public;
 
 grant execute on function public.get_tbank_provider_settings_admin_rpc() to authenticated;
 grant execute on function public.upsert_tbank_provider_settings_admin_rpc(boolean, text, text, text, text, text, text) to authenticated;
+grant execute on function public.upsert_tbank_provider_settings_admin_json_rpc(jsonb) to authenticated;
 grant execute on function public.get_tbank_runtime_settings_rpc() to anon, authenticated;
 grant execute on function public.sign_tbank_payload_rpc(jsonb) to anon, authenticated;
 grant execute on function public.verify_tbank_payload_token_rpc(jsonb) to anon, authenticated;
+
+notify pgrst, 'reload schema';
