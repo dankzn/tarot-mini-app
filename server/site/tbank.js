@@ -1,9 +1,154 @@
 import crypto from 'crypto';
+import https from 'https';
 import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
 
 const TBANK_INIT_URL = 'https://rest-api-test.tinkoff.ru/v2/Init';
+const TBANK_REQUEST_TIMEOUT_MS = 15000;
 
 const json = (response, status, payload) => response.status(status).json(payload);
+
+const normalizeTbankUrl = (value) => {
+  const rawUrl = String(value || '').trim();
+  const url = rawUrl || TBANK_INIT_URL;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      const error = new Error('Адрес API Т-Банка должен начинаться с https://');
+      error.code = 'TBANK_API_URL_INVALID';
+      throw error;
+    }
+    return parsed.toString();
+  } catch (error) {
+    if (error?.code === 'TBANK_API_URL_INVALID') throw error;
+    const invalidUrlError = new Error('Некорректный API URL Т-Банка в настройках оплаты');
+    invalidUrlError.code = 'TBANK_API_URL_INVALID';
+    invalidUrlError.details = { apiUrl: rawUrl || null };
+    throw invalidUrlError;
+  }
+};
+
+const getSafeUrlDetails = (value) => {
+  try {
+    const url = new URL(value);
+    return {
+      protocol: url.protocol.replace(':', ''),
+      host: url.host,
+      path: url.pathname,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const getNetworkErrorDetails = (error) => {
+  const cause = error?.cause || {};
+  return {
+    message: error?.message || String(error),
+    code: error?.code || cause?.code || null,
+    causeMessage: cause?.message || null,
+    causeCode: cause?.code || null,
+    errno: cause?.errno || null,
+    syscall: cause?.syscall || null,
+    hostname: cause?.hostname || null,
+  };
+};
+
+const isTbankTestInitUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.hostname === 'rest-api-test.tinkoff.ru' || url.hostname === 'rest-api-test.tbank.ru';
+  } catch {
+    return false;
+  }
+};
+
+const readBankResponseBody = (bankResponse) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    bankResponse.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    bankResponse.on('error', reject);
+    bankResponse.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+  });
+
+const parseBankPayload = (rawText) => {
+  if (!rawText) return null;
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return {
+      Success: false,
+      Message: 'Т-Банк вернул ответ не в JSON',
+      Details: rawText.slice(0, 500),
+    };
+  }
+};
+
+const requestTbankJson = (initUrl, payload) =>
+  new Promise((resolve, reject) => {
+    const url = new URL(initUrl);
+    const body = JSON.stringify(payload);
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        rejectUnauthorized: !isTbankTestInitUrl(initUrl),
+        timeout: TBANK_REQUEST_TIMEOUT_MS,
+      },
+      async (bankResponse) => {
+        try {
+          const rawText = await readBankResponseBody(bankResponse);
+          resolve({
+            bankResponse: {
+              ok: bankResponse.statusCode >= 200 && bankResponse.statusCode < 300,
+              status: bankResponse.statusCode,
+              statusText: bankResponse.statusMessage || '',
+            },
+            bankPayload: parseBankPayload(rawText),
+          });
+        } catch (error) {
+          reject(error);
+        }
+      },
+    );
+
+    request.on('timeout', () => {
+      const timeoutError = new Error('Т-Банк не ответил за 15 секунд');
+      timeoutError.code = 'TBANK_TIMEOUT';
+      request.destroy(timeoutError);
+    });
+    request.on('error', reject);
+    request.write(body);
+    request.end();
+  });
+
+const postTbankInit = async (initUrl, payload) => {
+  const normalizedUrl = normalizeTbankUrl(initUrl);
+
+  try {
+    const result = await requestTbankJson(normalizedUrl, payload);
+    return { ...result, initUrl: normalizedUrl };
+  } catch (error) {
+    const details = getNetworkErrorDetails(error);
+    const timeoutText = error?.code === 'TBANK_TIMEOUT' ? 'Т-Банк не ответил за 15 секунд' : 'Не удалось подключиться к API Т-Банка';
+    const networkError = new Error(`${timeoutText}: ${details.causeCode || details.code || details.causeMessage || details.message}`);
+    networkError.code = 'TBANK_FETCH_FAILED';
+    networkError.details = {
+      api: getSafeUrlDetails(normalizedUrl),
+      tls: isTbankTestInitUrl(normalizedUrl) ? 'relaxed_for_tbank_test_endpoint' : 'strict',
+      network: details,
+    };
+    throw networkError;
+  }
+};
 
 const readTbankBody = async (request) => {
   if (request.body && typeof request.body === 'object') return request.body;
@@ -366,12 +511,27 @@ export const tbankInitHandler = async (request, response) => {
   };
 
   const token = await signTbankPayload(supabase, payload, config.password);
-  const initResponse = await fetch(config.initUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...payload, Token: token }),
-  });
-  const initPayload = await initResponse.json().catch(() => null);
+  let initResponse;
+  let initPayload;
+
+  try {
+    const initResult = await postTbankInit(config.initUrl, { ...payload, Token: token });
+    initResponse = initResult.bankResponse;
+    initPayload = initResult.bankPayload;
+  } catch (error) {
+    console.error('T-Bank Init request failed:', {
+      message: error?.message || String(error),
+      code: error?.code || null,
+      details: error?.details || null,
+    });
+
+    return json(response, 502, {
+      ok: false,
+      error: error?.message || 'Не удалось подключиться к API Т-Банка',
+      code: error?.code || 'TBANK_FETCH_FAILED',
+      details: error?.details || null,
+    });
+  }
 
   const attemptPayload = {
     user_id: session.id,
