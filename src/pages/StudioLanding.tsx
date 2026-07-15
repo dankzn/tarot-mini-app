@@ -713,14 +713,27 @@ const ConsultationsPage = ({
 
     const loadServices = async () => {
       setLoading(true);
-      const { data } = await supabase
+      const orderedRequest = await supabase
         .from('services')
-        .select('id,title,description,price,duration_minutes,category,is_active')
-        .eq('is_active', true)
+        .select('*')
+        .order('sort_order', { ascending: true })
         .order('price', { ascending: true });
 
+      let data = orderedRequest.data;
+      let error = orderedRequest.error;
+
+      if (error) {
+        const fallbackRequest = await supabase
+          .from('services')
+          .select('*')
+          .order('price', { ascending: true });
+
+        data = fallbackRequest.data;
+        error = fallbackRequest.error;
+      }
+
       if (!cancelled) {
-        setServices(((data || []) as SiteService[]).filter((service) => service.title && Number(service.price || 0) > 0));
+        setServices(error ? [] : ((data || []) as SiteService[]).filter((service) => service.title && Number(service.price || 0) > 0));
         setLoading(false);
       }
     };
@@ -1833,7 +1846,7 @@ const ProfileCabinetPage = ({
       setLoadingData(true);
       try {
         const [servicesResponse, consultationsResponse, enrollmentsResponse] = await Promise.allSettled([
-          supabase.from('services').select('*').eq('is_active', true).order('price', { ascending: true }),
+          supabase.from('services').select('*').order('price', { ascending: true }),
           supabase
             .from('consultations')
             .select('id, scheduled_at, requested_date, requested_time_text, scheduling_status, status, price, payment_status, payment_amount, priority_fee, services(title, duration_minutes)')

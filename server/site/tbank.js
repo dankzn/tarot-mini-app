@@ -74,9 +74,8 @@ const withQueryParam = (url, key, value) => {
 const getServicePosition = async (supabase, item) => {
   const { data, error } = await supabase
     .from('services')
-    .select('id,title,price,is_active')
+    .select('id,title,price')
     .eq('id', item.id)
-    .eq('is_active', true)
     .maybeSingle();
 
   if (error) throw error;
