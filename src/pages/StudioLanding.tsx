@@ -2705,7 +2705,7 @@ export const StudioLanding = () => {
 
       throw new Error(
         payload?.code === 'TBANK_NOT_CONFIGURED'
-          ? 'Эквайринг Т-Банка не настроен на сервере. Старую ссылку перевода больше не открываю вместо оплаты'
+          ? 'Т-Банк не настроен. Заполните Terminal Key и пароль в админке → Услуги → Способы оплаты'
           : payload?.error || 'Не удалось создать оплату',
       );
     } catch (error: any) {

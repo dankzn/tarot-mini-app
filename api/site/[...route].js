@@ -10,6 +10,7 @@ import servicesHandler from '../../server/site/services.js';
 import sessionHandler from '../../server/site/session.js';
 import telegramLoginHandler from '../../server/site/telegram-login.js';
 import { tbankInitHandler, tbankNotificationHandler, tbankStatusHandler } from '../../server/site/tbank.js';
+import tbankSettingsHandler from '../../server/site/tbank-settings.js';
 
 const routeHandlers = {
   'credentials-status': credentialsStatusHandler,
@@ -25,6 +26,7 @@ const routeHandlers = {
   'telegram-login': telegramLoginHandler,
   'tbank-init': tbankInitHandler,
   'tbank-notification': tbankNotificationHandler,
+  'tbank-settings': tbankSettingsHandler,
   'tbank-status': tbankStatusHandler,
 };
 

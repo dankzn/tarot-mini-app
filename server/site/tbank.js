@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
+import { getSiteCredentialsSecret, getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
 
 const TBANK_INIT_URL = 'https://rest-api-test.tinkoff.ru/v2/Init';
 
@@ -51,18 +51,37 @@ const buildToken = (payload, password) => {
     .digest('hex');
 };
 
-const getTbankConfig = (request) => {
+const getTbankSettingsFromDb = async (supabase) => {
+  const secret = getSiteCredentialsSecret();
+  if (!secret) return null;
+
+  const { data, error } = await supabase.rpc('get_tbank_provider_settings_rpc', {
+    p_secret: secret,
+  });
+
+  if (error) {
+    console.warn('T-Bank settings RPC failed:', error.message || error);
+    return null;
+  }
+
+  const settings = Array.isArray(data) ? data[0] : data;
+  if (!settings?.is_active) return null;
+  return settings;
+};
+
+const getTbankConfig = async (request, supabase) => {
   const terminalKey = process.env.TBANK_TERMINAL_KEY || process.env.TINKOFF_TERMINAL_KEY || '';
   const password = process.env.TBANK_PASSWORD || process.env.TINKOFF_PASSWORD || '';
+  const dbSettings = terminalKey && password ? null : await getTbankSettingsFromDb(supabase);
   const siteUrl = getSiteUrl(request);
 
   return {
-    terminalKey,
-    password,
-    initUrl: process.env.TBANK_API_URL || process.env.TINKOFF_API_URL || TBANK_INIT_URL,
-    successUrl: process.env.TBANK_SUCCESS_URL || `${siteUrl}/site/payment?payment=success`,
-    failUrl: process.env.TBANK_FAIL_URL || `${siteUrl}/site/payment?payment=failed`,
-    notificationUrl: process.env.TBANK_NOTIFICATION_URL || `${siteUrl}/api/site/tbank-notification`,
+    terminalKey: terminalKey || dbSettings?.terminal_key || '',
+    password: password || dbSettings?.terminal_password || '',
+    initUrl: process.env.TBANK_API_URL || process.env.TINKOFF_API_URL || dbSettings?.api_url || TBANK_INIT_URL,
+    successUrl: process.env.TBANK_SUCCESS_URL || dbSettings?.success_url || `${siteUrl}/site/payment?payment=success`,
+    failUrl: process.env.TBANK_FAIL_URL || dbSettings?.fail_url || `${siteUrl}/site/payment?payment=failed`,
+    notificationUrl: process.env.TBANK_NOTIFICATION_URL || dbSettings?.notification_url || `${siteUrl}/api/site/tbank-notification`,
   };
 };
 
@@ -257,11 +276,12 @@ export const tbankInitHandler = async (request, response) => {
     });
   }
 
-  const config = getTbankConfig(request);
+  const supabase = getSupabaseAdmin();
+  const config = await getTbankConfig(request, supabase);
   if (!config.terminalKey || !config.password) {
     return json(response, 503, {
       ok: false,
-      error: 'Эквайринг Т-Банка пока не настроен',
+      error: 'Т-Банк не настроен. Откройте админку → Услуги → Способы оплаты и заполните Terminal Key и пароль',
       code: 'TBANK_NOT_CONFIGURED',
     });
   }
@@ -279,7 +299,6 @@ export const tbankInitHandler = async (request, response) => {
     });
   }
 
-  const supabase = getSupabaseAdmin();
   const positions = await getCartPositions(supabase, cartItems, session.id);
   const totalRubles = positions.reduce((sum, item) => sum + item.amount, 0);
   const amount = Math.round(totalRubles * 100);
@@ -414,7 +433,8 @@ export const tbankStatusHandler = async (request, response) => {
 export const tbankNotificationHandler = async (request, response) => {
   if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
 
-  const config = getTbankConfig(request);
+  const supabase = getSupabaseAdmin();
+  const config = await getTbankConfig(request, supabase);
   if (!config.terminalKey || !config.password) {
     return response.status(200).send('OK');
   }
@@ -438,8 +458,6 @@ export const tbankNotificationHandler = async (request, response) => {
   const isSuccess = notification.Success === true || String(notification.Success || '').toLowerCase() === 'true';
   const isPaid = isSuccess && ['AUTHORIZED', 'CONFIRMED'].includes(status);
   const isFailed = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED'].includes(status);
-  const supabase = getSupabaseAdmin();
-
   const { data: attempt } = await supabase
     .from('payment_attempts')
     .select('id,cart_items')

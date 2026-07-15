@@ -7,6 +7,9 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const fallbackSupabaseUrl = 'https://hhcexivlaqjeuvnzeqnn.supabase.co';
 const fallbackSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoY2V4aXZsYXFqZXV2bnplcW5uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDI1MTAsImV4cCI6MjA5NjgxODUxMH0.nVwKyd_BITZ9SU4LQHXkb89ndUM7O_DGd6ESJx282B0';
 
+const getSupabaseUrl = () => process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || fallbackSupabaseUrl;
+const getSupabaseAnonKey = () => process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || fallbackSupabaseAnonKey;
+
 export const getBotToken = () =>
   process.env.TELEGRAM_BOT_TOKEN ||
   process.env.BOT_TOKEN ||
@@ -29,7 +32,7 @@ export const getSiteUrl = (request) => {
 };
 
 export const getSupabaseAdmin = () => {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || fallbackSupabaseUrl;
+  const supabaseUrl = getSupabaseUrl();
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
@@ -43,8 +46,8 @@ export const getSupabaseAdmin = () => {
 };
 
 export const getSupabaseAuthClient = () => {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || fallbackSupabaseUrl;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || fallbackSupabaseAnonKey;
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseAnonKey();
 
   return createClient(supabaseUrl, supabaseKey, {
     auth: {
@@ -52,6 +55,26 @@ export const getSupabaseAuthClient = () => {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+  });
+};
+
+export const getSupabaseUserClient = (accessToken) => {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseAnonKey();
+
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: accessToken
+      ? {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      : undefined,
   });
 };
 
