@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
+import { getServicePriceState } from '../lib/serviceCampaigns';
 
 interface PaymentMethod {
   id: string;
@@ -53,6 +54,12 @@ interface SiteService {
   title: string;
   description?: string | null;
   price?: number | null;
+  next_price?: number | null;
+  price_increase_at?: string | null;
+  promo_title?: string | null;
+  promo_price?: number | null;
+  promo_starts_at?: string | null;
+  promo_ends_at?: string | null;
   duration_minutes?: number | null;
   category?: string | null;
   is_active?: boolean | null;
@@ -190,6 +197,17 @@ const getConsultationTitle = (item: SiteConsultation) => item.services?.title ||
 
 const getConsultationPrice = (item: SiteConsultation) => Number(item.payment_amount ?? item.price ?? 0);
 
+const getSiteServicePrice = (service: SiteService) =>
+  getServicePriceState({
+    price: Number(service.price || 0),
+    next_price: service.next_price,
+    price_increase_at: service.price_increase_at,
+    promo_title: service.promo_title,
+    promo_price: service.promo_price,
+    promo_starts_at: service.promo_starts_at,
+    promo_ends_at: service.promo_ends_at,
+  }).currentPrice;
+
 const needsPayment = (status?: string | null) => !['paid', 'confirmed', 'completed'].includes(String(status || '').toLowerCase());
 
 const getStoredTheme = (): SiteTheme => {
@@ -247,16 +265,23 @@ const MotionEngine = () => {
       requestAnimationFrame(updateScroll);
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) entry.target.classList.add('is-visible');
-        });
-      },
-      { threshold: 0.16 },
-    );
+    let observer: IntersectionObserver | null = null;
+    const revealElements = Array.from(document.querySelectorAll('.site-reveal'));
 
-    document.querySelectorAll('.site-reveal').forEach((element) => observer.observe(element));
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) entry.target.classList.add('is-visible');
+          });
+        },
+        { threshold: 0.16 },
+      );
+
+      revealElements.forEach((element) => observer?.observe(element));
+    } else {
+      revealElements.forEach((element) => element.classList.add('is-visible'));
+    }
 
     const magneticItems = Array.from(document.querySelectorAll<HTMLElement>('[data-magnetic]'));
     const cleanups = magneticItems.map((element) => {
@@ -283,7 +308,7 @@ const MotionEngine = () => {
 
     return () => {
       cancelAnimationFrame(frame);
-      observer.disconnect();
+      observer?.disconnect();
       cleanups.forEach((cleanup) => cleanup());
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('scroll', onScroll);
@@ -733,7 +758,7 @@ const ConsultationsPage = ({
       }
 
       if (!cancelled) {
-        setServices(error ? [] : ((data || []) as SiteService[]).filter((service) => service.title && Number(service.price || 0) > 0));
+        setServices(error ? [] : ((data || []) as SiteService[]).filter((service) => service.title && getSiteServicePrice(service) > 0));
         setLoading(false);
       }
     };
@@ -746,11 +771,13 @@ const ConsultationsPage = ({
 
   const categories = Array.from(new Set(services.map((service) => service.category).filter(Boolean))) as string[];
   const addServiceToCart = (service: SiteService) => {
+    const price = getSiteServicePrice(service);
+
     onAddToCart({
       id: `service:${service.id}`,
       source: 'service',
       title: service.title,
-      price: Number(service.price || 0),
+      price,
       meta: [service.category, service.duration_minutes ? `${service.duration_minutes} мин` : ''].filter(Boolean).join(' · '),
     });
     onGoPayment();
@@ -809,7 +836,7 @@ const ConsultationsPage = ({
               </div>
               <div className="grid min-w-[8.5rem] shrink-0 place-items-center rounded-[1.5rem] bg-[#F7EDE0] px-5 py-4 text-right shadow-[0_18px_50px_rgba(47,70,59,0.08)]">
                 <span className="text-xs font-bold uppercase tracking-[0.24em] text-[#2F463B]/42">цена</span>
-                <span className="mt-1 text-2xl font-semibold text-[#8B604A]">{formatMoney(service.price)}</span>
+                <span className="mt-1 text-2xl font-semibold text-[#8B604A]">{formatMoney(getSiteServicePrice(service))}</span>
               </div>
             </div>
             {service.description && (
@@ -1863,7 +1890,7 @@ const ProfileCabinetPage = ({
 
         if (cancelled) return;
 
-        if (servicesResponse.status === 'fulfilled') setServices(((servicesResponse.value.data || []) as SiteService[]).filter((item) => item.title));
+        if (servicesResponse.status === 'fulfilled') setServices(((servicesResponse.value.data || []) as SiteService[]).filter((item) => item.title && getSiteServicePrice(item) > 0));
         if (consultationsResponse.status === 'fulfilled') {
           setConsultations(((consultationsResponse.value.data || []) as any[]).map((item) => ({ ...item, services: one(item.services) })));
         }
@@ -2223,7 +2250,7 @@ const ProfileCabinetPage = ({
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-2xl font-semibold text-[#8B604A]">{formatMoney(service.price)}</span>
+                    <span className="text-2xl font-semibold text-[#8B604A]">{formatMoney(getSiteServicePrice(service))}</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -2231,7 +2258,7 @@ const ProfileCabinetPage = ({
                           id: `service:${service.id}`,
                           source: 'service',
                           title: service.title,
-                          price: Number(service.price || 0),
+                          price: getSiteServicePrice(service),
                           meta: service.category || 'услуга',
                         })
                       }
@@ -2438,12 +2465,21 @@ export const StudioLanding = () => {
     if (!item.price || item.price <= 0) return;
     setCart((current) => {
       if (current.some((existing) => existing.id === item.id)) return current;
-      return [...current, item];
+      const nextCart = [...current, item];
+      window.localStorage.setItem('tarot-site-cart', JSON.stringify(nextCart));
+      return nextCart;
     });
   };
 
-  const removeFromCart = (id: string) => setCart((current) => current.filter((item) => item.id !== id));
-  const clearCart = () => setCart([]);
+  const removeFromCart = (id: string) => setCart((current) => {
+    const nextCart = current.filter((item) => item.id !== id);
+    window.localStorage.setItem('tarot-site-cart', JSON.stringify(nextCart));
+    return nextCart;
+  });
+  const clearCart = () => {
+    window.localStorage.setItem('tarot-site-cart', '[]');
+    setCart([]);
+  };
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   const goToProfile = () => {
     window.history.pushState({}, '', '/site/profile');

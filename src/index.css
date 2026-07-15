@@ -483,9 +483,9 @@ select:focus-visible {
 }
 
 .site-reveal {
-  opacity: 0;
-  transform: translate3d(0, 42px, 0) scale(0.985);
-  filter: blur(10px);
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
   transition:
     opacity 0.85s cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 0.85s cubic-bezier(0.2, 0.8, 0.2, 1),

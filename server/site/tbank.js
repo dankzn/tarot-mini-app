@@ -71,10 +71,32 @@ const withQueryParam = (url, key, value) => {
   return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 };
 
+const parseDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getCurrentServicePrice = (service) => {
+  const now = Date.now();
+  const basePrice = Number(service?.price || 0);
+  const nextPrice = Number(service?.next_price || 0);
+  const promoPrice = Number(service?.promo_price || 0);
+  const priceIncreaseAt = parseDate(service?.price_increase_at);
+  const promoStartsAt = parseDate(service?.promo_starts_at);
+  const promoEndsAt = parseDate(service?.promo_ends_at);
+  const promoStarted = !promoStartsAt || promoStartsAt.getTime() <= now;
+  const promoActive = promoPrice > 0 && promoStarted && (!promoEndsAt || promoEndsAt.getTime() > now);
+
+  if (promoActive) return promoPrice;
+  if (nextPrice > 0 && priceIncreaseAt && priceIncreaseAt.getTime() <= now) return nextPrice;
+  return basePrice;
+};
+
 const getServicePosition = async (supabase, item) => {
   const { data, error } = await supabase
     .from('services')
-    .select('id,title,price')
+    .select('id,title,price,next_price,price_increase_at,promo_price,promo_starts_at,promo_ends_at')
     .eq('id', item.id)
     .maybeSingle();
 
@@ -85,7 +107,7 @@ const getServicePosition = async (supabase, item) => {
     source: 'service',
     source_id: data.id,
     title: data.title || 'Услуга',
-    amount: Number(data.price || 0),
+    amount: getCurrentServicePrice(data),
   };
 };
 
