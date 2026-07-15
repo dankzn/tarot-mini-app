@@ -1,8 +1,10 @@
 import { type AnchorHTMLAttributes, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowRight,
   BookOpen,
   CalendarCheck,
+  CheckCircle2,
   ChevronLeft,
   Clock,
   CreditCard,
@@ -105,6 +107,15 @@ type CartItem = {
   price: number;
   meta?: string;
 };
+
+type PaymentResultState = {
+  type: 'success' | 'error' | 'info';
+  title: string;
+  message: string;
+  orderId?: string | null;
+  bankStatus?: string | null;
+  bankCode?: string | null;
+} | null;
 
 type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment' | 'privacy' | 'offer';
 type SiteTheme = 'light' | 'dark';
@@ -2338,9 +2349,143 @@ const PaymentPage = ({
   paymentBusy: boolean;
 }) => {
   const activeMethod = paymentMethods[0];
+  const [paymentResult, setPaymentResult] = useState<PaymentResultState>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentMarker = params.get('payment');
+    const orderId = params.get('order');
+
+    if (!paymentMarker && !orderId) return;
+
+    let isMounted = true;
+
+    const showFallbackResult = () => {
+      if (!isMounted) return;
+      if (paymentMarker === 'failed') {
+        setPaymentResult({
+          type: 'error',
+          title: 'Оплата не прошла',
+          message: params.get('message') || params.get('Message') || params.get('Details') || 'Банк не одобрил оплату',
+          orderId,
+          bankCode: params.get('ErrorCode') || params.get('errorCode'),
+          bankStatus: params.get('Status') || params.get('status'),
+        });
+        return;
+      }
+
+      if (paymentMarker === 'success') {
+        setPaymentResult({
+          type: 'success',
+          title: 'Оплата прошла',
+          message: 'Платёж принят банком',
+          orderId,
+        });
+      }
+    };
+
+    if (!orderId) {
+      showFallbackResult();
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    fetch(`/api/site/tbank-status?order=${encodeURIComponent(orderId)}`, {
+      credentials: 'include',
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || 'Не удалось получить статус оплаты');
+        }
+
+        if (!isMounted) return;
+        if (payload.paymentState === 'paid') {
+          setPaymentResult({
+            type: 'success',
+            title: payload.title || 'Оплата прошла',
+            message: payload.message || 'Платёж принят банком',
+            orderId: payload.orderId,
+          });
+          return;
+        }
+
+        if (payload.paymentState === 'failed' || paymentMarker === 'failed') {
+          setPaymentResult({
+            type: 'error',
+            title: payload.title || 'Оплата не прошла',
+            message:
+              payload.paymentState === 'failed'
+                ? payload.message || 'Банк не одобрил оплату'
+                : params.get('message') || params.get('Message') || params.get('Details') || 'Банк не одобрил оплату',
+            orderId: payload.orderId,
+            bankStatus: payload.bankStatus,
+            bankCode: payload.bankCode,
+          });
+          return;
+        }
+
+        setPaymentResult({
+          type: 'info',
+          title: payload.title || 'Платёж обрабатывается',
+          message: payload.message || 'Банк ещё не прислал финальный статус',
+          orderId: payload.orderId,
+          bankStatus: payload.bankStatus,
+        });
+      })
+      .catch((error) => {
+        showFallbackResult();
+        if (!isMounted || paymentMarker) return;
+        setPaymentResult({
+          type: 'info',
+          title: 'Статус оплаты пока недоступен',
+          message: error?.message || 'Попробуйте обновить страницу чуть позже',
+          orderId,
+        });
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+      {paymentResult && (
+        <div
+          className={`site-reveal mb-8 rounded-[2rem] border p-6 shadow-[0_26px_90px_rgba(47,70,59,0.1)] backdrop-blur-xl ${
+            paymentResult.type === 'error'
+              ? 'border-[#B98266]/28 bg-[#FFF5EC]/86 text-[#6F3F2D]'
+              : paymentResult.type === 'success'
+                ? 'border-[#2F463B]/16 bg-[#EAF2EA]/86 text-[#2F463B]'
+                : 'border-[#2F463B]/12 bg-white/[0.74] text-[#2F463B]'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${
+                paymentResult.type === 'error' ? 'bg-[#B98266]/14 text-[#8B604A]' : 'bg-[#2F463B]/10 text-[#2F463B]'
+              }`}
+            >
+              {paymentResult.type === 'success' ? <CheckCircle2 className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#B98266]">Статус оплаты</p>
+              <h2 className="site-display mt-2 text-[clamp(1.8rem,3vw,2.8rem)] leading-[1.02]">{paymentResult.title}</h2>
+              <p className="mt-3 max-w-3xl text-base font-medium leading-relaxed opacity-75">{paymentResult.message}</p>
+              {(paymentResult.orderId || paymentResult.bankCode || paymentResult.bankStatus) && (
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] opacity-60">
+                  {paymentResult.orderId && <span className="rounded-full bg-white/60 px-3 py-2">Заказ {paymentResult.orderId}</span>}
+                  {paymentResult.bankStatus && <span className="rounded-full bg-white/60 px-3 py-2">Статус {paymentResult.bankStatus}</span>}
+                  {paymentResult.bankCode && <span className="rounded-full bg-white/60 px-3 py-2">Код {paymentResult.bankCode}</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">
         <SectionIntro
           eyebrow="Оплата"

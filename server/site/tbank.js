@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
 
-const TBANK_INIT_URL = 'https://securepay.tinkoff.ru/v2/Init';
+const TBANK_INIT_URL = 'https://rest-api-test.tinkoff.ru/v2/Init';
 
 const json = (response, status, payload) => response.status(status).json(payload);
 
@@ -188,6 +188,63 @@ const updateSourcePaymentStatus = async (supabase, positions, patch) => {
   if (failedUpdate?.error) throw failedUpdate.error;
 };
 
+const getRequestQueryParam = (request, key) => {
+  const queryValue = request.query?.[key];
+  if (Array.isArray(queryValue)) return queryValue[0] || '';
+  if (queryValue) return String(queryValue);
+
+  const host = request.headers.host || 'localhost';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const url = new URL(request.url || '/', `${protocol}://${host}`);
+  return url.searchParams.get(key) || '';
+};
+
+const getBankErrorMessage = (payload) => {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const details = String(source.Details || source.details || '').trim();
+  const message = String(source.Message || source.message || '').trim();
+  const status = String(source.Status || source.status || '').trim();
+  const errorCode = String(source.ErrorCode || source.errorCode || source.Error || '').trim();
+
+  if (details && message && details !== message) return `${message}: ${details}`;
+  if (details) return details;
+  if (message) return message;
+  if (errorCode && errorCode !== '0') return `Код ошибки банка: ${errorCode}`;
+  if (status) return `Статус платежа: ${status}`;
+  return 'Банк не одобрил оплату';
+};
+
+const getBankStatusMessage = (attempt) => {
+  const rawNotification = attempt?.raw_notification || {};
+  const rawResponse = attempt?.raw_response || {};
+  const status = String(rawNotification.Status || attempt?.status || '').toUpperCase();
+
+  if (['AUTHORIZED', 'CONFIRMED', 'PAID'].includes(status) || attempt?.status === 'paid') {
+    return {
+      paymentState: 'paid',
+      title: 'Оплата прошла',
+      message: 'Платёж принят банком',
+    };
+  }
+
+  if (['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status) || attempt?.status === 'failed') {
+    return {
+      paymentState: 'failed',
+      title: 'Оплата не прошла',
+      message: getBankErrorMessage(rawNotification?.Status ? rawNotification : rawResponse),
+      bankStatus: status || attempt?.status || null,
+      bankCode: rawNotification.ErrorCode || rawResponse.ErrorCode || null,
+    };
+  }
+
+  return {
+    paymentState: 'processing',
+    title: 'Платёж обрабатывается',
+    message: 'Банк ещё не прислал финальный статус',
+    bankStatus: status || attempt?.status || null,
+  };
+};
+
 export const tbankInitHandler = async (request, response) => {
   if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
 
@@ -283,9 +340,11 @@ export const tbankInitHandler = async (request, response) => {
   }
 
   if (!initResponse.ok || !initPayload?.Success || !initPayload?.PaymentURL) {
+    const errorMessage = getBankErrorMessage(initPayload);
+
     return json(response, 502, {
       ok: false,
-      error: initPayload?.Details || initPayload?.Message || 'Т-Банк не создал платёж',
+      error: errorMessage,
       code: initPayload?.ErrorCode || 'TBANK_INIT_FAILED',
       details: initPayload,
     });
@@ -302,6 +361,53 @@ export const tbankInitHandler = async (request, response) => {
     paymentId: String(initPayload.PaymentId || ''),
     paymentUrl: initPayload.PaymentURL,
     amount: totalRubles,
+  });
+};
+
+export const tbankStatusHandler = async (request, response) => {
+  if (request.method !== 'GET') return json(response, 405, { ok: false, error: 'Method not allowed' });
+
+  const orderId = getRequestQueryParam(request, 'order').trim();
+  if (!orderId) {
+    return json(response, 400, {
+      ok: false,
+      error: 'Не передан номер заказа',
+      code: 'ORDER_REQUIRED',
+    });
+  }
+
+  const session = readSession(request);
+  const supabase = getSupabaseAdmin();
+  const { data: attempt, error } = await supabase
+    .from('payment_attempts')
+    .select('id,user_id,order_id,payment_id,status,amount,description,raw_response,raw_notification,created_at,updated_at')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!attempt) {
+    return json(response, 404, {
+      ok: false,
+      error: 'Платёж не найден',
+      code: 'PAYMENT_ATTEMPT_NOT_FOUND',
+    });
+  }
+
+  if (session?.id && attempt.user_id && attempt.user_id !== session.id) {
+    return json(response, 403, {
+      ok: false,
+      error: 'Этот платёж относится к другому кабинету',
+      code: 'PAYMENT_OWNER_MISMATCH',
+    });
+  }
+
+  return json(response, 200, {
+    ok: true,
+    orderId: attempt.order_id,
+    paymentId: attempt.payment_id,
+    amount: attempt.amount,
+    description: attempt.description,
+    ...getBankStatusMessage(attempt),
   });
 };
 

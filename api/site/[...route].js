@@ -9,7 +9,7 @@ import registerHandler from '../../server/site/register.js';
 import servicesHandler from '../../server/site/services.js';
 import sessionHandler from '../../server/site/session.js';
 import telegramLoginHandler from '../../server/site/telegram-login.js';
-import { tbankInitHandler, tbankNotificationHandler } from '../../server/site/tbank.js';
+import { tbankInitHandler, tbankNotificationHandler, tbankStatusHandler } from '../../server/site/tbank.js';
 
 const routeHandlers = {
   'credentials-status': credentialsStatusHandler,
@@ -25,6 +25,7 @@ const routeHandlers = {
   'telegram-login': telegramLoginHandler,
   'tbank-init': tbankInitHandler,
   'tbank-notification': tbankNotificationHandler,
+  'tbank-status': tbankStatusHandler,
 };
 
 const getRouteName = (request) => {
