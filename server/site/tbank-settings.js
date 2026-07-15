@@ -1,6 +1,4 @@
 import {
-  getSiteCredentialsSecret,
-  getSupabaseAdmin,
   getSupabaseUserClient,
   readJsonBody,
 } from './_auth.js';
@@ -35,14 +33,7 @@ const assertAdmin = async (token) => {
 };
 
 const getSettings = async (supabase) => {
-  const secret = getSiteCredentialsSecret();
-  if (!secret) {
-    return { ok: false, error: 'SITE_RPC_SECRET_NOT_CONFIGURED' };
-  }
-
-  const { data, error } = await supabase.rpc('get_tbank_provider_settings_rpc', {
-    p_secret: secret,
-  });
+  const { data, error } = await supabase.rpc('get_tbank_provider_settings_admin_rpc');
 
   if (error) return { ok: false, error: error.message, code: error.code, details: error.details };
 
@@ -62,7 +53,7 @@ export default async function handler(request, response) {
     });
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseUserClient(token);
 
   if (request.method === 'GET') {
     const result = await getSettings(supabase);
@@ -74,7 +65,7 @@ export default async function handler(request, response) {
       settings: {
         is_active: Boolean(settings.is_active),
         terminal_key: settings.terminal_key || '',
-        has_password: Boolean(settings.terminal_password),
+        has_password: Boolean(settings.has_password),
         api_url: settings.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
         success_url: settings.success_url || '',
         fail_url: settings.fail_url || '',
@@ -90,17 +81,8 @@ export default async function handler(request, response) {
   }
 
   const body = await readJsonBody(request);
-  const secret = getSiteCredentialsSecret();
 
-  if (!secret) {
-    return json(response, 500, {
-      ok: false,
-      error: 'SITE_RPC_SECRET_NOT_CONFIGURED',
-    });
-  }
-
-  const { error } = await supabase.rpc('upsert_tbank_provider_settings_rpc', {
-    p_secret: secret,
+  const { error } = await supabase.rpc('upsert_tbank_provider_settings_admin_rpc', {
     p_is_active: Boolean(body.is_active),
     p_terminal_key: String(body.terminal_key || '').trim(),
     p_terminal_password: String(body.terminal_password || ''),
@@ -129,7 +111,7 @@ export default async function handler(request, response) {
     settings: {
       is_active: Boolean(settings.is_active),
       terminal_key: settings.terminal_key || '',
-      has_password: Boolean(settings.terminal_password),
+      has_password: Boolean(settings.has_password),
       api_url: settings.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
       success_url: settings.success_url || '',
       fail_url: settings.fail_url || '',

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getSiteCredentialsSecret, getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
+import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
 
 const TBANK_INIT_URL = 'https://rest-api-test.tinkoff.ru/v2/Init';
 
@@ -52,12 +52,7 @@ const buildToken = (payload, password) => {
 };
 
 const getTbankSettingsFromDb = async (supabase) => {
-  const secret = getSiteCredentialsSecret();
-  if (!secret) return null;
-
-  const { data, error } = await supabase.rpc('get_tbank_provider_settings_rpc', {
-    p_secret: secret,
-  });
+  const { data, error } = await supabase.rpc('get_tbank_runtime_settings_rpc');
 
   if (error) {
     console.warn('T-Bank settings RPC failed:', error.message || error);
@@ -69,6 +64,43 @@ const getTbankSettingsFromDb = async (supabase) => {
   return settings;
 };
 
+const signTbankPayload = async (supabase, payload, fallbackPassword = '') => {
+  if (fallbackPassword) return buildToken(payload, fallbackPassword);
+
+  const { data, error } = await supabase.rpc('sign_tbank_payload_rpc', {
+    p_payload: payload,
+  });
+
+  if (error || !data) {
+    throw new Error(`TBANK_TOKEN_SIGN_FAILED: ${error?.message || 'empty token'}`);
+  }
+
+  return data;
+};
+
+const verifyTbankPayloadToken = async (supabase, payload, fallbackPassword = '') => {
+  if (fallbackPassword) {
+    const incomingToken = String(payload.Token || '');
+    const calculatedToken = buildToken(payload, fallbackPassword);
+    return (
+      incomingToken &&
+      incomingToken.length === calculatedToken.length &&
+      crypto.timingSafeEqual(Buffer.from(incomingToken), Buffer.from(calculatedToken))
+    );
+  }
+
+  const { data, error } = await supabase.rpc('verify_tbank_payload_token_rpc', {
+    p_payload: payload,
+  });
+
+  if (error) {
+    console.warn('T-Bank token verification RPC failed:', error.message || error);
+    return false;
+  }
+
+  return data === true;
+};
+
 const getTbankConfig = async (request, supabase) => {
   const terminalKey = process.env.TBANK_TERMINAL_KEY || process.env.TINKOFF_TERMINAL_KEY || '';
   const password = process.env.TBANK_PASSWORD || process.env.TINKOFF_PASSWORD || '';
@@ -78,6 +110,7 @@ const getTbankConfig = async (request, supabase) => {
   return {
     terminalKey: terminalKey || dbSettings?.terminal_key || '',
     password: password || dbSettings?.terminal_password || '',
+    canSignRemotely: Boolean(dbSettings?.has_password),
     initUrl: process.env.TBANK_API_URL || process.env.TINKOFF_API_URL || dbSettings?.api_url || TBANK_INIT_URL,
     successUrl: process.env.TBANK_SUCCESS_URL || dbSettings?.success_url || `${siteUrl}/site/payment?payment=success`,
     failUrl: process.env.TBANK_FAIL_URL || dbSettings?.fail_url || `${siteUrl}/site/payment?payment=failed`,
@@ -278,7 +311,7 @@ export const tbankInitHandler = async (request, response) => {
 
   const supabase = getSupabaseAdmin();
   const config = await getTbankConfig(request, supabase);
-  if (!config.terminalKey || !config.password) {
+  if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
     return json(response, 503, {
       ok: false,
       error: 'Т-Банк не настроен. Откройте админку → Услуги → Способы оплаты и заполните Terminal Key и пароль',
@@ -332,7 +365,7 @@ export const tbankInitHandler = async (request, response) => {
     },
   };
 
-  const token = buildToken(payload, config.password);
+  const token = await signTbankPayload(supabase, payload, config.password);
   const initResponse = await fetch(config.initUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -435,19 +468,14 @@ export const tbankNotificationHandler = async (request, response) => {
 
   const supabase = getSupabaseAdmin();
   const config = await getTbankConfig(request, supabase);
-  if (!config.terminalKey || !config.password) {
+  if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
     return response.status(200).send('OK');
   }
 
   const notification = await readTbankBody(request);
-  const incomingToken = String(notification.Token || '');
-  const calculatedToken = buildToken(notification, config.password);
+  const tokenIsValid = await verifyTbankPayloadToken(supabase, notification, config.password);
 
-  if (
-    !incomingToken ||
-    incomingToken.length !== calculatedToken.length ||
-    !crypto.timingSafeEqual(Buffer.from(incomingToken), Buffer.from(calculatedToken))
-  ) {
+  if (!tokenIsValid) {
     return response.status(403).send('INVALID TOKEN');
   }
 
