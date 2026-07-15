@@ -8,6 +8,7 @@ import passwordHandler from '../../server/site/password.js';
 import registerHandler from '../../server/site/register.js';
 import sessionHandler from '../../server/site/session.js';
 import telegramLoginHandler from '../../server/site/telegram-login.js';
+import { tbankInitHandler, tbankNotificationHandler } from '../../server/site/tbank.js';
 
 const routeHandlers = {
   'credentials-status': credentialsStatusHandler,
@@ -20,6 +21,8 @@ const routeHandlers = {
   register: registerHandler,
   session: sessionHandler,
   'telegram-login': telegramLoginHandler,
+  'tbank-init': tbankInitHandler,
+  'tbank-notification': tbankNotificationHandler,
 };
 
 const getRouteName = (request) => {

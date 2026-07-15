@@ -125,29 +125,6 @@ const studioPrinciples = [
   ['Кабинет', 'Записи, оплата и материалы остаются под рукой'],
 ];
 
-const consultationCards = [
-  {
-    title: 'Личный разбор',
-    tag: 'когда нужно разобраться',
-    text: 'Подходит, если ситуация запуталась и хочется спокойно разложить её по шагам',
-  },
-  {
-    title: 'Отношения',
-    tag: 'отношения и контакт',
-    text: 'Разбор общения, ожиданий, поведения и того, что можно сделать со своей стороны',
-  },
-  {
-    title: 'Выбор',
-    tag: 'несколько вариантов',
-    text: 'Когда есть несколько решений и нужно посмотреть, к чему может привести каждое',
-  },
-  {
-    title: 'Карта дня',
-    tag: 'отдельный формат',
-    text: 'Короткий формат на день, без привязки к отношениям, работе или большой теме',
-  },
-];
-
 const academyCards = [
   {
     title: 'Индивидуальная база',
@@ -721,49 +698,139 @@ const HomePage = () => (
   </>
 );
 
-const ConsultationsPage = () => (
-  <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
-    <div className="grid gap-10 xl:grid-cols-[0.86fr_1.14fr]">
-      <SectionIntro
-        eyebrow="Консультации"
-        title="Выберите формат"
-        text="Можно записаться на конкретное время или оставить заявку без свободного окна"
-      />
-      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.72] p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.12)] backdrop-blur-xl">
-        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">Запись</p>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {['выберите формат', 'оставьте заявку', 'дождитесь подтверждения'].map((step, index) => (
-            <div key={step} className="rounded-[1.7rem] bg-[#2F463B]/6 p-5">
-              <p className="site-display text-5xl text-[#A9795F]">0{index + 1}</p>
-              <p className="mt-5 text-xl font-semibold">{step}</p>
-            </div>
-          ))}
+const ConsultationsPage = ({
+  onAddToCart,
+  onGoPayment,
+}: {
+  onAddToCart: (item: CartItem) => void;
+  onGoPayment: () => void;
+}) => {
+  const [services, setServices] = useState<SiteService[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadServices = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from('services')
+        .select('id,title,description,price,duration_minutes,category,is_active')
+        .eq('is_active', true)
+        .order('price', { ascending: true });
+
+      if (!cancelled) {
+        setServices(((data || []) as SiteService[]).filter((service) => service.title && Number(service.price || 0) > 0));
+        setLoading(false);
+      }
+    };
+
+    loadServices();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categories = Array.from(new Set(services.map((service) => service.category).filter(Boolean))) as string[];
+  const addServiceToCart = (service: SiteService) => {
+    onAddToCart({
+      id: `service:${service.id}`,
+      source: 'service',
+      title: service.title,
+      price: Number(service.price || 0),
+      meta: [service.category, service.duration_minutes ? `${service.duration_minutes} мин` : ''].filter(Boolean).join(' · '),
+    });
+    onGoPayment();
+  };
+
+  return (
+    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+      <div className="grid gap-10 xl:grid-cols-[0.86fr_1.14fr]">
+        <SectionIntro
+          eyebrow="Консультации"
+          title="Выберите формат"
+          text="Можно записаться на конкретное время или оставить заявку без свободного окна"
+        />
+        <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.72] p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.12)] backdrop-blur-xl">
+          <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#B98266]">Запись</p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {['выберите формат', 'добавьте в корзину', 'перейдите к оплате'].map((step, index) => (
+              <div key={step} className="rounded-[1.7rem] bg-[#2F463B]/6 p-5">
+                <p className="site-display text-5xl text-[#A9795F]">0{index + 1}</p>
+                <p className="mt-5 text-xl font-semibold">{step}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
 
-    <div className="mt-14 grid gap-5 md:grid-cols-2">
-      {consultationCards.map((card, index) => (
-        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
-          <div className="mb-8 flex items-start justify-between gap-5">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{card.tag}</p>
-              <h3 className="site-display mt-4 text-[clamp(1.8rem,2.5vw,2.7rem)] leading-[1.06]">{card.title}</h3>
-            </div>
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
-              <MoonStar className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="min-h-[110px] text-xl font-medium leading-relaxed text-[#2F463B]/58">{card.text}</p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <MagneticLink href="/site/profile">Записаться</MagneticLink>
-            <MagneticLink href={BOT_URL} variant="dark">Открыть приложение</MagneticLink>
-          </div>
+      {categories.length > 0 && (
+        <div className="site-reveal mt-10 flex flex-wrap gap-2">
+          {categories.map((category) => (
+            <span key={category} className="rounded-full bg-white/72 px-5 py-3 text-sm font-bold uppercase tracking-[0.22em] text-[#8B604A] shadow-[0_16px_40px_rgba(47,70,59,0.06)]">
+              {category}
+            </span>
+          ))}
         </div>
-      ))}
-    </div>
-  </section>
-);
+      )}
+
+      <div className="mt-8 grid gap-5 md:grid-cols-2">
+        {loading && (
+          <div className="site-reveal rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 text-xl font-semibold text-[#2F463B]/58 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+            Загружаю форматы
+          </div>
+        )}
+
+        {!loading && services.length === 0 && (
+          <div className="site-reveal rounded-[2.4rem] border border-dashed border-[#2F463B]/18 bg-white/[0.68] p-7 text-xl font-semibold text-[#2F463B]/58 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+            Активные услуги пока не загрузились
+          </div>
+        )}
+
+        {services.map((service, index) => (
+          <div key={service.id} className={`site-reveal site-premium-card site-delay-${(index % 4) + 1} rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
+            <div className="mb-8 flex items-start justify-between gap-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">{service.category || 'формат'}</p>
+                <h3 className="site-display mt-4 text-[clamp(1.8rem,2.5vw,2.7rem)] leading-[1.06]">{service.title}</h3>
+              </div>
+              <div className="grid min-w-[8.5rem] shrink-0 place-items-center rounded-[1.5rem] bg-[#F7EDE0] px-5 py-4 text-right shadow-[0_18px_50px_rgba(47,70,59,0.08)]">
+                <span className="text-xs font-bold uppercase tracking-[0.24em] text-[#2F463B]/42">цена</span>
+                <span className="mt-1 text-2xl font-semibold text-[#8B604A]">{formatMoney(service.price)}</span>
+              </div>
+            </div>
+            {service.description && (
+              <p className="min-h-[96px] text-xl font-medium leading-relaxed text-[#2F463B]/58">{service.description}</p>
+            )}
+            <div className="mt-7 flex flex-wrap gap-2">
+              {service.duration_minutes ? (
+                <span className="inline-flex items-center rounded-full bg-[#2F463B]/7 px-4 py-2 text-sm font-bold text-[#2F463B]/58">
+                  <Clock className="mr-2 h-4 w-4" />
+                  {service.duration_minutes} мин
+                </span>
+              ) : null}
+              <span className="rounded-full bg-[#2F463B]/7 px-4 py-2 text-sm font-bold text-[#2F463B]/58">
+                можно оплатить из корзины
+              </span>
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => addServiceToCart(service)}
+                className="site-magnetic inline-flex items-center justify-center rounded-full bg-[#F7EDE0] px-7 py-4 text-base font-semibold text-[#2F463B] transition hover:-translate-y-0.5"
+                data-magnetic
+              >
+                Записаться
+                <ArrowRight className="ml-3 h-5 w-5" />
+              </button>
+              <MagneticLink href={BOT_URL} variant="dark">Открыть приложение</MagneticLink>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
 
 const AcademyPage = () => (
   <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
@@ -1635,18 +1702,19 @@ const LegalPage = ({ document }: { document: LegalDocument }) => (
 
 const SiteCartPanel = ({
   cart,
-  paymentMethods,
   onRemove,
   onClear,
+  onPay,
+  paymentBusy = false,
   compact = false,
 }: {
   cart: CartItem[];
-  paymentMethods: PaymentMethod[];
   onRemove: (id: string) => void;
   onClear: () => void;
+  onPay: () => Promise<void>;
+  paymentBusy?: boolean;
   compact?: boolean;
 }) => {
-  const activeMethod = paymentMethods[0];
   const total = cart.reduce((sum, item) => sum + Number(item.price || 0), 0);
 
   return (
@@ -1695,12 +1763,12 @@ const SiteCartPanel = ({
           </div>
           <button
             type="button"
-            onClick={() => activeMethod?.payment_url && openExternal(activeMethod.payment_url)}
-            disabled={!activeMethod?.payment_url}
+            onClick={onPay}
+            disabled={paymentBusy || cart.length === 0}
             className="site-magnetic inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-7 py-5 text-lg font-semibold text-[#F7EDE0] transition disabled:opacity-40"
             data-magnetic
           >
-            Оплатить из корзины
+            {paymentBusy ? 'Создаю платёж' : 'Оплатить из корзины'}
             <ArrowRight className="ml-3 h-5 w-5" />
           </button>
           <button
@@ -1721,19 +1789,21 @@ const ProfileCabinetPage = ({
   onLogout,
   onSessionRefresh,
   cart,
-  paymentMethods,
   onAddToCart,
   onRemoveFromCart,
   onClearCart,
+  onPayCart,
+  paymentBusy,
 }: {
   user: SiteUser | null;
   onLogout: () => Promise<void>;
   onSessionRefresh: () => Promise<void>;
   cart: CartItem[];
-  paymentMethods: PaymentMethod[];
   onAddToCart: (item: CartItem) => void;
   onRemoveFromCart: (id: string) => void;
   onClearCart: () => void;
+  onPayCart: () => Promise<void>;
+  paymentBusy: boolean;
 }) => {
   const [services, setServices] = useState<SiteService[]>([]);
   const [consultations, setConsultations] = useState<SiteConsultation[]>([]);
@@ -1902,9 +1972,10 @@ const ProfileCabinetPage = ({
         <div className="grid gap-5">
           <SiteCartPanel
             cart={cart}
-            paymentMethods={paymentMethods}
             onRemove={onRemoveFromCart}
             onClear={onClearCart}
+            onPay={onPayCart}
+            paymentBusy={paymentBusy}
             compact
           />
 
@@ -2200,11 +2271,15 @@ const PaymentPage = ({
   cart,
   onRemoveFromCart,
   onClearCart,
+  onPayCart,
+  paymentBusy,
 }: {
   paymentMethods: PaymentMethod[];
   cart: CartItem[];
   onRemoveFromCart: (id: string) => void;
   onClearCart: () => void;
+  onPayCart: () => Promise<void>;
+  paymentBusy: boolean;
 }) => {
   const activeMethod = paymentMethods[0];
 
@@ -2219,9 +2294,10 @@ const PaymentPage = ({
         <div className="site-reveal site-delay-1">
           <SiteCartPanel
             cart={cart}
-            paymentMethods={paymentMethods}
             onRemove={onRemoveFromCart}
             onClear={onClearCart}
+            onPay={onPayCart}
+            paymentBusy={paymentBusy}
           />
         </div>
       </div>
@@ -2230,7 +2306,7 @@ const PaymentPage = ({
         <div className="site-reveal rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
           <CreditCard className="h-7 w-7 text-[#B98266]" />
           <p className="mt-4 text-xs font-bold uppercase tracking-[0.3em] text-[#B98266]">Способ</p>
-          <h3 className="mt-2 text-2xl font-semibold">{activeMethod?.title || 'Не настроен'}</h3>
+          <h3 className="mt-2 text-2xl font-semibold">{activeMethod?.title ? `Т-Банк · ${activeMethod.title}` : 'Т-Банк'}</h3>
         </div>
         <div className="site-reveal site-delay-1 rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
           <Wallet className="h-7 w-7 text-[#B98266]" />
@@ -2240,7 +2316,7 @@ const PaymentPage = ({
         <div className="site-reveal site-delay-2 rounded-[1.8rem] border border-[#2F463B]/10 bg-white/[0.66] p-5 text-[#2F463B] backdrop-blur-xl">
           <Lock className="h-7 w-7 text-[#B98266]" />
           <p className="mt-4 text-xs font-bold uppercase tracking-[0.3em] text-[#B98266]">Контроль</p>
-          <h3 className="mt-2 text-2xl font-semibold">Подтверждение вручную</h3>
+          <h3 className="mt-2 text-2xl font-semibold">Эквайринг + проверка</h3>
         </div>
       </div>
 
@@ -2293,6 +2369,7 @@ export const StudioLanding = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => getStoredCart());
   const [theme, setTheme] = useState<SiteTheme>(() => getStoredTheme());
+  const [paymentBusy, setPaymentBusy] = useState(false);
 
   const loadSession = async () => {
     try {
@@ -2355,9 +2432,60 @@ export const StudioLanding = () => {
   const removeFromCart = (id: string) => setCart((current) => current.filter((item) => item.id !== id));
   const clearCart = () => setCart([]);
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+  const goToProfile = () => {
+    window.history.pushState({}, '', '/site/profile');
+    setPage('profile');
+  };
+  const goToPayment = () => {
+    window.history.pushState({}, '', '/site/payment');
+    setPage('payment');
+  };
+
+  const payCart = async () => {
+    if (cart.length === 0 || paymentBusy) return;
+
+    if (!user?.id) {
+      alert('Сначала войдите в кабинет');
+      goToProfile();
+      return;
+    }
+
+    setPaymentBusy(true);
+    try {
+      const response = await fetch('/api/site/tbank-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          cart: cart.map((item) => ({
+            id: item.id,
+            source: item.source,
+          })),
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (response.ok && payload?.ok && payload.paymentUrl) {
+        openExternal(payload.paymentUrl);
+        return;
+      }
+
+      const fallbackMethod = paymentMethods[0];
+      if (payload?.code === 'TBANK_NOT_CONFIGURED' && fallbackMethod?.payment_url) {
+        openExternal(fallbackMethod.payment_url);
+        return;
+      }
+
+      throw new Error(payload?.error || 'Не удалось создать оплату');
+    } catch (error: any) {
+      alert(error?.message || 'Не удалось создать оплату');
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
 
   const content = useMemo(() => {
-    if (page === 'consultations') return <ConsultationsPage />;
+    if (page === 'consultations') return <ConsultationsPage onAddToCart={addToCart} onGoPayment={goToPayment} />;
     if (page === 'academy') return <AcademyPage />;
     if (page === 'profile') {
       return user ? (
@@ -2366,10 +2494,11 @@ export const StudioLanding = () => {
           onLogout={logout}
           onSessionRefresh={loadSession}
           cart={cart}
-          paymentMethods={paymentMethods}
           onAddToCart={addToCart}
           onRemoveFromCart={removeFromCart}
           onClearCart={clearCart}
+          onPayCart={payCart}
+          paymentBusy={paymentBusy}
         />
       ) : (
         <SiteProfileAuth user={user} onLogout={logout} onSessionRefresh={loadSession} />
@@ -2382,13 +2511,15 @@ export const StudioLanding = () => {
           cart={cart}
           onRemoveFromCart={removeFromCart}
           onClearCart={clearCart}
+          onPayCart={payCart}
+          paymentBusy={paymentBusy}
         />
       );
     }
     if (page === 'privacy') return <LegalPage document={personalDataPolicy} />;
     if (page === 'offer') return <LegalPage document={offerTerms} />;
     return <HomePage />;
-  }, [cart, page, paymentMethods, user]);
+  }, [cart, page, paymentBusy, paymentMethods, user]);
 
   return (
     <PageShell page={page} user={user} cartCount={cart.length} theme={theme} onToggleTheme={toggleTheme} onLogout={logout}>
