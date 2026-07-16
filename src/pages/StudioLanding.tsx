@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { InactivityConsentModal } from '../components/InactivityConsentModal';
 import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 import { getServicePriceState } from '../lib/serviceCampaigns';
 import { DEFAULT_TRAINING_PROGRAMS, getTrainingProgramPriceLabel, type TrainingProgram } from '../lib/training';
@@ -47,6 +48,8 @@ interface SiteUser {
   gender?: 'male' | 'female' | 'other' | null;
   email?: string | null;
   has_site_password?: boolean;
+  inactivity_notice_accepted_at?: string | null;
+  last_activity_at?: string | null;
   status?: string | null;
   bonus_balance?: number | null;
   role?: string | null;
@@ -2896,6 +2899,9 @@ export const StudioLanding = () => {
     window.history.pushState({}, '', '/site/payment');
     setPage('payment');
   };
+  const handleInactivityConsentComplete = (updatedUser: Partial<SiteUser>) => {
+    setUser((current) => (current ? { ...current, ...updatedUser } : current));
+  };
 
   const payCart = async () => {
     if (cart.length === 0 || paymentBusy) return;
@@ -2990,6 +2996,9 @@ export const StudioLanding = () => {
         </div>
       )}
       {content}
+      {user && user.role !== 'admin' && !user.inactivity_notice_accepted_at && (
+        <InactivityConsentModal user={user} onComplete={handleInactivityConsentComplete} />
+      )}
     </PageShell>
   );
 };

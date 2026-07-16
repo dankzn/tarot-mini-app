@@ -13,7 +13,8 @@ import crypto from 'crypto';
 import { notifyAdminsNewUserRegistration } from './_telegram-notify.js';
 import { saveSitePassword } from './_site-credentials.js';
 
-const selectUserFields = 'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role';
+const selectUserFields =
+  'id, telegram_id, username, name, city, phone, birth_date, gender, email, status, bonus_balance, role, inactivity_notice_accepted_at, last_activity_at';
 
 const normalizeUsername = (value) =>
   String(value || '')
@@ -118,6 +119,7 @@ const createSiteUser = async (supabase, payload) => {
       status: 'Первое знакомство',
       bonus_balance: 0,
       role: 'client',
+      last_activity_at: new Date().toISOString(),
       telegram_id: buildSiteOnlyTelegramId(payload.email, payload.username),
     })
     .select(selectUserFields)

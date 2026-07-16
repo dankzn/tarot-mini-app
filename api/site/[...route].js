@@ -1,5 +1,6 @@
 import credentialsStatusHandler from '../../server/site/credentials-status.js';
 import credentialsHandler from '../../server/site/credentials.js';
+import inactivityConsentHandler from '../../server/site/inactivity-consent.js';
 import loginHandler from '../../server/site/login.js';
 import logoutHandler from '../../server/site/logout.js';
 import passwordResetHandler from '../../server/site/password-reset.js';
@@ -15,6 +16,7 @@ import tbankSettingsHandler from '../../server/site/tbank-settings.js';
 const routeHandlers = {
   'credentials-status': credentialsStatusHandler,
   credentials: credentialsHandler,
+  'inactivity-consent': inactivityConsentHandler,
   login: loginHandler,
   logout: logoutHandler,
   'password-reset': passwordResetHandler,

@@ -13,6 +13,12 @@ const buildName = (telegramUser) =>
   telegramUser.username ||
   'Клиент';
 
+const normalizeUsername = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/^@+/, '')
+    .toLowerCase();
+
 const getReturnPath = (request) => {
   const value = String(request.query?.return_to || '/site/profile');
   if (!value.startsWith('/site') && !value.startsWith('/studio')) return '/site/profile';
@@ -39,6 +45,7 @@ export default async function handler(request, response) {
     const supabase = getSupabaseAdmin();
     const telegramUser = verification.telegramUser;
     const telegramId = telegramUser.id;
+    const telegramUsername = normalizeUsername(telegramUser.username);
     const displayName = buildName(telegramUser);
 
     const { data: existingUser } = await supabase
@@ -56,6 +63,7 @@ export default async function handler(request, response) {
         .update({
           username: telegramUser.username || existingUser.username || null,
           name: existingUser.name || displayName,
+          last_activity_at: new Date().toISOString(),
         })
         .eq('id', existingUser.id)
         .select()
@@ -64,28 +72,61 @@ export default async function handler(request, response) {
       if (updateError) throw updateError;
       user = updatedUser;
     } else {
-      const { data: createdUser, error: insertError } = await supabase
-        .from('users')
-        .insert([
-          {
-            telegram_id: telegramId,
-            username: telegramUser.username || null,
-            name: displayName,
-            city: null,
-            phone: null,
-            birth_date: null,
-            gender: 'other',
-            status: 'Первое знакомство',
-            bonus_balance: 0,
-            role: 'client',
-          },
-        ])
-        .select()
-        .single();
+      const { data: usernameOwner, error: usernameOwnerError } = telegramUsername
+        ? await supabase
+            .from('users')
+            .select('*')
+            .ilike('username', telegramUsername)
+            .maybeSingle()
+        : { data: null, error: null };
 
-      if (insertError) throw insertError;
-      user = createdUser;
-      isNewUser = true;
+      if (usernameOwnerError) throw usernameOwnerError;
+
+      if (usernameOwner) {
+        const ownerTelegramId = Number(usernameOwner.telegram_id || 0);
+        if (ownerTelegramId > 0 && ownerTelegramId < 8_000_000_000_000) {
+          throw new Error('TELEGRAM_USERNAME_ALREADY_LINKED');
+        }
+
+        const { data: linkedUser, error: linkError } = await supabase
+          .from('users')
+          .update({
+            telegram_id: telegramId,
+            username: telegramUsername,
+            name: usernameOwner.name || displayName,
+            last_activity_at: new Date().toISOString(),
+          })
+          .eq('id', usernameOwner.id)
+          .select()
+          .single();
+
+        if (linkError) throw linkError;
+        user = linkedUser;
+      } else {
+        const { data: createdUser, error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              telegram_id: telegramId,
+              username: telegramUser.username || null,
+              name: displayName,
+              city: null,
+              phone: null,
+              birth_date: null,
+              gender: 'other',
+              status: 'Первое знакомство',
+              bonus_balance: 0,
+              role: 'client',
+              last_activity_at: new Date().toISOString(),
+            },
+          ])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        user = createdUser;
+        isNewUser = true;
+      }
     }
 
     if (isNewUser) {

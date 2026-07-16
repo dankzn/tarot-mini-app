@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase';
 import { SplashScreen } from './components/SplashScreen';
 import { RegistrationForm } from './components/RegistrationForm';
 import { SiteCredentialsModal } from './components/SiteCredentialsModal';
+import { InactivityConsentModal } from './components/InactivityConsentModal';
 import { AdminWebGuard } from './components/admin/AdminWebGuard';
 // import { ErrorBoundary } from './components/ErrorBoundary'; // Временно закомментировано
 
@@ -118,9 +119,10 @@ export const App = () => {
       }
 
       if (existingUser) {
-        setUser(existingUser);
-        await checkSiteCredentials(existingUser);
-        await resolveInitialClientMode(existingUser);
+        const activeUser = await touchUserActivity(existingUser, tgUser);
+        setUser(activeUser);
+        await checkSiteCredentials(activeUser);
+        await resolveInitialClientMode(activeUser);
       } else {
         setUser({ needsRegistration: true, telegramUser: tgUser });
       }
@@ -134,6 +136,29 @@ export const App = () => {
   const handleRegistrationComplete = async (userData: any) => {
     setUser(userData);
     setNeedsSiteCredentials(false);
+  };
+
+  const touchUserActivity = async (currentUser: any, telegramUser?: any) => {
+    if (!currentUser?.id) return currentUser;
+
+    try {
+      const username = String(telegramUser?.username || '').trim().replace(/^@+/, '').toLowerCase();
+      const patch: Record<string, any> = { last_activity_at: new Date().toISOString() };
+      if (username) patch.username = username;
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(patch)
+        .eq('id', currentUser.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return data || currentUser;
+    } catch (error) {
+      console.warn('Не удалось обновить активность пользователя:', error);
+      return currentUser;
+    }
   };
 
   const checkSiteCredentials = async (currentUser: any) => {
@@ -162,6 +187,13 @@ export const App = () => {
       ...updatedUser,
     }));
     setNeedsSiteCredentials(false);
+  };
+
+  const handleInactivityConsentComplete = (updatedUser: any) => {
+    setUser((currentUser: any) => ({
+      ...currentUser,
+      ...updatedUser,
+    }));
   };
 
   const resolveInitialClientMode = async (currentUser: any) => {
@@ -258,6 +290,9 @@ export const App = () => {
               )}
               {!loading && user && !user.needsRegistration && user.role !== 'admin' && needsSiteCredentials && (
                 <SiteCredentialsModal user={user} onComplete={handleSiteCredentialsComplete} />
+              )}
+              {!loading && user && !user.needsRegistration && user.role !== 'admin' && !needsSiteCredentials && !user.inactivity_notice_accepted_at && (
+                <InactivityConsentModal user={user} onComplete={handleInactivityConsentComplete} />
               )}
             </>
           } />
