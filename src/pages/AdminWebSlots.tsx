@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
+import { formatMoscowDateKey, formatMoscowTime } from '../lib/moscowTime';
 
 export const AdminWebSlots = () => {
   const navigate = useNavigate();
@@ -96,6 +97,7 @@ export const AdminWebSlots = () => {
     while (current < end) {
       newSlots.push({
         start_time: format(current, "yyyy-MM-dd'T'HH:mm:ss"),
+        end_time: format(addMinutes(current, 30), "yyyy-MM-dd'T'HH:mm:ss"),
         duration_minutes: 30,
         is_booked: false,
       });
@@ -144,7 +146,7 @@ export const AdminWebSlots = () => {
   };
 
   const groupedSlots = slots.reduce((acc: any, slot: any) => {
-    const date = format(new Date(slot.start_time), 'yyyy-MM-dd');
+    const date = formatMoscowDateKey(slot.start_time);
     if (!acc[date]) acc[date] = [];
     acc[date].push(slot);
     return acc;
@@ -312,7 +314,7 @@ export const AdminWebSlots = () => {
                         <span className={`font-bold text-sm ${
                           slot.is_booked ? 'text-gray-500' : 'text-[#385144]'
                         }`}>
-                          {format(new Date(slot.start_time), 'HH:mm')}
+                          {formatMoscowTime(slot.start_time)}
                         </span>
                         <button
                           onClick={() => handleDelete(slot.id)}

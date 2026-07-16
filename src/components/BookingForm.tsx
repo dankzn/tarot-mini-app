@@ -3,11 +3,12 @@ import { supabase } from '../lib/supabase';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import './CalendarStyles.css';
-import { format, addMinutes, isBefore, startOfDay } from 'date-fns';
+import { format, addMinutes, isBefore } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { ArrowLeft, Calendar as CalendarIcon, Clock, Sparkles, MessageSquare, X } from 'lucide-react';
 import { notifyAdminNewBooking } from '../lib/notifications';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
+import { dateToMoscowDateString, formatMoscowTime, getMoscowDayRange, toMoscowDateTimeString } from '../lib/moscowTime';
 
 interface BookingFormProps {
   user: any;
@@ -38,7 +39,7 @@ const buildSlotOptions = (slots: TimeSlot[], duration: number): SlotOption[] => 
   sortedSlots
     .filter(slot => !slot.is_booked && slot.duration_minutes === duration)
     .forEach(slot => {
-      const time = format(new Date(slot.start_time), 'HH:mm');
+      const time = formatMoscowTime(slot.start_time);
       optionsByTime.set(time, {
         id: slot.id,
         time,
@@ -66,7 +67,7 @@ const buildSlotOptions = (slots: TimeSlot[], duration: number): SlotOption[] => 
     });
 
     if (chain.every(Boolean)) {
-      const time = format(start, 'HH:mm');
+      const time = formatMoscowTime(start);
       if (!optionsByTime.has(time)) {
         optionsByTime.set(time, {
           id: slot.id,
@@ -126,14 +127,14 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
   }, [bonusAmount, maxBonusUsable]);
 
   const loadAllSlots = async () => {
-    const startOfDayDate = startOfDay(selectedDate!);
+    const range = getMoscowDayRange(selectedDate!);
     const now = new Date();
 
     const { data: allSlotsData, error } = await supabase
       .from('time_slots')
       .select('id, start_time, duration_minutes, is_booked')
-      .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
-      .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
+      .gte('start_time', range.start)
+      .lt('start_time', range.end)
       .order('start_time', { ascending: true });
 
     if (error) {
@@ -236,13 +237,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
     setLoading(true);
 
     try {
-      let bookingDateTime: Date | null = null;
-
       if (!isPriorityRequest && selectedTime) {
-        const [hours, minutes] = selectedTime.split(':').map(Number);
-        bookingDateTime = new Date(selectedDate);
-        bookingDateTime.setHours(hours, minutes, 0, 0);
-
         const { data: bookedSlotsData, error: slotError } = await supabase
           .from('time_slots')
           .update({
@@ -273,8 +268,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
           {
             user_id: user.id,
             service_id: service.id,
-            scheduled_at: bookingDateTime?.toISOString() || null,
-            requested_date: selectedDate.toISOString().slice(0, 10),
+            scheduled_at: selectedTime ? toMoscowDateTimeString(selectedDate, selectedTime) : null,
+            requested_date: dateToMoscowDateString(selectedDate),
             requested_time_text: isPriorityRequest ? 'Приоритетная заявка без окна' : selectedTime,
             scheduling_status: isPriorityRequest ? 'needs_admin_time' : 'scheduled',
             notes: preparedNotes,
@@ -342,8 +337,8 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
         user.name || 'Клиент',
         user.username || null,
         service.title,
-        bookingDateTime
-          ? format(bookingDateTime, 'dd MMMM yyyy HH:mm', { locale: ru })
+        selectedTime
+          ? `${format(selectedDate, 'dd MMMM yyyy', { locale: ru })} ${selectedTime}`
           : `${format(selectedDate, 'dd MMMM yyyy', { locale: ru })} • приоритетная заявка без окна`,
         finalPrice
       );
@@ -562,7 +557,7 @@ export const BookingForm = ({ user, service, onSuccess, onCancel }: BookingFormP
                   </button>
                 ))}
                 {bookedSlots.map((slot) => {
-                  const slotTime = format(new Date(slot.start_time), 'HH:mm');
+                  const slotTime = formatMoscowTime(slot.start_time);
                   return (
                     <button
                       key={slot.id}

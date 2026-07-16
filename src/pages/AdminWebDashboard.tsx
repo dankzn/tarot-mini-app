@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   LogOut,
   Megaphone,
+  MessageSquareText,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -269,6 +270,7 @@ export const AdminWebDashboard = () => {
     { title: 'Обучение', text: 'группы, ученики, лист ожидания', path: '/admin-web/training', icon: GraduationCap },
     { title: 'Услуги', text: 'цены, акции, витрина', path: '/admin-web/services', icon: Sparkles },
     { title: 'Окна', text: 'слоты для записи', path: '/admin-web/slots', icon: CalendarDays },
+    { title: 'Отзывы', text: 'публикация и ручные даты', path: '/admin-web/reviews', icon: MessageSquareText },
     { title: 'Рассылки', text: 'сообщения клиентам', path: '/admin-web/mailings', icon: Megaphone },
     { title: 'Клиенты', text: 'карточки и база', path: '/admin-web/clients', icon: Users },
   ];

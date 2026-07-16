@@ -4,6 +4,7 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { format, addMinutes } from 'date-fns';
 import { CalendarDays, Clock, CheckCircle2, XCircle, Plus } from 'lucide-react';
+import { formatMoscowTime, getMoscowDayRange, toMoscowDateTimeString } from '../lib/moscowTime';
 
 interface AdminSlotsManagerProps {
   admin: any;
@@ -22,14 +23,13 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
   }, [selectedDate]);
 
   const loadSlots = async () => {
-    const startOfDayDate = new Date(selectedDate);
-    startOfDayDate.setHours(0, 0, 0, 0);
+    const range = getMoscowDayRange(selectedDate);
 
     const { data } = await supabase
       .from('time_slots')
       .select('*')
-      .gte('start_time', format(startOfDayDate, "yyyy-MM-dd'T'00:00:00"))
-      .lt('start_time', format(addMinutes(startOfDayDate, 1440), "yyyy-MM-dd'T'00:00:00"))
+      .gte('start_time', range.start)
+      .lt('start_time', range.end)
       .order('start_time');
 
     if (data) setExistingSlots(data);
@@ -66,16 +66,13 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
     setLoading(true);
 
     const slots = selectedTimes.map(time => {
-      const [hours, minutes] = time.split(':').map(Number);
-      const slotStart = new Date(selectedDate);
-      slotStart.setHours(hours, minutes, 0, 0);
-      
-      const slotEnd = addMinutes(slotStart, duration);
+      const slotStart = toMoscowDateTimeString(selectedDate, time);
+      const slotEnd = format(addMinutes(new Date(slotStart), duration), "yyyy-MM-dd'T'HH:mm:ss");
 
       return {
         admin_id: admin.id,
-        start_time: slotStart.toISOString(),
-        end_time: slotEnd.toISOString(),
+        start_time: slotStart,
+        end_time: slotEnd,
         duration_minutes: duration,
         is_booked: false,
       };
@@ -103,7 +100,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
     for (let minute = 0; minute < 60; minute += 30) {
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       const isBooked = existingSlots.some(slot => {
-        const slotTime = format(new Date(slot.start_time), 'HH:mm');
+        const slotTime = formatMoscowTime(slot.start_time);
         return slotTime === timeString && slot.is_booked;
       });
       
@@ -175,7 +172,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
           {allTimeSlots.map(({ time, isBooked }) => {
             const isSelected = selectedTimes.includes(time);
             const isAlreadyInDb = existingSlots.some(slot => {
-              const slotTime = format(new Date(slot.start_time), 'HH:mm');
+              const slotTime = formatMoscowTime(slot.start_time);
               return slotTime === time;
             });
 
@@ -225,7 +222,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
             >
               <div>
                 <p className="text-[#385144] font-bold">
-                  {format(new Date(slot.start_time), 'HH:mm')} - {format(new Date(slot.end_time), 'HH:mm')}
+                  {formatMoscowTime(slot.start_time)} - {formatMoscowTime(slot.end_time)}
                 </p>
                 <p className="text-gray-500 text-xs">{slot.duration_minutes} мин</p>
               </div>

@@ -13,11 +13,13 @@ import {
   LogOut,
   Mail,
   Menu,
+  MessageSquareText,
   Moon,
   MoonStar,
   Save,
   ShoppingCart,
   Sparkles,
+  Star,
   Sun,
   Trash2,
   UserRound,
@@ -29,6 +31,7 @@ import { InactivityConsentModal } from '../components/InactivityConsentModal';
 import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 import { getServicePriceState } from '../lib/serviceCampaigns';
 import { DEFAULT_TRAINING_PROGRAMS, getTrainingProgramPriceLabel, type TrainingProgram } from '../lib/training';
+import { dateToMoscowDateString } from '../lib/moscowTime';
 
 interface PaymentMethod {
   id: string;
@@ -102,6 +105,18 @@ interface TrainingEnrollment {
     title?: string | null;
     starts_at?: string | null;
   } | null;
+}
+
+interface SiteReview {
+  id: string;
+  user_id?: string | null;
+  author_name: string;
+  author_username?: string | null;
+  rating: number;
+  text: string;
+  source?: 'client' | 'admin' | null;
+  is_published?: boolean | null;
+  reviewed_at: string;
 }
 
 type CartItem = {
@@ -678,6 +693,86 @@ const SectionIntro = ({ eyebrow, title, text }: { eyebrow: string; title: string
   </div>
 );
 
+const ReviewsSection = () => {
+  const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReviews = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('reviews')
+          .select('id,author_name,author_username,rating,text,reviewed_at')
+          .eq('is_published', true)
+          .order('reviewed_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(6);
+
+        if (error) throw error;
+        if (!cancelled) setReviews((data || []) as SiteReview[]);
+      } catch {
+        if (!cancelled) setReviews([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadReviews();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!loading && reviews.length === 0) return null;
+
+  return (
+    <section className="mx-auto max-w-[1540px] px-5 py-20 md:px-10 xl:px-16">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#A9795F]">Отзывы</p>
+          <h2 className="site-display mt-4 text-[clamp(2.2rem,4vw,4rem)] leading-[1.04] text-[#2F463B]">
+            Что говорят клиенты
+          </h2>
+        </div>
+        <MessageSquareText className="h-9 w-9 text-[#B8795C]" />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {loading
+          ? Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="min-h-[220px] rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.58] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+                <div className="h-4 w-32 rounded-full bg-[#2F463B]/10" />
+                <div className="mt-8 h-4 w-full rounded-full bg-[#2F463B]/8" />
+                <div className="mt-3 h-4 w-3/4 rounded-full bg-[#2F463B]/8" />
+              </div>
+            ))
+          : reviews.map((review) => (
+              <article key={review.id} className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-[#2F463B]">{review.author_name}</h3>
+                    <p className="mt-1 text-sm font-bold text-[#2F463B]/46">
+                      {review.author_username ? `@${review.author_username} · ` : ''}
+                      {new Date(review.reviewed_at).toLocaleDateString('ru-RU')}
+                    </p>
+                  </div>
+                  <div className="flex text-[#B8795C]">
+                    {Array.from({ length: Number(review.rating || 5) }).map((_, index) => (
+                      <Star key={index} className="h-4 w-4 fill-current" />
+                    ))}
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap text-base font-medium leading-relaxed text-[#2F463B]/64">{review.text}</p>
+              </article>
+            ))}
+      </div>
+    </section>
+  );
+};
+
 const HomePage = () => (
   <>
     <section className="mx-auto grid min-h-[calc(100vh-92px)] max-w-[1540px] items-center gap-14 px-5 pb-20 pt-10 md:px-10 xl:grid-cols-[0.92fr_0.78fr] xl:px-16">
@@ -737,6 +832,8 @@ const HomePage = () => (
         </div>
       </div>
     </section>
+
+    <ReviewsSection />
 
     <section className="mx-auto grid max-w-[1540px] gap-5 px-5 py-20 md:grid-cols-3 md:px-10 xl:px-16">
       {studioSpaces.map((space, index) => (
@@ -1961,6 +2058,11 @@ const ProfileCabinetPage = ({
     passwordRepeat: '',
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState({
+    rating: 5,
+    text: '',
+  });
+  const [reviewSaving, setReviewSaving] = useState(false);
 
   useEffect(() => {
     setPasswordDraft((current) => ({
@@ -2058,6 +2160,37 @@ const ProfileCabinetPage = ({
       alert(error.message || 'Не удалось обновить пароль');
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const submitReview = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!reviewDraft.text.trim()) {
+      alert('Напишите текст отзыва');
+      return;
+    }
+
+    setReviewSaving(true);
+    try {
+      const { error } = await supabase.from('reviews').insert({
+        user_id: user.id,
+        author_name: user.name || 'Клиент',
+        author_username: user.username || null,
+        rating: reviewDraft.rating,
+        text: reviewDraft.text.trim(),
+        source: 'client',
+        is_published: true,
+        reviewed_at: dateToMoscowDateString(new Date()),
+      });
+
+      if (error) throw error;
+      setReviewDraft({ rating: 5, text: '' });
+      alert('Спасибо, отзыв опубликован на сайте');
+    } catch (error: any) {
+      alert(error?.message || 'Не удалось сохранить отзыв');
+    } finally {
+      setReviewSaving(false);
     }
   };
 
@@ -2275,6 +2408,50 @@ const ProfileCabinetPage = ({
             ))}
           </div>
         </div>
+
+        <form
+          onSubmit={submitReview}
+          className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Отзыв</p>
+              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Поделиться впечатлением</h2>
+            </div>
+            <MessageSquareText className="h-8 w-8 text-[#2F463B]/60" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <button
+                key={rating}
+                type="button"
+                onClick={() => setReviewDraft({ ...reviewDraft, rating })}
+                className={`grid h-11 w-11 place-items-center rounded-2xl transition ${
+                  rating <= reviewDraft.rating ? 'bg-[#B8795C] text-white' : 'bg-[#F7EDE0] text-[#2F463B]/40'
+                }`}
+                aria-label={`${rating} из 5`}
+              >
+                <Star className="h-5 w-5 fill-current" />
+              </button>
+            ))}
+          </div>
+          <textarea
+            required
+            rows={5}
+            value={reviewDraft.text}
+            onChange={(event) => setReviewDraft({ ...reviewDraft, text: event.target.value })}
+            className="mt-5 w-full resize-none rounded-[1.5rem] border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold leading-relaxed text-[#2F463B] outline-none focus:border-[#2F463B]"
+            placeholder="Напишите отзыв о консультации, обучении или личном кабинете"
+          />
+          <button
+            type="submit"
+            disabled={reviewSaving}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-[#2F463B] px-6 py-4 text-base font-semibold text-[#F7EDE0] disabled:opacity-50"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {reviewSaving ? 'Публикую' : 'Опубликовать отзыв'}
+          </button>
+        </form>
 
         <div className="site-reveal site-delay-1 rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-4">

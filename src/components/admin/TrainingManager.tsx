@@ -326,7 +326,27 @@ export const TrainingManager = () => {
   };
 
   const deleteProgram = async (program: TrainingProgram) => {
-    if (!confirm(`Удалить курс “${program.title}”? Если есть заявки, лучше выключить курс, а не удалять.`)) return;
+    if (!confirm(`Удалить курс “${program.title}” вместе со связанными заявками, группами и занятиями? Это действие нельзя отменить.`)) return;
+
+    const { error: enrollmentsError } = await supabase
+      .from('training_enrollments')
+      .delete()
+      .eq('program_id', program.id);
+
+    if (enrollmentsError) {
+      alert(`Не удалось удалить заявки курса: ${enrollmentsError.message}`);
+      return;
+    }
+
+    const { error: groupsError } = await supabase
+      .from('training_groups')
+      .delete()
+      .eq('program_id', program.id);
+
+    if (groupsError) {
+      alert(`Не удалось удалить группы курса: ${groupsError.message}`);
+      return;
+    }
 
     const { error } = await supabase.from('training_programs').delete().eq('id', program.id);
     if (error) {

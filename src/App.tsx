@@ -20,6 +20,7 @@ const AdminWebSlots = lazy(() => import('./pages/AdminWebSlots').then(module => 
 const AdminWebUsers = lazy(() => import('./pages/AdminWebUsers').then(module => ({ default: module.AdminWebUsers })));
 const AdminWebMailings = lazy(() => import('./pages/AdminWebMailings').then(module => ({ default: module.AdminWebMailings })));
 const AdminWebServices = lazy(() => import('./pages/AdminWebServices').then(module => ({ default: module.AdminWebServices })));
+const AdminWebReviews = lazy(() => import('./pages/AdminWebReviews').then(module => ({ default: module.AdminWebReviews })));
 const AdminWebAnalytics = lazy(() => import('./pages/AdminWebAnalytics').then(module => ({ default: module.AdminWebAnalytics })));
 const AdminWebClients = lazy(() => import('./pages/AdminWebClients').then(module => ({ default: module.AdminWebClients })));
 const AdminWebTraining = lazy(() => import('./pages/AdminWebTraining').then(module => ({ default: module.AdminWebTraining })));
@@ -248,6 +249,7 @@ export const App = () => {
           <Route path="/admin-web/users" element={adminRoute(<AdminWebUsers />)} />
           <Route path="/admin-web/mailings" element={adminRoute(<AdminWebMailings />)} />
           <Route path="/admin-web/services" element={adminRoute(<AdminWebServices />)} />
+          <Route path="/admin-web/reviews" element={adminRoute(<AdminWebReviews />)} />
           <Route path="/admin-web/training" element={adminRoute(<AdminWebTraining />)} />
           <Route path="/admin-web/analytics" element={adminRoute(<AdminWebAnalytics />)} />
           <Route path="/admin-web/clients" element={adminRoute(<AdminWebClients />)} />
