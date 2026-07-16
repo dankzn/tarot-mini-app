@@ -23,6 +23,7 @@ import {
   Users,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { type AppliedTrainingPromo, validateTrainingPromoCode } from '../lib/trainingPromo';
 import {
   DEFAULT_TRAINING_PROGRAMS,
   formatTrainingPrice,
@@ -253,6 +254,10 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [preferredStart, setPreferredStart] = useState('');
   const [clientComment, setClientComment] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<AppliedTrainingPromo | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoApplying, setPromoApplying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
@@ -425,6 +430,9 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
     setSelectedGroupId(kind === 'waitlist' ? '' : programGroups[0]?.id || '');
     setPreferredStart('');
     setClientComment(kind === 'waitlist' ? 'Хочу попасть в лист ожидания на ближайший поток.' : '');
+    setPromoCode('');
+    setAppliedPromo(null);
+    setPromoError('');
     setEnrollmentKind(kind);
   };
 
@@ -452,7 +460,11 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         group_id: groupId,
         status: 'pending',
         payment_status: 'not_requested',
-        final_price: selectedProgram.price,
+        original_price: Number(selectedProgram.price || 0),
+        final_price: appliedPromo?.finalPrice ?? selectedProgram.price,
+        promo_code_id: appliedPromo?.id || null,
+        promo_code: appliedPromo?.code || null,
+        promo_discount: appliedPromo?.discount || 0,
         certificate_required: Boolean(selectedProgram.has_certificate),
         exam_status: selectedProgram.has_certificate ? 'pending' : 'not_required',
         preferred_start: preferredStart || null,
@@ -471,7 +483,7 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
         user.name || 'Клиент',
         user.username || null,
         selectedProgram.title,
-        selectedProgram.price,
+        appliedPromo?.finalPrice ?? selectedProgram.price,
         selectedProgram.is_group ? groups.find(group => group.id === groupId)?.title || null : null
       );
 
@@ -480,6 +492,9 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
       setSelectedGroupId('');
       setPreferredStart('');
       setClientComment('');
+      setPromoCode('');
+      setAppliedPromo(null);
+      setPromoError('');
       setEnrollmentKind('application');
       await loadTrainingData();
       alert(enrollmentKind === 'waitlist'
@@ -491,6 +506,24 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
       alert(`Не удалось отправить заявку: ${error instanceof Error ? error.message : 'проверьте подключение'}`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const applyTrainingPromo = async () => {
+    if (!selectedProgram) return;
+
+    setPromoApplying(true);
+    setPromoError('');
+
+    try {
+      const nextPromo = await validateTrainingPromoCode(supabase, user?.id, promoCode, Number(selectedProgram.price || 0));
+      setAppliedPromo(nextPromo);
+      setPromoCode(nextPromo.code);
+    } catch (error) {
+      setAppliedPromo(null);
+      setPromoError(error instanceof Error ? error.message : 'Не удалось применить промокод');
+    } finally {
+      setPromoApplying(false);
     }
   };
 
@@ -1274,7 +1307,11 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedProgram(null)}
+                onClick={() => {
+                  setSelectedProgram(null);
+                  setAppliedPromo(null);
+                  setPromoError('');
+                }}
                 className="rounded-2xl bg-white px-4 py-2 font-black text-[#385144]"
               >
                 ×
@@ -1330,7 +1367,46 @@ export const TrainingDashboard = ({ user, onBackToGateway, onOpenConsultations }
 
             <div className="mb-4 flex items-center justify-between rounded-2xl bg-white px-4 py-3">
               <span className="font-black text-[#385144]">Стоимость</span>
-              <span className="text-xl font-black text-[#8A5A3F]">{getTrainingProgramPriceLabel(selectedProgram)}</span>
+              <span className="text-right text-xl font-black text-[#8A5A3F]">
+                {appliedPromo && (
+                  <span className="block text-xs text-[#385144]/42 line-through">
+                    {formatTrainingPrice(appliedPromo.originalPrice)}
+                  </span>
+                )}
+                {appliedPromo ? formatTrainingPrice(appliedPromo.finalPrice) : getTrainingProgramPriceLabel(selectedProgram)}
+              </span>
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-white/78 p-3">
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-[#B8795C]">
+                Персональный промокод
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={promoCode}
+                  onChange={(event) => {
+                    setPromoCode(event.target.value);
+                    setAppliedPromo(null);
+                    setPromoError('');
+                  }}
+                  className="min-w-0 flex-1 rounded-2xl border border-[#385144]/10 bg-[#F8F3EC] p-4 font-black uppercase text-[#385144]"
+                  placeholder="Код"
+                />
+                <button
+                  type="button"
+                  onClick={applyTrainingPromo}
+                  disabled={promoApplying || !promoCode.trim()}
+                  className="rounded-2xl bg-[#A06D52] px-4 py-3 font-black text-white disabled:opacity-50"
+                >
+                  {promoApplying ? '...' : 'ОК'}
+                </button>
+              </div>
+              {appliedPromo && (
+                <p className="mt-2 text-sm font-black text-[#385144]">
+                  Скидка {formatTrainingPrice(appliedPromo.discount)} применена
+                </p>
+              )}
+              {promoError && <p className="mt-2 text-sm font-black text-[#A06D52]">{promoError}</p>}
             </div>
 
             <button

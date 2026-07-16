@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 const emptyForm = {
   code: '',
   title: '',
+  applies_to: 'consultation',
   discount_type: 'fixed',
   discount_value: 0,
   starts_at: '',
@@ -65,6 +66,7 @@ export const PromoCodesManager = () => {
         {
           code: form.code.trim().toUpperCase(),
           title: form.title.trim() || null,
+          applies_to: form.applies_to,
           discount_type: form.discount_type,
           discount_value: Number(form.discount_value),
           starts_at: fromDateTimeLocal(form.starts_at),
@@ -140,6 +142,15 @@ export const PromoCodesManager = () => {
         />
         <select
           className="rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold text-[#385144]"
+          value={form.applies_to}
+          onChange={(event) => setForm({ ...form, applies_to: event.target.value })}
+        >
+          <option value="consultation">Консультации</option>
+          <option value="training">Обучение</option>
+          <option value="all">Всё</option>
+        </select>
+        <select
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold text-[#385144]"
           value={form.discount_type}
           onChange={(event) => setForm({ ...form, discount_type: event.target.value })}
         >
@@ -204,6 +215,9 @@ export const PromoCodesManager = () => {
               <p className="text-sm text-[#6C756C]">
                 {promoCode.title || 'Без названия'} • {promoCode.discount_value}{promoCode.discount_type === 'percent' ? '%' : ' ₽'}
                 {promoCode.max_uses ? ` • использовано ${promoCode.used_count}/${promoCode.max_uses}` : ` • использовано ${promoCode.used_count}`}
+              </p>
+              <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#8A5A3F]/70">
+                {promoCode.applies_to === 'training' ? 'Обучение' : promoCode.applies_to === 'all' ? 'Всё' : 'Консультации'}
               </p>
               <p className="mt-1 text-xs font-semibold text-[#8FA092]">
                 {promoCode.starts_at ? `с ${new Date(promoCode.starts_at).toLocaleString('ru-RU')}` : 'без даты старта'}

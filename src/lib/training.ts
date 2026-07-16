@@ -32,6 +32,10 @@ export interface TrainingEnrollment {
   status: string;
   payment_status: string;
   final_price: number;
+  original_price?: number | null;
+  promo_code_id?: string | null;
+  promo_code?: string | null;
+  promo_discount?: number | null;
   preferred_start?: string | null;
   client_comment?: string | null;
   admin_notes?: string | null;

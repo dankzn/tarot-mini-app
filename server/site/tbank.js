@@ -225,9 +225,69 @@ const normalizeCartItem = (item) => {
   const [sourceFromId, idFromId] = rawId.includes(':') ? rawId.split(':') : ['', rawId];
   const source = rawSource || sourceFromId;
   const id = idFromId || rawId;
+  const promoCode = String(item?.promoCode || item?.promo_code || '').trim().replace(/\s+/g, '').toUpperCase();
 
   if (!['service', 'consultation', 'training'].includes(source) || !id) return null;
-  return { source, id, rawId };
+  return { source, id, rawId, promoCode };
+};
+
+const calculateTrainingPromoDiscount = (price, promoCode) => {
+  const basePrice = Math.max(0, Math.round(Number(price || 0)));
+  const rawDiscount = promoCode.discount_type === 'percent'
+    ? Math.round(basePrice * Number(promoCode.discount_value || 0) / 100)
+    : Math.round(Number(promoCode.discount_value || 0));
+
+  return Math.min(basePrice, Math.max(0, rawDiscount));
+};
+
+const validateTrainingPromoCode = async (supabase, userId, rawCode, price) => {
+  const code = String(rawCode || '').trim().replace(/\s+/g, '').toUpperCase();
+  if (!code) return null;
+
+  const { data: promoCode, error: promoCodeError } = await supabase
+    .from('promo_codes')
+    .select('id,code,title,discount_type,discount_value,is_active,starts_at,expires_at,max_uses,applies_to')
+    .ilike('code', code)
+    .in('applies_to', ['training', 'all'])
+    .maybeSingle();
+
+  if (promoCodeError) throw promoCodeError;
+  if (!promoCode || promoCode.is_active === false) throw new Error('TRAINING_PROMO_NOT_FOUND');
+
+  const now = Date.now();
+  if (promoCode.starts_at && new Date(promoCode.starts_at).getTime() > now) throw new Error('TRAINING_PROMO_NOT_STARTED');
+  if (promoCode.expires_at && new Date(promoCode.expires_at).getTime() < now) throw new Error('TRAINING_PROMO_EXPIRED');
+
+  const { data: ownRedemptions, error: ownRedemptionsError } = await supabase
+    .from('promo_code_redemptions')
+    .select('id')
+    .eq('promo_code_id', promoCode.id)
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (ownRedemptionsError) throw ownRedemptionsError;
+  if ((ownRedemptions || []).length > 0) throw new Error('TRAINING_PROMO_ALREADY_USED');
+
+  if (promoCode.max_uses) {
+    const { count, error: countError } = await supabase
+      .from('promo_code_redemptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('promo_code_id', promoCode.id);
+
+    if (countError) throw countError;
+    if ((count || 0) >= Number(promoCode.max_uses)) throw new Error('TRAINING_PROMO_LIMIT_REACHED');
+  }
+
+  const originalPrice = Math.max(0, Math.round(Number(price || 0)));
+  const discount = calculateTrainingPromoDiscount(originalPrice, promoCode);
+  if (discount <= 0) throw new Error('TRAINING_PROMO_EMPTY_DISCOUNT');
+
+  return {
+    promoCode,
+    originalPrice,
+    discount,
+    finalPrice: Math.max(0, originalPrice - discount),
+  };
 };
 
 const buildToken = (payload, password) => {
@@ -392,7 +452,7 @@ const getTrainingPosition = async (supabase, item, userId) => {
 
   const { data, error } = await supabase
     .from('training_enrollments')
-    .select('id,user_id,status,payment_status,final_price,training_programs(title,price)')
+    .select('id,user_id,status,payment_status,final_price,original_price,promo_code_id,promo_code,promo_discount,training_programs(title,price)')
     .eq('id', item.id)
     .eq('user_id', userId)
     .maybeSingle();
@@ -404,11 +464,37 @@ const getTrainingPosition = async (supabase, item, userId) => {
   }
 
   const program = Array.isArray(data.training_programs) ? data.training_programs[0] : data.training_programs;
+  const appliedPromo = await validateTrainingPromoCode(supabase, userId, item.promoCode, Number(program?.price || data.original_price || data.final_price || 0));
+  let enrollment = data;
+
+  if (appliedPromo) {
+    const { data: updatedEnrollment, error: updateError } = await supabase
+      .from('training_enrollments')
+      .update({
+        original_price: appliedPromo.originalPrice,
+        final_price: appliedPromo.finalPrice,
+        promo_code_id: appliedPromo.promoCode.id,
+        promo_code: appliedPromo.promoCode.code,
+        promo_discount: appliedPromo.discount,
+      })
+      .eq('id', data.id)
+      .select('id,user_id,status,payment_status,final_price,original_price,promo_code_id,promo_code,promo_discount')
+      .single();
+
+    if (updateError) throw updateError;
+    enrollment = { ...data, ...updatedEnrollment };
+  }
+
   return {
     source: 'training',
-    source_id: data.id,
+    source_id: enrollment.id,
+    user_id: enrollment.user_id,
     title: program?.title || 'Обучение Таро',
-    amount: Number(data.final_price ?? program?.price ?? 0),
+    amount: Number(enrollment.final_price ?? program?.price ?? 0),
+    original_price: Number(enrollment.original_price || program?.price || enrollment.final_price || 0),
+    promo_code_id: enrollment.promo_code_id || null,
+    promo_code: enrollment.promo_code || null,
+    promo_discount: Number(enrollment.promo_discount || 0),
   };
 };
 
@@ -443,7 +529,7 @@ const getTrainingProgramPosition = async (supabase, item, userId) => {
 
   const { data: existingEnrollment, error: existingEnrollmentError } = await supabase
     .from('training_enrollments')
-    .select('id,status,payment_status,final_price')
+    .select('id,user_id,status,payment_status,final_price,original_price,promo_code_id,promo_code,promo_discount')
     .eq('user_id', userId)
     .eq('program_id', program.id)
     .not('status', 'in', '(cancelled,expelled,completed)')
@@ -457,6 +543,7 @@ const getTrainingProgramPosition = async (supabase, item, userId) => {
   }
 
   let enrollment = existingEnrollment;
+  const appliedPromo = await validateTrainingPromoCode(supabase, userId, item.promoCode, Number(program.price || 0));
 
   if (!enrollment) {
     const { data: createdEnrollment, error: createdEnrollmentError } = await supabase
@@ -466,20 +553,45 @@ const getTrainingProgramPosition = async (supabase, item, userId) => {
         program_id: program.id,
         status: 'pending',
         payment_status: 'not_requested',
-        final_price: Number(program.price || 0),
+        original_price: Number(program.price || 0),
+        final_price: appliedPromo?.finalPrice ?? Number(program.price || 0),
+        promo_code_id: appliedPromo?.promoCode.id || null,
+        promo_code: appliedPromo?.promoCode.code || null,
+        promo_discount: appliedPromo?.discount || 0,
       })
-      .select('id,status,payment_status,final_price')
+      .select('id,user_id,status,payment_status,final_price,original_price,promo_code_id,promo_code,promo_discount')
       .single();
 
     if (createdEnrollmentError) throw createdEnrollmentError;
     enrollment = createdEnrollment;
+  } else if (appliedPromo) {
+    const { data: updatedEnrollment, error: updateEnrollmentError } = await supabase
+      .from('training_enrollments')
+      .update({
+        original_price: appliedPromo.originalPrice,
+        final_price: appliedPromo.finalPrice,
+        promo_code_id: appliedPromo.promoCode.id,
+        promo_code: appliedPromo.promoCode.code,
+        promo_discount: appliedPromo.discount,
+      })
+      .eq('id', enrollment.id)
+      .select('id,user_id,status,payment_status,final_price,original_price,promo_code_id,promo_code,promo_discount')
+      .single();
+
+    if (updateEnrollmentError) throw updateEnrollmentError;
+    enrollment = updatedEnrollment;
   }
 
   return {
     source: 'training',
     source_id: enrollment.id,
+    user_id: enrollment.user_id,
     title: program.title || 'Обучение Таро',
     amount: Number(enrollment.final_price || program.price || 0),
+    original_price: Number(enrollment.original_price || program.price || enrollment.final_price || 0),
+    promo_code_id: enrollment.promo_code_id || null,
+    promo_code: enrollment.promo_code || null,
+    promo_discount: Number(enrollment.promo_discount || 0),
   };
 };
 
@@ -487,9 +599,11 @@ const getCartPositions = async (supabase, cartItems, userId) => {
   const positions = [];
 
   for (const item of cartItems) {
-    if (item.source === 'service') positions.push(await getServicePosition(supabase, item));
-    if (item.source === 'consultation') positions.push(await getConsultationPosition(supabase, item, userId));
-    if (item.source === 'training') positions.push(await getTrainingPosition(supabase, item, userId));
+    let position = null;
+    if (item.source === 'service') position = await getServicePosition(supabase, item);
+    if (item.source === 'consultation') position = await getConsultationPosition(supabase, item, userId);
+    if (item.source === 'training') position = await getTrainingPosition(supabase, item, userId);
+    if (position) positions.push({ ...position, cart_id: item.rawId || `${item.source}:${item.id}` });
   }
 
   return positions.filter((item) => item.amount > 0);
@@ -514,6 +628,25 @@ const updateSourcePaymentStatus = async (supabase, positions, patch) => {
   if (failedUpdate?.error) throw failedUpdate.error;
 };
 
+const redeemPaidTrainingPromos = async (supabase, cartItems) => {
+  const rows = (Array.isArray(cartItems) ? cartItems : [])
+    .filter((item) => item?.source === 'training' && item?.promo_code_id && item?.user_id && item?.source_id)
+    .map((item) => ({
+      promo_code_id: item.promo_code_id,
+      user_id: item.user_id,
+      training_enrollment_id: item.source_id,
+    }));
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from('promo_code_redemptions')
+    .upsert(rows, { onConflict: 'promo_code_id,user_id', ignoreDuplicates: true });
+
+  if (error) throw error;
+};
+
+
 const getRequestQueryParam = (request, key) => {
   const queryValue = request.query?.[key];
   if (Array.isArray(queryValue)) return queryValue[0] || '';
@@ -526,6 +659,9 @@ const getRequestQueryParam = (request, key) => {
 };
 
 const getCartItemKey = (item) => {
+  const cartId = String(item?.cart_id || '').trim();
+  if (cartId) return cartId;
+
   const source = String(item?.source || '').trim();
   const sourceId = String(item?.source_id || item?.id || '').trim();
   if (!source || !sourceId) return '';
@@ -603,6 +739,20 @@ const getBankErrorMessage = (payload) => {
   if (errorCode && errorCode !== '0') return `Код ошибки банка: ${errorCode}`;
   if (status) return `Статус платежа: ${status}`;
   return 'Банк не одобрил оплату';
+};
+
+const getTrainingPromoErrorMessage = (error) => {
+  const code = error?.message || error?.code || '';
+  const messages = {
+    TRAINING_PROMO_NOT_FOUND: 'Промокод для обучения не найден или выключен',
+    TRAINING_PROMO_NOT_STARTED: 'Промокод ещё не начал действовать',
+    TRAINING_PROMO_EXPIRED: 'Срок действия промокода истёк',
+    TRAINING_PROMO_ALREADY_USED: 'Этот промокод уже был использован в вашем кабинете',
+    TRAINING_PROMO_LIMIT_REACHED: 'Лимит использований промокода исчерпан',
+    TRAINING_PROMO_EMPTY_DISCOUNT: 'Промокод не уменьшает стоимость обучения',
+  };
+
+  return messages[code] || null;
 };
 
 const getBankStatusMessage = (attempt) => {
@@ -688,6 +838,7 @@ const applyPaidSourceUpdates = async (supabase, cartItems) => {
       payment_status: 'paid',
     },
   });
+  await redeemPaidTrainingPromos(supabase, cartItems);
 };
 
 const refreshAttemptFromTbank = async (request, supabase, attempt) => {
@@ -782,7 +933,20 @@ export const tbankInitHandler = async (request, response) => {
     });
   }
 
-  const positions = await getCartPositions(supabase, cartItems, session.id);
+  let positions;
+  try {
+    positions = await getCartPositions(supabase, cartItems, session.id);
+  } catch (error) {
+    const promoErrorMessage = getTrainingPromoErrorMessage(error);
+    if (promoErrorMessage) {
+      return json(response, 400, {
+        ok: false,
+        error: promoErrorMessage,
+        code: error?.message || 'TRAINING_PROMO_INVALID',
+      });
+    }
+    throw error;
+  }
   const totalRubles = positions.reduce((sum, item) => sum + item.amount, 0);
   const amount = Math.round(totalRubles * 100);
 

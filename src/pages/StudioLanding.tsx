@@ -32,6 +32,7 @@ import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legal
 import { getServicePriceState } from '../lib/serviceCampaigns';
 import { DEFAULT_TRAINING_PROGRAMS, getTrainingProgramPriceLabel, type TrainingProgram } from '../lib/training';
 import { dateToMoscowDateString } from '../lib/moscowTime';
+import { type AppliedTrainingPromo, validateTrainingPromoCode } from '../lib/trainingPromo';
 
 interface PaymentMethod {
   id: string;
@@ -125,6 +126,10 @@ type CartItem = {
   title: string;
   price: number;
   meta?: string;
+  originalPrice?: number;
+  promoCode?: string;
+  promoCodeId?: string;
+  promoDiscount?: number;
 };
 
 type PaymentResultState = {
@@ -1003,12 +1008,18 @@ const ConsultationsPage = ({
 const AcademyPage = ({
   onAddToCart,
   onGoPayment,
+  user,
 }: {
   onAddToCart: (item: CartItem) => void;
   onGoPayment: () => void;
+  user: SiteUser | null;
 }) => {
   const [programs, setPrograms] = useState<TrainingProgram[]>([]);
   const [loading, setLoading] = useState(true);
+  const [promoInputs, setPromoInputs] = useState<Record<string, string>>({});
+  const [appliedPromos, setAppliedPromos] = useState<Record<string, AppliedTrainingPromo>>({});
+  const [promoErrors, setPromoErrors] = useState<Record<string, string>>({});
+  const [promoLoading, setPromoLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -1042,13 +1053,55 @@ const AcademyPage = ({
     };
   }, []);
 
+  const getProgramCartKey = (program: TrainingProgram) => program.slug || program.id;
+  const getProgramPromoKey = (program: TrainingProgram) => program.id || program.slug;
+
+  const applyProgramPromo = async (program: TrainingProgram) => {
+    const promoKey = getProgramPromoKey(program);
+    const code = promoInputs[promoKey] || '';
+
+    setPromoLoading((current) => ({ ...current, [promoKey]: true }));
+    setPromoErrors((current) => ({ ...current, [promoKey]: '' }));
+
+    try {
+      const appliedPromo = await validateTrainingPromoCode(supabase, user?.id, code, Number(program.price || 0));
+      setAppliedPromos((current) => ({ ...current, [promoKey]: appliedPromo }));
+      setPromoInputs((current) => ({ ...current, [promoKey]: appliedPromo.code }));
+    } catch (error) {
+      setAppliedPromos((current) => {
+        const next = { ...current };
+        delete next[promoKey];
+        return next;
+      });
+      setPromoErrors((current) => ({
+        ...current,
+        [promoKey]: error instanceof Error ? error.message : 'Не удалось применить промокод',
+      }));
+    } finally {
+      setPromoLoading((current) => ({ ...current, [promoKey]: false }));
+    }
+  };
+
   const addProgramToCart = (program: TrainingProgram) => {
+    const promoKey = getProgramPromoKey(program);
+    const appliedPromo = appliedPromos[promoKey];
+    const price = appliedPromo?.finalPrice ?? Number(program.price || 0);
+    const meta = [
+      program.is_group ? 'групповое обучение' : 'индивидуальное обучение',
+      program.duration_label || '',
+      appliedPromo ? `промокод ${appliedPromo.code}: -${formatMoney(appliedPromo.discount)}` : '',
+    ].filter(Boolean).join(' · ');
+
     onAddToCart({
-      id: `training:${program.slug || program.id}`,
+      id: `training:${getProgramCartKey(program)}`,
       source: 'training',
       title: program.title,
-      price: Number(program.price || 0),
-      meta: [program.is_group ? 'групповое обучение' : 'индивидуальное обучение', program.duration_label || ''].filter(Boolean).join(' · '),
+      price,
+      meta,
+      originalPrice: appliedPromo?.originalPrice,
+      promoCode: appliedPromo?.code,
+      promoCodeId: appliedPromo?.id,
+      promoDiscount: appliedPromo?.discount,
     });
     onGoPayment();
   };
@@ -1081,33 +1134,87 @@ const AcademyPage = ({
           </div>
         )}
 
-        {!loading && programs.map((program, index) => (
-          <div key={program.id} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
-            <BookOpen className="h-8 w-8 text-[#C79672]" />
-            <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">Программа 0{index + 1}</p>
-            <h3 className="site-display mt-4 text-[clamp(1.8rem,2.4vw,2.6rem)] leading-[1.06]">{program.title}</h3>
-            <p className="mt-5 text-4xl font-semibold text-[#B98266]">{getTrainingProgramPriceLabel(program)}</p>
-            <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">{program.description}</p>
-            {(program.includes || []).length > 0 && (
-              <div className="mt-7 flex flex-wrap gap-2">
-                {(program.includes || []).slice(0, 3).map((item) => (
-                  <span key={item} className="rounded-full bg-[#2F463B]/7 px-4 py-2 text-sm font-bold text-[#2F463B]/58">
-                    {item}
-                  </span>
-                ))}
+        {!loading && programs.map((program, index) => {
+          const promoKey = getProgramPromoKey(program);
+          const appliedPromo = appliedPromos[promoKey];
+          const promoError = promoErrors[promoKey];
+          const currentPromoInput = promoInputs[promoKey] || '';
+
+          return (
+            <div key={program.id} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
+              <BookOpen className="h-8 w-8 text-[#C79672]" />
+              <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">Программа 0{index + 1}</p>
+              <h3 className="site-display mt-4 text-[clamp(1.8rem,2.4vw,2.6rem)] leading-[1.06]">{program.title}</h3>
+              <div className="mt-5">
+                {appliedPromo ? (
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#2F463B]/46">
+                      <span className="line-through">{formatMoney(appliedPromo.originalPrice)}</span>
+                    </p>
+                    <p className="text-4xl font-semibold text-[#B98266]">{formatMoney(appliedPromo.finalPrice)}</p>
+                  </div>
+                ) : (
+                  <p className="text-4xl font-semibold text-[#B98266]">{getTrainingProgramPriceLabel(program)}</p>
+                )}
               </div>
-            )}
-            <button
-              type="button"
-              onClick={() => addProgramToCart(program)}
-              className="site-magnetic mt-9 inline-flex items-center justify-center rounded-full bg-[#2F463B] px-7 py-4 text-base font-semibold text-[#F7EDE0] transition hover:-translate-y-0.5"
-              data-magnetic
-            >
-              Добавить в корзину
-              <ShoppingCart className="ml-3 h-5 w-5" />
-            </button>
-          </div>
-        ))}
+              <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">{program.description}</p>
+              {(program.includes || []).length > 0 && (
+                <div className="mt-7 flex flex-wrap gap-2">
+                  {(program.includes || []).slice(0, 3).map((item) => (
+                    <span key={item} className="rounded-full bg-[#2F463B]/7 px-4 py-2 text-sm font-bold text-[#2F463B]/58">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-7 rounded-[1.4rem] border border-[#2F463B]/10 bg-[#F7EDE0]/72 p-3">
+                <label className="text-xs font-bold uppercase tracking-[0.22em] text-[#A9795F]">
+                  Персональный промокод
+                </label>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={currentPromoInput}
+                    onChange={(event) => {
+                      const nextCode = event.target.value;
+                      setPromoInputs((current) => ({ ...current, [promoKey]: nextCode }));
+                      setPromoErrors((current) => ({ ...current, [promoKey]: '' }));
+                      setAppliedPromos((current) => {
+                        const next = { ...current };
+                        delete next[promoKey];
+                        return next;
+                      });
+                    }}
+                    className="min-w-0 flex-1 rounded-full border border-[#2F463B]/10 bg-white px-4 py-3 text-sm font-bold uppercase text-[#2F463B] outline-none transition focus:border-[#B98266]"
+                    placeholder="Код"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applyProgramPromo(program)}
+                    disabled={promoLoading[promoKey] || !currentPromoInput.trim()}
+                    className="rounded-full bg-[#C79672] px-4 py-3 text-sm font-bold text-white transition disabled:opacity-45"
+                  >
+                    {promoLoading[promoKey] ? '...' : 'ОК'}
+                  </button>
+                </div>
+                {appliedPromo && (
+                  <p className="mt-2 text-sm font-bold text-[#2F463B]">
+                    Скидка {formatMoney(appliedPromo.discount)} применена
+                  </p>
+                )}
+                {promoError && <p className="mt-2 text-sm font-bold text-[#8A5A3F]">{promoError}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => addProgramToCart(program)}
+                className="site-magnetic mt-6 inline-flex items-center justify-center rounded-full bg-[#2F463B] px-7 py-4 text-base font-semibold text-[#F7EDE0] transition hover:-translate-y-0.5"
+                data-magnetic
+              >
+                Добавить в корзину
+                <ShoppingCart className="ml-3 h-5 w-5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -1988,7 +2095,12 @@ const SiteCartPanel = ({
                 {item.meta && <p className="mt-1 text-sm font-medium text-[#2F463B]/50">{item.meta}</p>}
               </div>
               <div className="flex items-center gap-3">
-                <span className="whitespace-nowrap text-lg font-semibold text-[#8B604A]">{formatMoney(item.price)}</span>
+                <div className="text-right">
+                  {item.originalPrice && item.originalPrice > item.price && (
+                    <p className="text-xs font-bold text-[#2F463B]/42 line-through">{formatMoney(item.originalPrice)}</p>
+                  )}
+                  <span className="whitespace-nowrap text-lg font-semibold text-[#8B604A]">{formatMoney(item.price)}</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => onRemove(item.id)}
@@ -3100,6 +3212,7 @@ export const StudioLanding = () => {
           cart: cart.map((item) => ({
             id: item.id,
             source: item.source,
+            promoCode: item.promoCode || null,
           })),
         }),
       });
@@ -3127,7 +3240,7 @@ export const StudioLanding = () => {
 
   const content = useMemo(() => {
     if (page === 'consultations') return <ConsultationsPage onAddToCart={addToCart} onGoPayment={goToPayment} />;
-    if (page === 'academy') return <AcademyPage onAddToCart={addToCart} onGoPayment={goToPayment} />;
+    if (page === 'academy') return <AcademyPage user={user} onAddToCart={addToCart} onGoPayment={goToPayment} />;
     if (page === 'profile') {
       return user ? (
         <ProfileCabinetPage
