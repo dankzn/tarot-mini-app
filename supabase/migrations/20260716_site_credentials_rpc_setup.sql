@@ -133,8 +133,41 @@ begin
 end;
 $$;
 
+create or replace function public.upsert_site_auth_credentials_for_telegram_rpc(
+  p_user_id uuid,
+  p_telegram_id text,
+  p_password_hash text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1
+    from public.users u
+    where u.id = p_user_id
+      and u.telegram_id::text = coalesce(p_telegram_id, '')
+  ) then
+    raise exception 'SITE_AUTH_TELEGRAM_USER_MISMATCH' using errcode = '28000';
+  end if;
+
+  insert into public.site_auth_credentials (user_id, password_hash, updated_at)
+  values (p_user_id, p_password_hash, now())
+  on conflict (user_id)
+  do update set
+    password_hash = excluded.password_hash,
+    updated_at = now();
+
+  return true;
+end;
+$$;
+
 revoke all on function public.upsert_site_auth_credentials_rpc(text, uuid, text) from public;
 revoke all on function public.get_site_auth_credentials_rpc(text, uuid) from public;
+revoke all on function public.upsert_site_auth_credentials_for_telegram_rpc(uuid, text, text) from public;
 
 grant execute on function public.upsert_site_auth_credentials_rpc(text, uuid, text) to anon, authenticated;
 grant execute on function public.get_site_auth_credentials_rpc(text, uuid) to anon, authenticated;
+grant execute on function public.upsert_site_auth_credentials_for_telegram_rpc(uuid, text, text) to anon, authenticated;

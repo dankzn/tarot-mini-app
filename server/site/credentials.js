@@ -147,7 +147,10 @@ export default async function handler(request, response) {
 
     if (updateError) throw updateError;
 
-    const credentialsResult = await saveSitePassword(supabase, user.id, password, { required: false });
+    const credentialsResult = await saveSitePassword(supabase, user.id, password, {
+      required: false,
+      telegramId: user.telegram_id,
+    });
 
     if (!credentialsResult.ok) {
       console.warn(

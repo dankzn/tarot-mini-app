@@ -13,7 +13,28 @@ const isRlsCredentialsError = (error) =>
     String(error?.message || error?.code || error || ''),
   );
 
-export const saveSitePassword = async (supabase, userId, password, { required = true } = {}) => {
+const resultFromError = (error) => ({
+  ok: false,
+  error: error.message,
+  code: error.code,
+  details: error.details,
+  hint: error.hint,
+});
+
+const tryTelegramCredentialsRpc = async (supabase, userId, telegramId, passwordHash) => {
+  if (!telegramId) return null;
+
+  const { error } = await supabase.rpc('upsert_site_auth_credentials_for_telegram_rpc', {
+    p_user_id: userId,
+    p_telegram_id: String(telegramId),
+    p_password_hash: passwordHash,
+  });
+
+  if (!error) return { ok: true, source: 'telegram_rpc' };
+  return resultFromError(buildCredentialsError(error));
+};
+
+export const saveSitePassword = async (supabase, userId, password, { required = true, telegramId = null } = {}) => {
   const passwordHash = hashPassword(password);
   const { error: credentialsError } = await supabase
     .from('site_auth_credentials')
@@ -37,13 +58,22 @@ export const saveSitePassword = async (supabase, userId, password, { required = 
     });
 
     if (!rpcError) return { ok: true, source: 'rpc' };
+
+    const telegramRpcResult = await tryTelegramCredentialsRpc(supabase, userId, telegramId, passwordHash);
+    if (telegramRpcResult?.ok) return telegramRpcResult;
+
     const error = buildCredentialsError(rpcError);
-    if (!required) return { ok: false, error: error.message, code: error.code, details: error.details, hint: error.hint };
+    if (!required) return telegramRpcResult || resultFromError(error);
     throw error;
   }
 
+  if (isRlsCredentialsError(credentialsError)) {
+    const telegramRpcResult = await tryTelegramCredentialsRpc(supabase, userId, telegramId, passwordHash);
+    if (telegramRpcResult?.ok) return telegramRpcResult;
+  }
+
   const error = buildCredentialsError(credentialsError);
-  if (!required) return { ok: false, error: error.message, code: error.code, details: error.details, hint: error.hint };
+  if (!required) return resultFromError(error);
   throw error;
 };
 
