@@ -309,6 +309,8 @@ const parseDate = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+
 const getCurrentServicePrice = (service) => {
   const now = Date.now();
   const basePrice = Number(service?.price || 0);
@@ -375,7 +377,7 @@ const getTrainingPosition = async (supabase, item, userId) => {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error('TRAINING_ENROLLMENT_NOT_FOUND');
+  if (!data) return getTrainingProgramPosition(supabase, item, userId);
   if (['paid', 'confirmed', 'completed'].includes(String(data.payment_status || '').toLowerCase())) {
     throw new Error('TRAINING_ALREADY_PAID');
   }
@@ -386,6 +388,77 @@ const getTrainingPosition = async (supabase, item, userId) => {
     source_id: data.id,
     title: program?.title || 'Обучение Таро',
     amount: Number(data.final_price ?? program?.price ?? 0),
+  };
+};
+
+const getTrainingProgramPosition = async (supabase, item, userId) => {
+  let program = null;
+
+  if (isUuid(item.id)) {
+    const { data: programById, error: programByIdError } = await supabase
+      .from('training_programs')
+      .select('id,slug,title,price,is_active')
+      .eq('is_active', true)
+      .eq('id', item.id)
+      .maybeSingle();
+
+    if (programByIdError) throw programByIdError;
+    program = programById;
+  }
+
+  if (!program) {
+    const { data: programBySlug, error: programBySlugError } = await supabase
+      .from('training_programs')
+      .select('id,slug,title,price,is_active')
+      .eq('is_active', true)
+      .eq('slug', item.id)
+      .maybeSingle();
+
+    if (programBySlugError) throw programBySlugError;
+    program = programBySlug;
+  }
+
+  if (!program) throw new Error('TRAINING_PROGRAM_NOT_FOUND');
+
+  const { data: existingEnrollment, error: existingEnrollmentError } = await supabase
+    .from('training_enrollments')
+    .select('id,status,payment_status,final_price')
+    .eq('user_id', userId)
+    .eq('program_id', program.id)
+    .not('status', 'in', '("cancelled","expelled","completed")')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingEnrollmentError) throw existingEnrollmentError;
+  if (existingEnrollment && ['paid', 'confirmed', 'completed'].includes(String(existingEnrollment.payment_status || '').toLowerCase())) {
+    throw new Error('TRAINING_ALREADY_PAID');
+  }
+
+  let enrollment = existingEnrollment;
+
+  if (!enrollment) {
+    const { data: createdEnrollment, error: createdEnrollmentError } = await supabase
+      .from('training_enrollments')
+      .insert({
+        user_id: userId,
+        program_id: program.id,
+        status: 'pending',
+        payment_status: 'not_requested',
+        final_price: Number(program.price || 0),
+      })
+      .select('id,status,payment_status,final_price')
+      .single();
+
+    if (createdEnrollmentError) throw createdEnrollmentError;
+    enrollment = createdEnrollment;
+  }
+
+  return {
+    source: 'training',
+    source_id: enrollment.id,
+    title: program.title || 'Обучение Таро',
+    amount: Number(enrollment.final_price || program.price || 0),
   };
 };
 

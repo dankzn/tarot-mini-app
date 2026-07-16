@@ -27,6 +27,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { offerTerms, personalDataPolicy, type LegalDocument } from '../lib/legalContent';
 import { getServicePriceState } from '../lib/serviceCampaigns';
+import { DEFAULT_TRAINING_PROGRAMS, getTrainingProgramPriceLabel, type TrainingProgram } from '../lib/training';
 
 interface PaymentMethod {
   id: string;
@@ -143,25 +144,7 @@ const studioPrinciples = [
   ['Кабинет', 'Записи, оплата и материалы остаются под рукой'],
 ];
 
-const academyCards = [
-  {
-    title: 'Индивидуальная база',
-    price: '20 000 ₽',
-    text: 'Базовая программа один на один: структура колоды, первые расклады и практика',
-  },
-  {
-    title: 'Расширенная программа',
-    price: '40 000 ₽',
-    text: 'Для тех, кто хочет глубже работать с трактовками, практикой и сложными запросами',
-  },
-  {
-    title: 'Группа',
-    price: '11 500 ₽ / с человека',
-    text: 'Групповое обучение с занятиями, домашними заданиями и разбором практики',
-  },
-];
-
-const academySteps = ['заявка', 'детали', 'зачисление', 'занятия', 'домашние задания', 'практика'];
+const academySteps = ['программа', 'корзина', 'оплата', 'зачисление', 'занятия', 'практика'];
 
 const studioSpaces = [
   {
@@ -899,43 +882,118 @@ const ConsultationsPage = ({
   );
 };
 
-const AcademyPage = () => (
-  <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
-    <div className="grid gap-10 xl:grid-cols-[0.9fr_1.1fr]">
-      <SectionIntro
-        eyebrow="Академия"
-        title="Обучение Таро"
-        text="Индивидуальные и групповые программы с занятиями, домашними заданиями и кабинетом студента"
-      />
-      <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#C79672]/22 bg-[#C79672]/18 p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.1)] backdrop-blur-xl">
-        <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#A9795F]">Этапы</p>
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          {academySteps.map((step, index) => (
-            <div key={step} className="rounded-[1.6rem] bg-white/[0.58] p-4">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#A9795F]/70">0{index + 1}</p>
-              <p className="mt-2 text-xl font-semibold">{step}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+const AcademyPage = ({
+  onAddToCart,
+  onGoPayment,
+}: {
+  onAddToCart: (item: CartItem) => void;
+  onGoPayment: () => void;
+}) => {
+  const [programs, setPrograms] = useState<TrainingProgram[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    <div className="mt-14 grid gap-5 lg:grid-cols-3">
-      {academyCards.map((card, index) => (
-        <div key={card.title} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
-          <BookOpen className="h-8 w-8 text-[#C79672]" />
-          <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">Программа 0{index + 1}</p>
-          <h3 className="site-display mt-4 text-[clamp(1.8rem,2.4vw,2.6rem)] leading-[1.06]">{card.title}</h3>
-          <p className="mt-5 text-4xl font-semibold text-[#B98266]">{card.price}</p>
-          <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">{card.text}</p>
-          <div className="mt-9">
-            <MagneticLink href="/site/profile">Оставить заявку</MagneticLink>
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPrograms = async () => {
+      setLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from('training_programs')
+          .select('id,slug,title,format_type,description,price,duration_label,includes,is_group,is_active,sort_order')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (error) throw error;
+        if (!cancelled) {
+          const loadedPrograms = ((data || []) as TrainingProgram[])
+            .filter((program) => program.title && Number(program.price || 0) > 0);
+          setPrograms(loadedPrograms.length > 0 ? loadedPrograms : DEFAULT_TRAINING_PROGRAMS);
+        }
+      } catch {
+        if (!cancelled) setPrograms(DEFAULT_TRAINING_PROGRAMS);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadPrograms();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const addProgramToCart = (program: TrainingProgram) => {
+    onAddToCart({
+      id: `training:${program.slug || program.id}`,
+      source: 'training',
+      title: program.title,
+      price: Number(program.price || 0),
+      meta: [program.is_group ? 'групповое обучение' : 'индивидуальное обучение', program.duration_label || ''].filter(Boolean).join(' · '),
+    });
+    onGoPayment();
+  };
+
+  return (
+    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
+      <div className="grid gap-10 xl:grid-cols-[0.9fr_1.1fr]">
+        <SectionIntro
+          eyebrow="Академия"
+          title="Обучение Таро"
+          text="Выберите программу, добавьте её в корзину и оплатите вместе с другими услугами"
+        />
+        <div className="site-reveal site-delay-1 rounded-[2.4rem] border border-[#C79672]/22 bg-[#C79672]/18 p-7 text-[#2F463B] shadow-[0_32px_100px_rgba(47,70,59,0.1)] backdrop-blur-xl">
+          <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#A9795F]">Этапы</p>
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            {academySteps.map((step, index) => (
+              <div key={step} className="rounded-[1.6rem] bg-white/[0.58] p-4">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#A9795F]/70">0{index + 1}</p>
+                <p className="mt-2 text-xl font-semibold">{step}</p>
+              </div>
+            ))}
           </div>
         </div>
-      ))}
-    </div>
-  </section>
-);
+      </div>
+
+      <div className="mt-14 grid gap-5 lg:grid-cols-3">
+        {loading && (
+          <div className="site-reveal rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 text-xl font-semibold text-[#2F463B]/58 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+            Загружаю программы
+          </div>
+        )}
+
+        {!loading && programs.map((program, index) => (
+          <div key={program.id} className={`site-reveal site-premium-card site-delay-${index + 1} min-h-[430px] rounded-[2.4rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl transition hover:-translate-y-2`}>
+            <BookOpen className="h-8 w-8 text-[#C79672]" />
+            <p className="mt-10 text-xs font-bold uppercase tracking-[0.38em] text-[#C79672]">Программа 0{index + 1}</p>
+            <h3 className="site-display mt-4 text-[clamp(1.8rem,2.4vw,2.6rem)] leading-[1.06]">{program.title}</h3>
+            <p className="mt-5 text-4xl font-semibold text-[#B98266]">{getTrainingProgramPriceLabel(program)}</p>
+            <p className="mt-7 text-lg font-medium leading-relaxed text-[#2F463B]/58">{program.description}</p>
+            {(program.includes || []).length > 0 && (
+              <div className="mt-7 flex flex-wrap gap-2">
+                {(program.includes || []).slice(0, 3).map((item) => (
+                  <span key={item} className="rounded-full bg-[#2F463B]/7 px-4 py-2 text-sm font-bold text-[#2F463B]/58">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => addProgramToCart(program)}
+              className="site-magnetic mt-9 inline-flex items-center justify-center rounded-full bg-[#2F463B] px-7 py-4 text-base font-semibold text-[#F7EDE0] transition hover:-translate-y-0.5"
+              data-magnetic
+            >
+              Добавить в корзину
+              <ShoppingCart className="ml-3 h-5 w-5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
 
 const ProfilePage = ({
   user,
@@ -2717,7 +2775,7 @@ export const StudioLanding = () => {
 
   const content = useMemo(() => {
     if (page === 'consultations') return <ConsultationsPage onAddToCart={addToCart} onGoPayment={goToPayment} />;
-    if (page === 'academy') return <AcademyPage />;
+    if (page === 'academy') return <AcademyPage onAddToCart={addToCart} onGoPayment={goToPayment} />;
     if (page === 'profile') {
       return user ? (
         <ProfileCabinetPage

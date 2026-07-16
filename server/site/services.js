@@ -41,10 +41,16 @@ const PUBLIC_SERVICE_FIELDS = [
 const getServiceOrder = (service) => Number(service?.sort_order || 0);
 const getServicePrice = (service) => Number(service?.price || service?.promo_price || 0);
 
-const normalizeServices = (services) =>
-  (services || [])
-    .filter((service) => service?.title && getServicePrice(service) > 0 && service?.is_active !== false)
-    .sort((left, right) => getServiceOrder(left) - getServiceOrder(right) || getServicePrice(left) - getServicePrice(right));
+const sortServices = (services) =>
+  services.sort((left, right) => getServiceOrder(left) - getServiceOrder(right) || getServicePrice(left) - getServicePrice(right));
+
+const normalizeServices = (services) => {
+  const payableServices = (services || [])
+    .filter((service) => service?.title && getServicePrice(service) > 0);
+  const activeServices = payableServices.filter((service) => service?.is_active !== false);
+
+  return sortServices(activeServices.length > 0 ? activeServices : payableServices);
+};
 
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
