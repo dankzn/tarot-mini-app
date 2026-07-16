@@ -369,6 +369,10 @@ const getConsultationPosition = async (supabase, item, userId) => {
 };
 
 const getTrainingPosition = async (supabase, item, userId) => {
+  if (!isUuid(item.id)) {
+    return getTrainingProgramPosition(supabase, item, userId);
+  }
+
   const { data, error } = await supabase
     .from('training_enrollments')
     .select('id,user_id,status,payment_status,final_price,training_programs(title,price)')
@@ -425,7 +429,7 @@ const getTrainingProgramPosition = async (supabase, item, userId) => {
     .select('id,status,payment_status,final_price')
     .eq('user_id', userId)
     .eq('program_id', program.id)
-    .not('status', 'in', '("cancelled","expelled","completed")')
+    .not('status', 'in', '(cancelled,expelled,completed)')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
