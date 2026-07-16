@@ -31,6 +31,14 @@ const getPublicCredentialsError = (error) => {
     return 'Пароль не принят. Используйте минимум 8 символов';
   }
 
+  if (/SITE_AUTH_RPC_FORBIDDEN|28000/i.test(combined)) {
+    return 'В Supabase не настроен секрет для сохранения пароля. Запустите настройку site_auth_rpc_secret';
+  }
+
+  if (/upsert_site_auth_credentials_rpc|function .* does not exist|42883/i.test(combined)) {
+    return 'В Supabase не применена миграция для входа на сайт';
+  }
+
   if (/row-level security|permission denied|SITE_CREDENTIALS_SAVE_FAILED|42501/i.test(combined)) {
     return 'Не удалось сохранить пароль для входа. Проверьте настройки доступа к базе';
   }
