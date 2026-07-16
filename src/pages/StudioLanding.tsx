@@ -116,6 +116,10 @@ type PaymentResultState = {
   orderId?: string | null;
   bankStatus?: string | null;
   bankCode?: string | null;
+  amount?: number | null;
+  description?: string | null;
+  checkedAt?: string | null;
+  updatedAt?: string | null;
 } | null;
 
 type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment' | 'privacy' | 'offer';
@@ -184,6 +188,19 @@ const formatDateTime = (value?: string | null) => {
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(date);
+};
+
+const formatPaymentTimestamp = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   }).format(date);
 };
 
@@ -2408,6 +2425,12 @@ const PaymentPage = ({
 }) => {
   const activeMethod = paymentMethods[0];
   const [paymentResult, setPaymentResult] = useState<PaymentResultState>(null);
+  const cartClearedForOrderRef = useRef<string | null>(null);
+  const onClearCartRef = useRef(onClearCart);
+
+  useEffect(() => {
+    onClearCartRef.current = onClearCart;
+  }, [onClearCart]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2417,6 +2440,8 @@ const PaymentPage = ({
     if (!paymentMarker && !orderId) return;
 
     let isMounted = true;
+    let pollTimeoutId: number | null = null;
+    let pollAttempt = 0;
 
     const showFallbackResult = () => {
       if (!isMounted) return;
@@ -2434,10 +2459,11 @@ const PaymentPage = ({
 
       if (paymentMarker === 'success') {
         setPaymentResult({
-          type: 'success',
-          title: 'Оплата прошла',
-          message: 'Платёж принят банком',
+          type: 'info',
+          title: 'Проверяю оплату',
+          message: 'Банк вернул вас после оплаты. Ждём финальное подтверждение платежа',
           orderId,
+          checkedAt: new Date().toISOString(),
         });
       }
     };
@@ -2449,23 +2475,47 @@ const PaymentPage = ({
       };
     }
 
-    fetch(`/api/site/tbank-status?order=${encodeURIComponent(orderId)}`, {
-      credentials: 'include',
-    })
-      .then(async (response) => {
+    const scheduleNextPoll = () => {
+      if (!isMounted || pollAttempt >= 30) return;
+      pollTimeoutId = window.setTimeout(loadPaymentStatus, pollAttempt < 5 ? 3000 : 6000);
+    };
+
+    const loadPaymentStatus = async () => {
+      pollAttempt += 1;
+
+      try {
+        const response = await fetch(`/api/site/tbank-status?order=${encodeURIComponent(orderId)}`, {
+          credentials: 'include',
+        });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.ok) {
           throw new Error(payload?.error || 'Не удалось получить статус оплаты');
         }
 
         if (!isMounted) return;
+
+        const nextBase = {
+          orderId: payload.orderId,
+          bankStatus: payload.bankStatus,
+          bankCode: payload.bankCode,
+          amount: payload.amount,
+          description: payload.description,
+          updatedAt: payload.updatedAt,
+          checkedAt: new Date().toISOString(),
+        };
+
         if (payload.paymentState === 'paid') {
           setPaymentResult({
             type: 'success',
             title: payload.title || 'Оплата прошла',
-            message: payload.message || 'Платёж принят банком',
-            orderId: payload.orderId,
+            message: payload.message || 'Платёж принят банком. Корзина очищена',
+            ...nextBase,
           });
+
+          if (cartClearedForOrderRef.current !== payload.orderId) {
+            cartClearedForOrderRef.current = payload.orderId;
+            onClearCartRef.current();
+          }
           return;
         }
 
@@ -2477,9 +2527,7 @@ const PaymentPage = ({
               payload.paymentState === 'failed'
                 ? payload.message || 'Банк не одобрил оплату'
                 : params.get('message') || params.get('Message') || params.get('Details') || 'Банк не одобрил оплату',
-            orderId: payload.orderId,
-            bankStatus: payload.bankStatus,
-            bankCode: payload.bankCode,
+            ...nextBase,
           });
           return;
         }
@@ -2487,61 +2535,137 @@ const PaymentPage = ({
         setPaymentResult({
           type: 'info',
           title: payload.title || 'Платёж обрабатывается',
-          message: payload.message || 'Банк ещё не прислал финальный статус',
-          orderId: payload.orderId,
-          bankStatus: payload.bankStatus,
+          message: `${payload.message || 'Банк ещё не прислал финальный статус'}. Обновляю автоматически`,
+          ...nextBase,
         });
-      })
-      .catch((error) => {
+        scheduleNextPoll();
+      } catch (error) {
         showFallbackResult();
-        if (!isMounted || paymentMarker) return;
+        if (!isMounted || paymentMarker === 'failed') return;
         setPaymentResult({
           type: 'info',
-          title: 'Статус оплаты пока недоступен',
-          message: error?.message || 'Попробуйте обновить страницу чуть позже',
+          title: 'Проверяю оплату',
+          message: error instanceof Error ? error.message : 'Попробуйте обновить страницу чуть позже',
           orderId,
+          checkedAt: new Date().toISOString(),
         });
-      });
+        scheduleNextPoll();
+      }
+    };
+
+    loadPaymentStatus();
 
     return () => {
       isMounted = false;
+      if (pollTimeoutId) window.clearTimeout(pollTimeoutId);
     };
   }, []);
+
+  const paymentStatusDetails = paymentResult
+    ? [
+      ['Заказ', paymentResult.orderId || 'ожидается'],
+      ['Сумма', paymentResult.amount ? formatMoney(paymentResult.amount) : 'уточняется'],
+      ['Банк', paymentResult.bankStatus || (paymentResult.type === 'success' ? 'подтверждено' : 'ожидание')],
+      ['Проверка', formatPaymentTimestamp(paymentResult.checkedAt) || 'только что'],
+    ]
+    : [];
+  const paymentResultIcon = paymentResult?.type === 'success'
+    ? <CheckCircle2 className="h-7 w-7" />
+    : paymentResult?.type === 'error'
+      ? <AlertTriangle className="h-7 w-7" />
+      : <Clock className="h-7 w-7" />;
 
   return (
     <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
       {paymentResult && (
         <div
-          className={`site-reveal mb-8 rounded-[2rem] border p-6 shadow-[0_26px_90px_rgba(47,70,59,0.1)] backdrop-blur-xl ${
+          className={`site-reveal mb-8 overflow-hidden rounded-[2.4rem] border p-6 shadow-[0_26px_90px_rgba(47,70,59,0.1)] backdrop-blur-xl md:p-8 ${
             paymentResult.type === 'error'
-              ? 'border-[#B98266]/28 bg-[#FFF5EC]/86 text-[#6F3F2D]'
+              ? 'border-[#B98266]/28 bg-[#FFF5EC]/90 text-[#6F3F2D]'
               : paymentResult.type === 'success'
-                ? 'border-[#2F463B]/16 bg-[#EAF2EA]/86 text-[#2F463B]'
-                : 'border-[#2F463B]/12 bg-white/[0.74] text-[#2F463B]'
+                ? 'border-[#2F463B]/16 bg-[#EAF2EA]/90 text-[#2F463B]'
+                : 'border-[#C79672]/22 bg-white/[0.82] text-[#2F463B]'
           }`}
         >
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div
+                className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl ${
+                  paymentResult.type === 'error'
+                    ? 'bg-[#B98266]/14 text-[#8B604A]'
+                    : paymentResult.type === 'success'
+                      ? 'bg-[#2F463B]/10 text-[#2F463B]'
+                      : 'bg-[#C79672]/14 text-[#8B604A]'
+                }`}
+              >
+                {paymentResultIcon}
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#B98266]">Статус оплаты</p>
+                <h2 className="site-display mt-2 text-[clamp(1.9rem,3vw,3rem)] leading-[1.02]">{paymentResult.title}</h2>
+                <p className="mt-3 max-w-3xl text-base font-medium leading-relaxed opacity-75">{paymentResult.message}</p>
+                {paymentResult.description && (
+                  <p className="mt-3 max-w-3xl text-sm font-bold uppercase tracking-[0.18em] opacity-45">{paymentResult.description}</p>
+                )}
+              </div>
+            </div>
+
             <div
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${
-                paymentResult.type === 'error' ? 'bg-[#B98266]/14 text-[#8B604A]' : 'bg-[#2F463B]/10 text-[#2F463B]'
+              className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-[0.22em] ${
+                paymentResult.type === 'success'
+                  ? 'bg-[#2F463B] text-[#F7EDE0]'
+                  : paymentResult.type === 'error'
+                    ? 'bg-[#B98266]/18 text-[#6F3F2D]'
+                    : 'bg-[#F7EDE0] text-[#8B604A]'
               }`}
             >
-              {paymentResult.type === 'success' ? <CheckCircle2 className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#B98266]">Статус оплаты</p>
-              <h2 className="site-display mt-2 text-[clamp(1.8rem,3vw,2.8rem)] leading-[1.02]">{paymentResult.title}</h2>
-              <p className="mt-3 max-w-3xl text-base font-medium leading-relaxed opacity-75">{paymentResult.message}</p>
-              {(paymentResult.orderId || paymentResult.bankCode || paymentResult.bankStatus) && (
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] opacity-60">
-                  {paymentResult.orderId && <span className="rounded-full bg-white/60 px-3 py-2">Заказ {paymentResult.orderId}</span>}
-                  {paymentResult.bankStatus && <span className="rounded-full bg-white/60 px-3 py-2">Статус {paymentResult.bankStatus}</span>}
-                  {paymentResult.bankCode && <span className="rounded-full bg-white/60 px-3 py-2">Код {paymentResult.bankCode}</span>}
-                </div>
-              )}
+              {paymentResult.type === 'success'
+                ? 'подтверждено'
+                : paymentResult.type === 'error'
+                  ? 'не оплачено'
+                  : 'автообновление'}
             </div>
           </div>
-        </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {paymentStatusDetails.map(([label, value]) => (
+              <div key={label} className="rounded-[1.4rem] bg-white/58 p-4">
+                <p className="text-[0.65rem] font-black uppercase tracking-[0.22em] opacity-45">{label}</p>
+                <p className="mt-2 break-words text-sm font-black md:text-base">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {paymentResult.type === 'info' && (
+            <div className="mt-6 rounded-[1.4rem] bg-[#F7EDE0]/72 p-4">
+              <div className="flex items-center gap-3">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#B98266]" />
+                <p className="text-sm font-bold text-[#2F463B]/66">
+                  Оставьте страницу открытой: статус обновится автоматически после ответа банка.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {paymentResult.type === 'success' && (
+            <div className="mt-6 rounded-[1.4rem] bg-[#2F463B]/8 p-4">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-[#2F463B]" />
+                <p className="text-sm font-bold text-[#2F463B]/66">
+                  Корзина очищена после подтверждения успешного платежа.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {paymentResult.bankCode && paymentResult.type === 'error' && (
+            <div className="mt-6 rounded-[1.4rem] bg-white/58 p-4">
+              <p className="text-sm font-bold text-[#6F3F2D]/70">
+                Код банка: {paymentResult.bankCode}
+              </p>
+            </div>
+          )}
+                </div>
       )}
 
       <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">

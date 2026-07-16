@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import https from 'https';
-import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
+import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession, verifyTelegramWebAppInitData } from './_auth.js';
+import { notifyAdminsPaymentEvent, notifyClientPaymentSucceeded } from './_telegram-notify.js';
 
 const TBANK_INIT_URL = 'https://securepay.tinkoff.ru/v2/Init';
 const TBANK_LEGACY_TEST_INIT_URLS = new Set([
@@ -508,6 +509,43 @@ const getRequestQueryParam = (request, key) => {
   return url.searchParams.get(key) || '';
 };
 
+const resolvePaymentUser = async (request, supabase, body) => {
+  const session = readSession(request);
+  if (session?.id) return session;
+
+  const telegramInitData = String(body?.telegramInitData || body?.telegram_init_data || '').trim();
+  if (!telegramInitData) return null;
+
+  const verification = verifyTelegramWebAppInitData(telegramInitData);
+  if (!verification.ok) {
+    const error = new Error(verification.error || 'Telegram authorization failed');
+    error.code = 'TELEGRAM_AUTH_FAILED';
+    throw error;
+  }
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, telegram_id, username, name, email')
+    .eq('telegram_id', verification.telegramUser.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!user?.id) {
+    const notFoundError = new Error('Пользователь Telegram не найден');
+    notFoundError.code = 'TELEGRAM_USER_NOT_FOUND';
+    throw notFoundError;
+  }
+
+  return {
+    id: user.id,
+    telegram_id: user.telegram_id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    source: 'telegram_mini_app',
+  };
+};
+
 const getBankErrorMessage = (payload) => {
   const source = payload && typeof payload === 'object' ? payload : {};
   const details = String(source.Details || source.details || '').trim();
@@ -557,7 +595,18 @@ const getBankStatusMessage = (attempt) => {
 export const tbankInitHandler = async (request, response) => {
   if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
 
-  const session = readSession(request);
+  const body = await readJsonBody(request);
+  const supabase = getSupabaseAdmin();
+  let session;
+  try {
+    session = await resolvePaymentUser(request, supabase, body);
+  } catch (error) {
+    return json(response, 401, {
+      ok: false,
+      error: error?.message || 'Не удалось подтвердить пользователя',
+      code: error?.code || 'PAYMENT_USER_AUTH_FAILED',
+    });
+  }
   if (!session?.id) {
     return json(response, 401, {
       ok: false,
@@ -566,7 +615,6 @@ export const tbankInitHandler = async (request, response) => {
     });
   }
 
-  const supabase = getSupabaseAdmin();
   const config = await getTbankConfig(request, supabase);
   if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
     return json(response, 503, {
@@ -576,7 +624,6 @@ export const tbankInitHandler = async (request, response) => {
     });
   }
 
-  const body = await readJsonBody(request);
   const cartItems = (Array.isArray(body.cart) ? body.cart : [])
     .map(normalizeCartItem)
     .filter(Boolean);
@@ -731,6 +778,8 @@ export const tbankStatusHandler = async (request, response) => {
     paymentId: attempt.payment_id,
     amount: attempt.amount,
     description: attempt.description,
+    createdAt: attempt.created_at,
+    updatedAt: attempt.updated_at,
     ...getBankStatusMessage(attempt),
   });
 };
@@ -760,30 +809,72 @@ export const tbankNotificationHandler = async (request, response) => {
   const isFailed = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED'].includes(status);
   const { data: attempt } = await supabase
     .from('payment_attempts')
-    .select('id,cart_items')
+    .select('id,user_id,order_id,payment_id,status,amount,description,cart_items')
     .eq('order_id', orderId)
     .maybeSingle();
+
+  const nextStatus = isPaid ? 'paid' : isFailed ? 'failed' : status.toLowerCase() || 'updated';
 
   await supabase
     .from('payment_attempts')
     .update({
       payment_id: notification.PaymentId ? String(notification.PaymentId) : null,
-      status: isPaid ? 'paid' : isFailed ? 'failed' : status.toLowerCase() || 'updated',
+      status: nextStatus,
       raw_notification: notification,
       updated_at: new Date().toISOString(),
     })
     .eq('order_id', orderId);
 
+  const updatedAttempt = attempt
+    ? {
+      ...attempt,
+      payment_id: notification.PaymentId ? String(notification.PaymentId) : attempt.payment_id,
+      order_id: orderId,
+      status: nextStatus,
+    }
+    : {
+      user_id: null,
+      order_id: orderId,
+      payment_id: notification.PaymentId ? String(notification.PaymentId) : null,
+      status: nextStatus,
+      amount: Number(notification.Amount || 0) / 100,
+      cart_items: [],
+    };
+
   if (attempt?.cart_items && isPaid) {
     await updateSourcePaymentStatus(supabase, attempt.cart_items, {
       consultation: {
-        payment_status: 'marked_paid',
+        payment_status: 'paid',
         payment_marked_at: new Date().toISOString(),
       },
       training: {
-        payment_status: 'marked_paid',
+        payment_status: 'paid',
       },
     });
+  }
+
+  const shouldNotify = !attempt || attempt.status !== nextStatus;
+
+  if (shouldNotify) {
+    const adminNotificationResult = await notifyAdminsPaymentEvent(supabase, updatedAttempt, notification).catch((error) => ({
+      ok: false,
+      error: error?.message || String(error),
+    }));
+
+    if (!adminNotificationResult.ok) {
+      console.warn('Payment admin notification failed:', adminNotificationResult.error);
+    }
+  }
+
+  if (isPaid && attempt?.status !== 'paid') {
+    const clientNotificationResult = await notifyClientPaymentSucceeded(supabase, updatedAttempt).catch((error) => ({
+      ok: false,
+      error: error?.message || String(error),
+    }));
+
+    if (!clientNotificationResult.ok) {
+      console.warn('Payment client notification failed:', clientNotificationResult.error);
+    }
   }
 
   return response.status(200).send('OK');

@@ -9,7 +9,6 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { formatCountdown, getServicePriceState } from '../lib/serviceCampaigns';
 import { getConsultationCycleDate, getCurrentLoyaltyCycleStart, getLoyaltyStatusByCompletedConsultations } from '../lib/bonusLogic';
-import { notifyAdminPaymentMarked } from '../lib/notifications';
 import {
   Crown,
   Sparkles,
@@ -79,6 +78,16 @@ interface QuizQuestion {
 }
 
 type DashboardTab = 'home' | 'services' | 'cabinet' | 'menu';
+
+type MiniPaymentStatus = {
+  type: 'info' | 'success' | 'error';
+  title: string;
+  message: string;
+  orderId?: string | null;
+  bankStatus?: string | null;
+  amount?: number | null;
+  consultationId?: string | null;
+};
 
 const consultationStatusLabels: Record<string, string> = {
   pending: 'Ожидает подтверждения',
@@ -542,6 +551,8 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [paymentDueConsultation, setPaymentDueConsultation] = useState<any>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [miniPaymentStatus, setMiniPaymentStatus] = useState<MiniPaymentStatus | null>(null);
   const onboardingStorageKey = `tarot-onboarding-seen:${user.id || user.telegram_id || 'guest'}`;
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try {
@@ -694,81 +705,162 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
 
     setPaymentDueConsultation(data || null);
     setShowPaymentModal(Boolean(data?.status === 'awaiting_payment' && data?.payment_status !== 'marked_paid'));
+
+    if (data?.id) {
+      const savedOrderId = window.localStorage.getItem(getMiniPaymentOrderKey(data.id));
+      if (savedOrderId) {
+        pollMiniPaymentStatus(savedOrderId, data.id);
+      }
+    }
   };
 
   const primaryPaymentMethod = paymentMethods[0] || null;
 
+  const getMiniPaymentOrderKey = (consultationId: string) => `tarot-mini-tbank-order:${consultationId}`;
+
+  const pollMiniPaymentStatus = async (orderId: string, consultationId: string, attempt = 0) => {
+    try {
+      const response = await fetch(`/api/site/tbank-status?order=${encodeURIComponent(orderId)}`, {
+        credentials: 'include',
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Не удалось получить статус оплаты');
+      }
+
+      if (payload.paymentState === 'paid') {
+        window.localStorage.removeItem(getMiniPaymentOrderKey(consultationId));
+        setMiniPaymentStatus({
+          type: 'success',
+          title: payload.title || 'Оплата прошла',
+          message: 'Банк подтвердил платёж. Бот отправит дальнейшие шаги и контакт @dan_kzn',
+          orderId: payload.orderId,
+          bankStatus: payload.bankStatus,
+          amount: payload.amount,
+          consultationId,
+        });
+        setShowPaymentModal(false);
+        await loadPaymentDueConsultation();
+        await loadUpcomingConsultation();
+        return;
+      }
+
+      if (payload.paymentState === 'failed') {
+        window.localStorage.removeItem(getMiniPaymentOrderKey(consultationId));
+        setMiniPaymentStatus({
+          type: 'error',
+          title: payload.title || 'Оплата не прошла',
+          message: payload.message || 'Банк не одобрил оплату',
+          orderId: payload.orderId,
+          bankStatus: payload.bankStatus,
+          amount: payload.amount,
+          consultationId,
+        });
+        return;
+      }
+
+      setMiniPaymentStatus({
+        type: 'info',
+        title: payload.title || 'Платёж обрабатывается',
+        message: 'Жду финальный ответ банка и обновляю статус автоматически',
+        orderId: payload.orderId,
+        bankStatus: payload.bankStatus,
+        amount: payload.amount,
+        consultationId,
+      });
+
+      if (attempt < 30) {
+        window.setTimeout(() => pollMiniPaymentStatus(orderId, consultationId, attempt + 1), attempt < 5 ? 3000 : 6000);
+      }
+    } catch (error: any) {
+      setMiniPaymentStatus({
+        type: 'info',
+        title: 'Проверяю оплату',
+        message: error?.message || 'Статус обновится автоматически чуть позже',
+        orderId,
+        consultationId,
+      });
+
+      if (attempt < 30) {
+        window.setTimeout(() => pollMiniPaymentStatus(orderId, consultationId, attempt + 1), attempt < 5 ? 3000 : 6000);
+      }
+    }
+  };
+
   const openPaymentLink = async (consultation = paymentDueConsultation) => {
-    if (!primaryPaymentMethod?.payment_url) {
-      alert('Способ оплаты пока не настроен. Пожалуйста, напишите администратору.');
+    if (!consultation?.id || paymentBusy) return;
+
+    const telegramInitData = (window.Telegram?.WebApp as any)?.initData || '';
+    if (!telegramInitData) {
+      alert('Не удалось подтвердить Telegram-сессию. Откройте приложение заново из Telegram.');
       return;
     }
 
-    if (consultation?.id) {
+    setPaymentBusy(true);
+    setMiniPaymentStatus({
+      type: 'info',
+      title: 'Создаю платёж',
+      message: 'Передаю заказ в Т-Банк',
+      consultationId: consultation.id,
+    });
+
+    try {
+      const response = await fetch('/api/site/tbank-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          telegramInitData,
+          cart: [
+            {
+              id: `consultation:${consultation.id}`,
+              source: 'consultation',
+            },
+          ],
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok || !payload.paymentUrl) {
+        throw new Error(payload?.error || 'Не удалось создать оплату');
+      }
+
       await supabase
         .from('consultations')
         .update({
           payment_status: 'opened',
-          payment_method_id: primaryPaymentMethod.id,
+          payment_method_id: primaryPaymentMethod?.id || null,
         })
         .eq('id', consultation.id);
+
+      window.localStorage.setItem(getMiniPaymentOrderKey(consultation.id), payload.orderId);
+      setMiniPaymentStatus({
+        type: 'info',
+        title: 'Платёж создан',
+        message: 'После оплаты банк пришлёт подтверждение, а бот отправит дальнейшие шаги и @dan_kzn',
+        orderId: payload.orderId,
+        amount: payload.amount,
+        consultationId: consultation.id,
+      });
+      pollMiniPaymentStatus(payload.orderId, consultation.id);
+
+      const telegramWebApp = window.Telegram?.WebApp as any;
+      telegramWebApp?.openLink?.(payload.paymentUrl);
+      if (!telegramWebApp?.openLink) {
+        window.open(payload.paymentUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error: any) {
+      setMiniPaymentStatus({
+        type: 'error',
+        title: 'Оплата не создана',
+        message: error?.message || 'Не удалось создать оплату',
+        consultationId: consultation.id,
+      });
+      alert(error?.message || 'Не удалось создать оплату');
+    } finally {
+      setPaymentBusy(false);
     }
-
-    const telegramWebApp = window.Telegram?.WebApp as any;
-    telegramWebApp?.openLink?.(primaryPaymentMethod.payment_url);
-    if (!telegramWebApp?.openLink) {
-      window.open(primaryPaymentMethod.payment_url, '_blank', 'noopener,noreferrer');
-    }
-  };
-
-  const markPaymentSent = async (consultation = paymentDueConsultation) => {
-    if (!consultation?.id) return;
-
-    const { error } = await supabase
-      .from('consultations')
-      .update({
-        payment_status: 'marked_paid',
-        payment_method_id: primaryPaymentMethod?.id || null,
-        payment_marked_at: new Date().toISOString(),
-      })
-      .eq('id', consultation.id);
-
-    if (error) {
-      alert('Ошибка: ' + error.message);
-      return;
-    }
-
-    const { data: adminsData, error: adminsError } = await supabase
-      .from('users')
-      .select('telegram_id')
-      .eq('role', 'admin')
-      .not('telegram_id', 'is', null);
-
-    const adminTelegramIds = adminsError ? [] : Array.from(
-      new Set((adminsData || []).map(admin => admin.telegram_id).filter(Boolean))
-    );
-
-    if (adminsError) {
-      console.error('❌ Не удалось загрузить админов для уведомления об оплате:', adminsError);
-    }
-
-    const notificationResult = await notifyAdminPaymentMarked(
-      adminTelegramIds,
-      user.name || 'Клиент',
-      consultation.services?.title || 'Консультация',
-      consultation.payment_amount || consultation.price || 0
-    );
-
-    if (!notificationResult.ok) {
-      console.error('❌ Уведомление админу об оплате не отправлено:', notificationResult.error);
-      alert(`Оплата отмечена, но уведомление админу не отправилось: ${notificationResult.error}`);
-    }
-
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-    alert('✅ Спасибо! Я проверю поступление и подтвержу оплату.');
-    setShowPaymentModal(false);
-    await loadPaymentDueConsultation();
-    await loadUpcomingConsultation();
   };
 
   const loadProfilePhoto = () => {
@@ -1713,6 +1805,39 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
 
         {activeTab === 'cabinet' && (
         <>
+          {miniPaymentStatus && (
+            <div
+              className={`mb-4 overflow-hidden rounded-[1.75rem] border p-5 shadow-[0_18px_44px_rgba(56,81,68,0.12)] ${
+                miniPaymentStatus.type === 'success'
+                  ? 'border-[#BFD7C2] bg-[#ECF6ED] text-[#385144]'
+                  : miniPaymentStatus.type === 'error'
+                    ? 'border-[#D9B8A4] bg-[#FFF4EA] text-[#8A5A3F]'
+                    : 'border-white/80 bg-white/85 text-[#385144]'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs font-black uppercase tracking-[0.2em] text-[#B8795C]">
+                    t-bank status
+                  </p>
+                  <h3 className="text-xl font-black leading-tight">{miniPaymentStatus.title}</h3>
+                  <p className="mt-2 text-sm font-semibold leading-relaxed opacity-70">{miniPaymentStatus.message}</p>
+                </div>
+                <div className="rounded-2xl bg-white/70 px-3 py-2 text-right shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] opacity-55">сумма</p>
+                  <p className="text-lg font-black">
+                    {miniPaymentStatus.amount ? `${miniPaymentStatus.amount.toLocaleString()} ₽` : '—'}
+                  </p>
+                </div>
+              </div>
+              {miniPaymentStatus.orderId && (
+                <p className="mt-3 break-words rounded-2xl bg-white/55 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] opacity-60">
+                  заказ {miniPaymentStatus.orderId}
+                </p>
+              )}
+            </div>
+          )}
+
           {paymentDueConsultation && (
             <div className="mb-4 overflow-hidden rounded-[1.75rem] border border-[#D9B8A4] bg-gradient-to-br from-[#FFF4EA] via-white to-[#F8EDE7] p-5 shadow-[0_18px_44px_rgba(138,90,63,0.14)]">
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1761,20 +1886,13 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                   Я уже вижу отметку об оплате. После проверки бонусы и консультация зачтутся автоматически.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => openPaymentLink(paymentDueConsultation)}
-                    className="rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white"
-                  >
-                    Оплатить
-                  </button>
-                  <button
-                    onClick={() => markPaymentSent(paymentDueConsultation)}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-[#385144] shadow-sm"
-                  >
-                    Я оплатил
-                  </button>
-                </div>
+                <button
+                  onClick={() => openPaymentLink(paymentDueConsultation)}
+                  disabled={paymentBusy}
+                  className="w-full rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white disabled:opacity-60"
+                >
+                  {paymentBusy ? 'Создаю платёж' : 'Оплатить через Т-Банк'}
+                </button>
               )}
             </div>
           )}
@@ -1832,7 +1950,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                   className="mt-3 flex items-center justify-center rounded-2xl bg-[#B8795C] px-4 py-3 text-sm font-black text-white"
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
-                  Оплатить {upcomingConsultation.payment_amount || upcomingConsultation.price || 0} ₽
+                  {paymentBusy ? 'Создаю платёж' : `Оплатить ${upcomingConsultation.payment_amount || upcomingConsultation.price || 0} ₽`}
                 </div>
               )}
             </button>
@@ -2166,16 +2284,11 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
               <div className="grid grid-cols-1 gap-2">
                 <button
                   onClick={() => openPaymentLink(paymentDueConsultation)}
-                  className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)]"
+                  disabled={paymentBusy}
+                  className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)] disabled:opacity-60"
                 >
                   <CreditCard className="mr-2 h-5 w-5" />
-                  Оплатить
-                </button>
-                <button
-                  onClick={() => markPaymentSent(paymentDueConsultation)}
-                  className="w-full rounded-2xl bg-white px-4 py-3 font-black text-[#385144]"
-                >
-                  Я оплатил
+                  {paymentBusy ? 'Создаю платёж' : 'Оплатить через Т-Банк'}
                 </button>
               </div>
             </div>

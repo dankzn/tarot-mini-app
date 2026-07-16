@@ -182,6 +182,59 @@ export const verifyTelegramLogin = (query) => {
   };
 };
 
+export const verifyTelegramWebAppInitData = (initData) => {
+  const botToken = getBotToken();
+  if (!botToken) {
+    return { ok: false, error: 'Telegram bot token is not configured' };
+  }
+
+  const params = new URLSearchParams(String(initData || ''));
+  const hash = params.get('hash') || '';
+  if (!hash) return { ok: false, error: 'Telegram WebApp hash is missing' };
+
+  const authDate = Number(params.get('auth_date') || 0);
+  if (!authDate) return { ok: false, error: 'Telegram WebApp auth_date is missing' };
+
+  const maxAgeSeconds = 60 * 60 * 24;
+  if (Math.floor(Date.now() / 1000) - authDate > maxAgeSeconds) {
+    return { ok: false, error: 'Telegram WebApp data is expired' };
+  }
+
+  const dataCheckString = [...params.entries()]
+    .filter(([key]) => key !== 'hash')
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+  const calculatedHash = crypto
+    .createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  const isValid =
+    hash.length === calculatedHash.length &&
+    crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(calculatedHash));
+
+  if (!isValid) return { ok: false, error: 'Telegram WebApp hash is invalid' };
+
+  const rawUser = params.get('user');
+  const telegramUser = rawUser ? JSON.parse(rawUser) : null;
+  if (!telegramUser?.id) return { ok: false, error: 'Telegram WebApp user is missing' };
+
+  return {
+    ok: true,
+    telegramUser: {
+      id: Number(telegramUser.id),
+      first_name: String(telegramUser.first_name || ''),
+      last_name: telegramUser.last_name ? String(telegramUser.last_name) : '',
+      username: telegramUser.username ? String(telegramUser.username) : null,
+      photo_url: telegramUser.photo_url ? String(telegramUser.photo_url) : null,
+      auth_date: authDate,
+    },
+  };
+};
+
 export const signSession = (payload) => {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto
