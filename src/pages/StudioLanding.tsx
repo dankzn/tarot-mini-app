@@ -127,6 +127,7 @@ type SiteTheme = 'light' | 'dark';
 
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
+const SITE_PENDING_PAYMENT_ORDER_KEY = 'tarot-site-tbank-order';
 
 const routes: { page: SitePage; label: string; href: string }[] = [
   { page: 'home', label: 'Студия', href: '/site' },
@@ -2435,7 +2436,7 @@ const PaymentPage = ({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentMarker = params.get('payment');
-    const orderId = params.get('order');
+    const orderId = params.get('order') || window.localStorage.getItem(SITE_PENDING_PAYMENT_ORDER_KEY);
 
     if (!paymentMarker && !orderId) return;
 
@@ -2505,6 +2506,7 @@ const PaymentPage = ({
         };
 
         if (payload.paymentState === 'paid') {
+          window.localStorage.removeItem(SITE_PENDING_PAYMENT_ORDER_KEY);
           setPaymentResult({
             type: 'success',
             title: payload.title || 'Оплата прошла',
@@ -2520,6 +2522,7 @@ const PaymentPage = ({
         }
 
         if (payload.paymentState === 'failed' || paymentMarker === 'failed') {
+          window.localStorage.removeItem(SITE_PENDING_PAYMENT_ORDER_KEY);
           setPaymentResult({
             type: 'error',
             title: payload.title || 'Оплата не прошла',
@@ -2793,7 +2796,15 @@ export const StudioLanding = () => {
   }, [cart]);
 
   useEffect(() => {
-    const syncCartFromStorage = () => setCart(getStoredCart());
+    syncCartWithPaidAttempts(cart);
+  }, [cart.length, user?.id]);
+
+  useEffect(() => {
+    const syncCartFromStorage = () => {
+      const storedCart = getStoredCart();
+      setCart(storedCart);
+      syncCartWithPaidAttempts(storedCart);
+    };
 
     window.addEventListener('focus', syncCartFromStorage);
     window.addEventListener('storage', syncCartFromStorage);
@@ -2845,6 +2856,37 @@ export const StudioLanding = () => {
     window.localStorage.setItem('tarot-site-cart', '[]');
     setCart([]);
   };
+  const syncCartWithPaidAttempts = async (cartSnapshot = cart) => {
+    if (!user?.id || cartSnapshot.length === 0) return;
+
+    try {
+      const response = await fetch('/api/site/tbank-cart-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          cart: cartSnapshot.map((item) => ({
+            id: item.id,
+            source: item.source,
+          })),
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      const paidCartItemIds = new Set<string>(Array.isArray(payload?.paidCartItemIds) ? payload.paidCartItemIds : []);
+
+      if (!response.ok || !payload?.ok || paidCartItemIds.size === 0) return;
+
+      setCart((current) => {
+        const nextCart = current.filter((item) => !paidCartItemIds.has(item.id));
+        if (nextCart.length === current.length) return current;
+        window.localStorage.setItem('tarot-site-cart', JSON.stringify(nextCart));
+        window.localStorage.removeItem(SITE_PENDING_PAYMENT_ORDER_KEY);
+        return nextCart;
+      });
+    } catch (error) {
+      console.warn('Не удалось сверить корзину с оплаченными платежами:', error);
+    }
+  };
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   const goToProfile = () => {
     window.history.pushState({}, '', '/site/profile');
@@ -2881,6 +2923,9 @@ export const StudioLanding = () => {
       const payload = await response.json().catch(() => null);
 
       if (response.ok && payload?.ok && payload.paymentUrl) {
+        if (payload.orderId) {
+          window.localStorage.setItem(SITE_PENDING_PAYMENT_ORDER_KEY, payload.orderId);
+        }
         openExternal(payload.paymentUrl);
         return;
       }

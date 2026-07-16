@@ -43,7 +43,26 @@ const MINIMAL_SERVICE_FIELDS = [
   'description',
   'price',
   'duration_minutes',
-  'category',
+].join(',');
+
+const LEGACY_SERVICE_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'short_description',
+  'price',
+  'duration_minutes',
+  'category_id',
+  'display_badge',
+  'request_tags',
+  'next_price',
+  'price_increase_at',
+  'promo_title',
+  'promo_price',
+  'promo_starts_at',
+  'promo_ends_at',
+  'is_active',
+  'sort_order',
 ].join(',');
 
 const getServiceOrder = (service) => Number(service?.sort_order || 0);
@@ -54,6 +73,10 @@ const sortServices = (services) =>
 
 const normalizeServices = (services) => {
   const payableServices = (services || [])
+    .map((service) => ({
+      ...service,
+      category: service?.category || service?.display_badge || service?.category_id || null,
+    }))
     .filter((service) => service?.title && getServicePrice(service) > 0);
   const activeServices = payableServices.filter((service) => service?.is_active !== false);
 
@@ -70,6 +93,11 @@ const loadServices = async (supabase) => {
     () => supabase
       .from('services')
       .select(PUBLIC_SERVICE_FIELDS)
+      .order('sort_order', { ascending: true })
+      .order('price', { ascending: true }),
+    () => supabase
+      .from('services')
+      .select(LEGACY_SERVICE_FIELDS)
       .order('sort_order', { ascending: true })
       .order('price', { ascending: true }),
     () => supabase

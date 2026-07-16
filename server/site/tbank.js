@@ -186,6 +186,22 @@ const postTbankInit = async (initUrl, payload) => {
   }
 };
 
+const getTbankMethodUrl = (baseUrl, method) => {
+  const url = new URL(normalizeTbankUrl(baseUrl));
+  const cleanMethod = String(method || '').replace(/^\/+/, '');
+  url.pathname = url.pathname.replace(/\/v2\/[^/]*$/i, `/v2/${cleanMethod}`);
+  if (!/\/v2\//i.test(url.pathname)) {
+    url.pathname = `/v2/${cleanMethod}`;
+  }
+  return url.toString();
+};
+
+const postTbankMethod = async (baseUrl, method, payload) => {
+  const methodUrl = getTbankMethodUrl(baseUrl, method);
+  const result = await requestTbankJson(methodUrl, payload);
+  return { ...result, methodUrl };
+};
+
 const readTbankBody = async (request) => {
   if (request.body && typeof request.body === 'object') return request.body;
   if (typeof request.body === 'string') {
@@ -509,6 +525,13 @@ const getRequestQueryParam = (request, key) => {
   return url.searchParams.get(key) || '';
 };
 
+const getCartItemKey = (item) => {
+  const source = String(item?.source || '').trim();
+  const sourceId = String(item?.source_id || item?.id || '').trim();
+  if (!source || !sourceId) return '';
+  return `${source}:${sourceId}`;
+};
+
 const resolvePaymentUser = async (request, supabase, body) => {
   const session = readSession(request);
   if (session?.id) return session;
@@ -590,6 +613,106 @@ const getBankStatusMessage = (attempt) => {
     message: 'Банк ещё не прислал финальный статус',
     bankStatus: status || attempt?.status || null,
   };
+};
+
+const getAttemptStatusPatch = (notification) => {
+  const status = String(notification?.Status || '').toUpperCase();
+  const isSuccess = notification?.Success === true || String(notification?.Success || '').toLowerCase() === 'true';
+  const isPaid = isSuccess && ['AUTHORIZED', 'CONFIRMED', 'PAID'].includes(status);
+  const isFailed = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status);
+
+  return {
+    status,
+    isPaid,
+    isFailed,
+    nextStatus: isPaid ? 'paid' : isFailed ? 'failed' : status.toLowerCase() || 'updated',
+  };
+};
+
+const notifyPaymentTransition = async (supabase, previousAttempt, updatedAttempt, notification) => {
+  const shouldNotifyAdmin = !previousAttempt || previousAttempt.status !== updatedAttempt.status;
+
+  if (shouldNotifyAdmin) {
+    const adminNotificationResult = await notifyAdminsPaymentEvent(supabase, updatedAttempt, notification).catch((error) => ({
+      ok: false,
+      error: error?.message || String(error),
+    }));
+
+    if (!adminNotificationResult.ok) {
+      console.warn('Payment admin notification failed:', adminNotificationResult.error);
+    }
+  }
+
+  if (updatedAttempt.status === 'paid' && previousAttempt?.status !== 'paid') {
+    const clientNotificationResult = await notifyClientPaymentSucceeded(supabase, updatedAttempt).catch((error) => ({
+      ok: false,
+      error: error?.message || String(error),
+    }));
+
+    if (!clientNotificationResult.ok) {
+      console.warn('Payment client notification failed:', clientNotificationResult.error);
+    }
+  }
+};
+
+const applyPaidSourceUpdates = async (supabase, cartItems) => {
+  if (!cartItems) return;
+
+  await updateSourcePaymentStatus(supabase, cartItems, {
+    consultation: {
+      payment_status: 'paid',
+      payment_marked_at: new Date().toISOString(),
+    },
+    training: {
+      payment_status: 'paid',
+    },
+  });
+};
+
+const refreshAttemptFromTbank = async (request, supabase, attempt) => {
+  if (!attempt?.payment_id || attempt.status === 'paid' || attempt.status === 'failed') return attempt;
+
+  const config = await getTbankConfig(request, supabase);
+  if (!config.terminalKey || (!config.password && !config.canSignRemotely)) return attempt;
+
+  const payload = {
+    TerminalKey: config.terminalKey,
+    PaymentId: attempt.payment_id,
+  };
+
+  try {
+    const token = await signTbankPayload(supabase, payload, config.password);
+    const { bankPayload } = await postTbankMethod(config.initUrl, 'GetState', { ...payload, Token: token });
+    if (!bankPayload?.Success || !bankPayload?.Status) return attempt;
+
+    const statusPatch = getAttemptStatusPatch(bankPayload);
+    const updatedAttempt = {
+      ...attempt,
+      status: statusPatch.nextStatus,
+      raw_notification: bankPayload,
+      payment_id: bankPayload.PaymentId ? String(bankPayload.PaymentId) : attempt.payment_id,
+    };
+
+    await supabase
+      .from('payment_attempts')
+      .update({
+        payment_id: updatedAttempt.payment_id,
+        status: updatedAttempt.status,
+        raw_notification: bankPayload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', attempt.order_id);
+
+    if (statusPatch.isPaid) {
+      await applyPaidSourceUpdates(supabase, attempt.cart_items);
+    }
+
+    await notifyPaymentTransition(supabase, attempt, updatedAttempt, bankPayload);
+    return updatedAttempt;
+  } catch (error) {
+    console.warn('T-Bank GetState refresh failed:', error?.message || error);
+    return attempt;
+  }
 };
 
 export const tbankInitHandler = async (request, response) => {
@@ -751,7 +874,7 @@ export const tbankStatusHandler = async (request, response) => {
   const supabase = getSupabaseAdmin();
   const { data: attempt, error } = await supabase
     .from('payment_attempts')
-    .select('id,user_id,order_id,payment_id,status,amount,description,raw_response,raw_notification,created_at,updated_at')
+    .select('id,user_id,order_id,payment_id,status,amount,description,cart_items,raw_response,raw_notification,created_at,updated_at')
     .eq('order_id', orderId)
     .maybeSingle();
 
@@ -772,15 +895,81 @@ export const tbankStatusHandler = async (request, response) => {
     });
   }
 
+  const refreshedAttempt = await refreshAttemptFromTbank(request, supabase, attempt);
+
   return json(response, 200, {
     ok: true,
-    orderId: attempt.order_id,
-    paymentId: attempt.payment_id,
-    amount: attempt.amount,
-    description: attempt.description,
-    createdAt: attempt.created_at,
-    updatedAt: attempt.updated_at,
-    ...getBankStatusMessage(attempt),
+    orderId: refreshedAttempt.order_id,
+    paymentId: refreshedAttempt.payment_id,
+    amount: refreshedAttempt.amount,
+    description: refreshedAttempt.description,
+    createdAt: refreshedAttempt.created_at,
+    updatedAt: refreshedAttempt.updated_at,
+    ...getBankStatusMessage(refreshedAttempt),
+  });
+};
+
+export const tbankCartSyncHandler = async (request, response) => {
+  if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
+
+  const session = readSession(request);
+  if (!session?.id) {
+    return json(response, 200, {
+      ok: true,
+      paidCartItemIds: [],
+      paidOrders: [],
+    });
+  }
+
+  const body = await readJsonBody(request);
+  const cartItems = (Array.isArray(body.cart) ? body.cart : [])
+    .map(normalizeCartItem)
+    .filter(Boolean);
+
+  if (!cartItems.length) {
+    return json(response, 200, {
+      ok: true,
+      paidCartItemIds: [],
+      paidOrders: [],
+    });
+  }
+
+  const requestedKeys = new Set(cartItems.map((item) => `${item.source}:${item.id}`));
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('payment_attempts')
+    .select('id,user_id,order_id,payment_id,status,amount,description,cart_items,raw_response,raw_notification,created_at,updated_at')
+    .eq('user_id', session.id)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  if (error) throw error;
+
+  const paidCartItemIds = new Set();
+  const paidOrders = [];
+
+  for (const storedAttempt of data || []) {
+    const attempt = await refreshAttemptFromTbank(request, supabase, storedAttempt);
+    if (attempt.status !== 'paid') continue;
+
+    const paidItems = (Array.isArray(attempt.cart_items) ? attempt.cart_items : [])
+      .map(getCartItemKey)
+      .filter((key) => key && requestedKeys.has(key));
+
+    if (paidItems.length > 0) {
+      paidOrders.push({
+        orderId: attempt.order_id,
+        updatedAt: attempt.updated_at,
+        itemIds: paidItems,
+      });
+      paidItems.forEach((key) => paidCartItemIds.add(key));
+    }
+  }
+
+  return json(response, 200, {
+    ok: true,
+    paidCartItemIds: [...paidCartItemIds],
+    paidOrders,
   });
 };
 
