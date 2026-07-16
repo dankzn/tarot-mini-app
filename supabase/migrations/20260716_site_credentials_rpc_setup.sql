@@ -1,11 +1,11 @@
 -- Site credentials storage and RPC setup.
--- Run this migration, then set the RPC secret from Supabase SQL Editor:
---   select public.configure_site_auth_rpc_secret('PASTE_THE_SAME_VALUE_AS_SITE_AUTH_RPC_SECRET');
+-- Run this migration, then set the RPC secret from Supabase SQL Editor.
+-- If you cannot add a new Vercel env var, use the existing TELEGRAM_BOT_TOKEN/BOT_TOKEN value:
+--   select public.configure_site_auth_rpc_secret('PASTE_EXISTING_TELEGRAM_BOT_TOKEN_HERE');
 --
--- The value must also be present in Vercel env as SITE_AUTH_RPC_SECRET.
+-- The value must match server getSiteCredentialsSecret():
+-- SITE_AUTH_RPC_SECRET -> SITE_AUTH_SECRET -> TELEGRAM_BOT_TOKEN/BOT_TOKEN.
 -- Do not commit the real secret.
-
-create extension if not exists pgcrypto;
 
 alter table public.users
   add column if not exists email text,
@@ -31,10 +31,17 @@ drop policy if exists "site_auth_credentials_no_client_delete" on public.site_au
 
 create table if not exists public.site_auth_rpc_secrets (
   id boolean primary key default true,
-  secret_hash text not null,
+  secret_hash text not null default 'legacy',
+  secret_value text,
   updated_at timestamptz not null default now(),
   constraint site_auth_rpc_secrets_single_row check (id is true)
 );
+
+alter table public.site_auth_rpc_secrets
+  add column if not exists secret_value text;
+
+alter table public.site_auth_rpc_secrets
+  alter column secret_hash set default 'legacy';
 
 alter table public.site_auth_rpc_secrets enable row level security;
 revoke all on public.site_auth_rpc_secrets from anon, authenticated;
@@ -50,11 +57,12 @@ begin
     raise exception 'SITE_AUTH_RPC_SECRET_TOO_SHORT' using errcode = '22023';
   end if;
 
-  insert into public.site_auth_rpc_secrets (id, secret_hash, updated_at)
-  values (true, crypt(p_secret, gen_salt('bf')), now())
+  insert into public.site_auth_rpc_secrets (id, secret_hash, secret_value, updated_at)
+  values (true, 'configured', p_secret, now())
   on conflict (id)
   do update set
-    secret_hash = excluded.secret_hash,
+    secret_hash = 'configured',
+    secret_value = excluded.secret_value,
     updated_at = now();
 
   return true;
@@ -74,14 +82,14 @@ security definer
 set search_path = public
 as $$
 declare
-  stored_secret_hash text;
+  stored_secret_value text;
 begin
-  select secret_hash
-    into stored_secret_hash
+  select secret_value
+    into stored_secret_value
     from public.site_auth_rpc_secrets
     where id is true;
 
-  if stored_secret_hash is null or crypt(coalesce(p_secret, ''), stored_secret_hash) <> stored_secret_hash then
+  if stored_secret_value is null or coalesce(p_secret, '') <> stored_secret_value then
     raise exception 'SITE_AUTH_RPC_FORBIDDEN' using errcode = '28000';
   end if;
 
@@ -106,14 +114,14 @@ security definer
 set search_path = public
 as $$
 declare
-  stored_secret_hash text;
+  stored_secret_value text;
 begin
-  select secret_hash
-    into stored_secret_hash
+  select secret_value
+    into stored_secret_value
     from public.site_auth_rpc_secrets
     where id is true;
 
-  if stored_secret_hash is null or crypt(coalesce(p_secret, ''), stored_secret_hash) <> stored_secret_hash then
+  if stored_secret_value is null or coalesce(p_secret, '') <> stored_secret_value then
     raise exception 'SITE_AUTH_RPC_FORBIDDEN' using errcode = '28000';
   end if;
 
