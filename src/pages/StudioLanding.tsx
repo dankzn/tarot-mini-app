@@ -146,15 +146,17 @@ type PaymentResultState = {
 
 type SitePage = 'home' | 'consultations' | 'academy' | 'profile' | 'payment' | 'privacy' | 'offer';
 type SiteTheme = 'light' | 'dark';
+type SiteNavRoute = { page?: SitePage; label: string; href: string; anchor?: boolean };
 
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
 const SITE_PENDING_PAYMENT_ORDER_KEY = 'tarot-site-tbank-order';
 
-const routes: { page: SitePage; label: string; href: string }[] = [
+const routes: SiteNavRoute[] = [
   { page: 'home', label: 'Студия', href: '/site' },
   { page: 'consultations', label: 'Консультации', href: '/site/consultations' },
   { page: 'academy', label: 'Академия', href: '/site/academy' },
+  { label: 'Отзывы', href: '/site#reviews', anchor: true },
   { page: 'profile', label: 'Кабинет', href: '/site/profile' },
   { page: 'payment', label: 'Оплата', href: '/site/payment' },
 ];
@@ -201,6 +203,16 @@ const openExternal = (url: string) => {
 };
 
 const formatMoney = (value?: number | null) => `${Math.max(0, Number(value || 0)).toLocaleString('ru-RU')} ₽`;
+
+const formatReviewDate = (value?: string | null) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return 'время согласуется';
@@ -463,8 +475,18 @@ const SiteLink = ({
       }
 
       event.preventDefault();
-      window.history.pushState({}, '', href);
+      const targetUrl = new URL(href, window.location.origin);
+      const nextPath = `${targetUrl.pathname}${targetUrl.hash}`;
+      window.history.pushState({}, '', nextPath);
       window.dispatchEvent(new PopStateEvent('popstate'));
+
+      if (targetUrl.hash) {
+        window.setTimeout(() => {
+          document.querySelector(targetUrl.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+        return;
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }}
   >
@@ -541,7 +563,7 @@ const PageShell = ({
             <nav className="hidden items-center rounded-full border border-[#2F463B]/10 bg-white/[0.68] p-1 text-sm font-semibold text-[#2F463B]/58 shadow-[0_18px_70px_rgba(47,70,59,0.1)] backdrop-blur-2xl lg:flex">
               {routes.map((route) => (
                 <SiteLink
-                  key={route.page}
+                  key={route.href}
                   href={route.href}
                   className={`site-nav-pill rounded-full px-5 py-3 transition ${
                     page === route.page ? 'site-nav-pill-active' : 'site-nav-pill-idle'
@@ -656,7 +678,7 @@ const PageShell = ({
           </div>
           <div className="mt-12 grid gap-3">
             {routes.map((route) => (
-              <SiteLink key={route.page} href={route.href} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-3xl font-semibold text-[#2F463B]">
+              <SiteLink key={route.href} href={route.href} onClick={() => setMenuOpen(false)} className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.7] p-6 text-3xl font-semibold text-[#2F463B]">
                 {route.label}
                 {route.page === 'payment' && cartCount > 0 ? ` · ${cartCount}` : ''}
               </SiteLink>
@@ -700,6 +722,7 @@ const SectionIntro = ({ eyebrow, title, text }: { eyebrow: string; title: string
 const ReviewsSection = () => {
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeReviewIndex, setActiveReviewIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -712,8 +735,7 @@ const ReviewsSection = () => {
           .select('id,author_name,author_username,rating,text,source,reviewed_at')
           .eq('is_published', true)
           .order('reviewed_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(6);
+          .order('created_at', { ascending: false });
 
         if (error) throw error;
         if (!cancelled) setReviews((data || []) as SiteReview[]);
@@ -730,10 +752,26 @@ const ReviewsSection = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (reviews.length <= 1) return undefined;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) return undefined;
+
+    const timer = window.setInterval(() => {
+      setActiveReviewIndex((current) => (current + 1) % reviews.length);
+    }, 6200);
+
+    return () => window.clearInterval(timer);
+  }, [reviews.length]);
+
   if (!loading && reviews.length === 0) return null;
 
+  const activeReview = reviews[activeReviewIndex % Math.max(1, reviews.length)];
+  const nextReview = reviews[(activeReviewIndex + 1) % Math.max(1, reviews.length)];
+
   return (
-    <section className="mx-auto max-w-[1540px] px-5 py-20 md:px-10 xl:px-16">
+    <section id="reviews" className="mx-auto max-w-[1540px] scroll-mt-28 px-5 py-20 md:px-10 xl:px-16">
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#A9795F]">Отзывы</p>
@@ -743,6 +781,34 @@ const ReviewsSection = () => {
         </div>
         <MessageSquareText className="h-9 w-9 text-[#B8795C]" />
       </div>
+
+      {!loading && activeReview && (
+        <div className="site-reveal relative mb-5 overflow-hidden rounded-[2.2rem] border border-[#C79672]/24 bg-[#2F463B] p-7 text-[#F7EDE0] shadow-[0_30px_100px_rgba(47,70,59,0.16)] md:p-8">
+          {nextReview && nextReview.id !== activeReview.id && (
+            <div className="pointer-events-none absolute -right-8 top-8 hidden w-[34%] rounded-[2rem] border border-white/12 bg-white/[0.06] p-5 opacity-45 blur-[0.2px] lg:block">
+              <p className="text-sm font-semibold text-[#F7EDE0]/72">{nextReview.author_name}</p>
+              <p className="mt-3 max-h-24 overflow-hidden text-sm font-medium leading-relaxed text-[#F7EDE0]/46">{nextReview.text}</p>
+            </div>
+          )}
+          <article key={activeReview.id} className="site-review-spotlight relative max-w-4xl">
+            <div className="mb-5">
+              <h3 className="text-2xl font-semibold">{activeReview.author_name}</h3>
+              <p className="mt-1 text-sm font-bold text-[#F7EDE0]/54">
+                {activeReview.author_username ? `@${activeReview.author_username} · ` : ''}
+                {formatReviewDate(activeReview.reviewed_at)}
+              </p>
+              {activeReview.source === 'client' && (
+                <p className="mt-3 inline-flex rounded-full bg-white/[0.1] px-3 py-1 text-xs font-bold text-[#F7EDE0]/72">
+                  Проверенный клиент
+                </p>
+              )}
+            </div>
+            <p className="whitespace-pre-wrap text-[clamp(1.25rem,2vw,2rem)] font-medium leading-relaxed text-[#F7EDE0]/82">
+              {activeReview.text}
+            </p>
+          </article>
+        </div>
+      )}
 
       <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
         {loading
@@ -760,11 +826,7 @@ const ReviewsSection = () => {
                     <h3 className="text-xl font-semibold text-[#2F463B]">{review.author_name}</h3>
                     <p className="mt-1 text-sm font-bold text-[#2F463B]/46">
                       {review.author_username ? `@${review.author_username} · ` : ''}
-                      {new Date(review.reviewed_at).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
+                      {formatReviewDate(review.reviewed_at)}
                     </p>
                   </div>
                   {review.source === 'client' && (

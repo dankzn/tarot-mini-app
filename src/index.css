@@ -743,6 +743,10 @@ select:focus-visible {
   box-shadow: 0 26px 90px rgba(199, 150, 114, 0.22);
 }
 
+.site-review-spotlight {
+  animation: site-review-spotlight 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 @keyframes site-marquee {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(-50%, 0, 0); }
@@ -783,6 +787,19 @@ select:focus-visible {
 @keyframes site-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes site-review-spotlight {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.985);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
 }
 
 @media (max-width: 768px) {
