@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CreditCard, Landmark, Plus, Save, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+
+const DEFAULT_TBANK_API_URL = 'https://securepay.tinkoff.ru/v2/Init';
 
 interface PaymentMethod {
   id?: string;
@@ -37,7 +39,7 @@ export const PaymentMethodsManager = () => {
     is_active: false,
     terminal_key: '',
     has_password: false,
-    api_url: 'https://rest-api-test.tinkoff.ru/v2/Init',
+    api_url: DEFAULT_TBANK_API_URL,
     success_url: '',
     fail_url: '',
     notification_url: '',
@@ -49,12 +51,7 @@ export const PaymentMethodsManager = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadMethods();
-    loadTbankSettings();
-  }, []);
-
-  const getAdminToken = async () => {
+  const getAdminToken = useCallback(async () => {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
 
@@ -63,9 +60,9 @@ export const PaymentMethodsManager = () => {
     }
 
     return token;
-  };
+  }, []);
 
-  const loadTbankSettings = async () => {
+  const loadTbankSettings = useCallback(async () => {
     setTbankLoading(true);
 
     try {
@@ -85,7 +82,7 @@ export const PaymentMethodsManager = () => {
         is_active: Boolean(payload.settings?.is_active),
         terminal_key: payload.settings?.terminal_key || '',
         has_password: Boolean(payload.settings?.has_password),
-        api_url: payload.settings?.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
+        api_url: payload.settings?.api_url || DEFAULT_TBANK_API_URL,
         success_url: payload.settings?.success_url || '',
         fail_url: payload.settings?.fail_url || '',
         notification_url: payload.settings?.notification_url || '',
@@ -96,7 +93,33 @@ export const PaymentMethodsManager = () => {
     } finally {
       setTbankLoading(false);
     }
-  };
+  }, [getAdminToken]);
+
+  const loadMethods = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('payment_methods')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Ошибка загрузки способов оплаты:', error);
+    } else {
+      setMethods(data || []);
+    }
+
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      loadMethods();
+      loadTbankSettings();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadMethods, loadTbankSettings]);
 
   const saveTbankSettings = async () => {
     if (tbankSettings.is_active && (!tbankSettings.terminal_key.trim() || (!tbankSettings.has_password && !tbankPassword.trim()))) {
@@ -135,15 +158,15 @@ export const PaymentMethodsManager = () => {
         is_active: Boolean(payload.settings?.is_active),
         terminal_key: payload.settings?.terminal_key || '',
         has_password: Boolean(payload.settings?.has_password),
-        api_url: payload.settings?.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
+        api_url: payload.settings?.api_url || DEFAULT_TBANK_API_URL,
         success_url: payload.settings?.success_url || '',
         fail_url: payload.settings?.fail_url || '',
         notification_url: payload.settings?.notification_url || '',
         updated_at: payload.settings?.updated_at || null,
       });
       alert('✅ Т-Банк сохранён');
-    } catch (error: any) {
-      alert('Ошибка сохранения Т-Банка: ' + (error?.message || 'неизвестная ошибка'));
+    } catch (error) {
+      alert('Ошибка сохранения Т-Банка: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'));
     } finally {
       setTbankSaving(false);
     }
@@ -151,23 +174,6 @@ export const PaymentMethodsManager = () => {
 
   const updateTbankSettings = (patch: Partial<TbankSettings>) => {
     setTbankSettings((current) => ({ ...current, ...patch }));
-  };
-
-  const loadMethods = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('payment_methods')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Ошибка загрузки способов оплаты:', error);
-    } else {
-      setMethods(data || []);
-    }
-
-    setLoading(false);
   };
 
   const saveMethod = async (method: PaymentMethod) => {
@@ -377,7 +383,7 @@ export const PaymentMethodsManager = () => {
               <input
                 value={tbankSettings.api_url}
                 onChange={(event) => updateTbankSettings({ api_url: event.target.value })}
-                placeholder="https://rest-api-test.tinkoff.ru/v2/Init"
+                placeholder={DEFAULT_TBANK_API_URL}
                 className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 font-bold text-white outline-none placeholder:text-white/35 focus:border-white/45"
               />
             </label>

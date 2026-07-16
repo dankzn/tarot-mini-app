@@ -2,14 +2,18 @@ import crypto from 'crypto';
 import https from 'https';
 import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession } from './_auth.js';
 
-const TBANK_INIT_URL = 'https://rest-api-test.tinkoff.ru/v2/Init';
+const TBANK_INIT_URL = 'https://securepay.tinkoff.ru/v2/Init';
+const TBANK_LEGACY_TEST_INIT_URLS = new Set([
+  'https://rest-api-test.tinkoff.ru/v2/Init',
+  'https://rest-api-test.tbank.ru/v2/Init',
+]);
 const TBANK_REQUEST_TIMEOUT_MS = 15000;
 
 const json = (response, status, payload) => response.status(status).json(payload);
 
 const normalizeTbankUrl = (value) => {
   const rawUrl = String(value || '').trim();
-  const url = rawUrl || TBANK_INIT_URL;
+  const url = TBANK_LEGACY_TEST_INIT_URLS.has(rawUrl) ? TBANK_INIT_URL : rawUrl || TBANK_INIT_URL;
 
   try {
     const parsed = new URL(url);
@@ -63,6 +67,35 @@ const isTbankTestInitUrl = (value) => {
   }
 };
 
+const stripHtml = (value) => String(value || '')
+  .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+  .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const getNonJsonBankMessage = (rawText, bankResponse) => {
+  const text = String(rawText || '').trim();
+  const plainText = stripHtml(text);
+  const status = bankResponse?.statusCode || null;
+  const statusText = bankResponse?.statusMessage || '';
+
+  if (text.startsWith('<')) {
+    const statusLabel = [status, statusText].filter(Boolean).join(' ');
+    return {
+      message: 'Т-Банк вернул HTML вместо JSON',
+      details: status === 403
+        ? 'API URL Т-Банка вернул 403 Forbidden. Проверьте, что в настройках указан https://securepay.tinkoff.ru/v2/Init'
+        : `${statusLabel || 'HTTP-ответ'}: ${plainText || 'HTML без текста'}`,
+    };
+  }
+
+  return {
+    message: 'Т-Банк вернул ответ не в JSON',
+    details: plainText.slice(0, 500) || 'Пустой ответ банка',
+  };
+};
+
 const readBankResponseBody = (bankResponse) =>
   new Promise((resolve, reject) => {
     const chunks = [];
@@ -71,16 +104,18 @@ const readBankResponseBody = (bankResponse) =>
     bankResponse.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
   });
 
-const parseBankPayload = (rawText) => {
+const parseBankPayload = (rawText, bankResponse) => {
   if (!rawText) return null;
 
   try {
     return JSON.parse(rawText);
   } catch {
+    const nonJsonMessage = getNonJsonBankMessage(rawText, bankResponse);
     return {
       Success: false,
-      Message: 'Т-Банк вернул ответ не в JSON',
-      Details: rawText.slice(0, 500),
+      ErrorCode: bankResponse?.statusCode ? String(bankResponse.statusCode) : 'NON_JSON_RESPONSE',
+      Message: nonJsonMessage.message,
+      Details: nonJsonMessage.details,
     };
   }
 };
@@ -112,7 +147,7 @@ const requestTbankJson = (initUrl, payload) =>
               status: bankResponse.statusCode,
               statusText: bankResponse.statusMessage || '',
             },
-            bankPayload: parseBankPayload(rawText),
+            bankPayload: parseBankPayload(rawText, bankResponse),
           });
         } catch (error) {
           reject(error);

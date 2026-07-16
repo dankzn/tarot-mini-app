@@ -4,6 +4,7 @@ import {
 } from './_auth.js';
 
 const json = (response, status, payload) => response.status(status).json(payload);
+const DEFAULT_TBANK_API_URL = 'https://securepay.tinkoff.ru/v2/Init';
 
 const getAuthToken = (request) => {
   const header = request.headers.authorization || request.headers.Authorization || '';
@@ -66,7 +67,7 @@ export default async function handler(request, response) {
         is_active: Boolean(settings.is_active),
         terminal_key: settings.terminal_key || '',
         has_password: Boolean(settings.has_password),
-        api_url: settings.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
+        api_url: settings.api_url || DEFAULT_TBANK_API_URL,
         success_url: settings.success_url || '',
         fail_url: settings.fail_url || '',
         notification_url: settings.notification_url || '',
@@ -86,7 +87,7 @@ export default async function handler(request, response) {
     is_active: Boolean(body.is_active),
     terminal_key: String(body.terminal_key || '').trim(),
     terminal_password: String(body.terminal_password || ''),
-    api_url: String(body.api_url || '').trim() || 'https://rest-api-test.tinkoff.ru/v2/Init',
+    api_url: String(body.api_url || '').trim() || DEFAULT_TBANK_API_URL,
     success_url: String(body.success_url || '').trim() || null,
     fail_url: String(body.fail_url || '').trim() || null,
     notification_url: String(body.notification_url || '').trim() || null,
@@ -129,7 +130,7 @@ export default async function handler(request, response) {
       is_active: Boolean(settings.is_active),
       terminal_key: settings.terminal_key || '',
       has_password: Boolean(settings.has_password),
-      api_url: settings.api_url || 'https://rest-api-test.tinkoff.ru/v2/Init',
+      api_url: settings.api_url || DEFAULT_TBANK_API_URL,
       success_url: settings.success_url || '',
       fail_url: settings.fail_url || '',
       notification_url: settings.notification_url || '',
