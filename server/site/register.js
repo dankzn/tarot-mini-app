@@ -2,7 +2,6 @@ import {
   buildSessionCookie,
   getSupabaseAdmin,
   getSupabaseAuthClient,
-  getSiteAuthEmailCandidates,
   normalizeEmail,
   readJsonBody,
   sessionPayloadFromUser,
@@ -48,44 +47,43 @@ const buildProfilePayload = (payload, credentialsCompleted = true) => ({
 });
 
 const syncAuthAccount = async (authClient, user, password) => {
-  let lastError = null;
+  const authEmail = normalizeEmail(user.email);
+  if (!authEmail) {
+    return { ok: false, error: 'EMAIL_REQUIRED_FOR_AUTH_SIGNUP' };
+  }
 
-  for (const authEmail of getSiteAuthEmailCandidates(user)) {
-    const { error: authError } = await authClient.auth.signUp({
-      email: authEmail,
-      password,
-      options: {
-        data: {
-          login_email: user.email,
-          username: user.username,
-          name: user.name,
-          site_user_id: user.id,
-        },
+  const { error: authError } = await authClient.auth.signUp({
+    email: authEmail,
+    password,
+    options: {
+      data: {
+        login_email: user.email,
+        username: user.username,
+        name: user.name,
+        site_user_id: user.id,
       },
-    });
+    },
+  });
 
-    if (!authError || isAlreadyRegisteredAuthError(authError)) {
-      return {
-        ok: true,
-        authEmail,
-        alreadyRegistered: Boolean(authError),
-      };
-    }
-
-    lastError = authError;
+  if (!authError || isAlreadyRegisteredAuthError(authError)) {
+    return {
+      ok: true,
+      authEmail,
+      alreadyRegistered: Boolean(authError),
+    };
   }
 
   return {
     ok: false,
-    error: lastError?.message || String(lastError || 'Supabase Auth signup failed'),
+    error: authError?.message || String(authError || 'Supabase Auth signup failed'),
   };
 };
 
 const getPublicRegistrationError = (error) => {
   const message = error?.message || String(error || '');
 
-  if (/site_auth_credentials|SITE_CREDENTIALS_SAVE_FAILED/i.test(message)) {
-    return `Не удалось сохранить пароль сайта: ${message}`;
+  if (/site_auth_credentials|SITE_CREDENTIALS_SAVE_FAILED|row-level security|RLS/i.test(message)) {
+    return 'Не удалось сохранить пароль сайта. Запустите актуальную Supabase-миграцию для site_auth_credentials';
   }
 
   if (/duplicate key|already exists|23505/i.test(message)) {
@@ -94,10 +92,6 @@ const getPublicRegistrationError = (error) => {
 
   if (/column .* does not exist|relation .* does not exist|schema cache/i.test(message)) {
     return `Не хватает поля или таблицы в Supabase: ${message}`;
-  }
-
-  if (/row-level security|RLS/i.test(message)) {
-    return `Supabase заблокировал запись политикой безопасности: ${message}`;
   }
 
   return `Не удалось зарегистрироваться: ${message || 'неизвестная ошибка'}`;
@@ -117,34 +111,13 @@ const sendSessionResponse = (request, response, user) => {
 };
 
 const createSiteUser = async (supabase, payload) => {
-  const basePayload = {
-    ...buildProfilePayload(payload, false),
-    status: 'Первое знакомство',
-    bonus_balance: 0,
-    role: 'client',
-  };
-
-  const { data: nullableUser, error: nullableError } = await supabase
-    .from('users')
-    .insert({
-      ...basePayload,
-      telegram_id: null,
-    })
-    .select(selectUserFields)
-    .single();
-
-  if (!nullableError) return { data: nullableUser, error: null };
-
-  const shouldRetryWithSyntheticId =
-    nullableError.code === '23502' ||
-    /telegram_id|null value|not-null|null/i.test(String(nullableError.message || ''));
-
-  if (!shouldRetryWithSyntheticId) return { data: null, error: nullableError };
-
   return supabase
     .from('users')
     .insert({
-      ...basePayload,
+      ...buildProfilePayload(payload, false),
+      status: 'Первое знакомство',
+      bonus_balance: 0,
+      role: 'client',
       telegram_id: buildSiteOnlyTelegramId(payload.email, payload.username),
     })
     .select(selectUserFields)
@@ -230,7 +203,10 @@ export default async function handler(request, response) {
       if (updateError) throw updateError;
 
       const authResult = await syncAuthAccount(authClient, updatedUser, password);
-      const credentialsResult = await saveSitePassword(supabase, updatedUser.id, password, { required: false });
+      const credentialsResult = await saveSitePassword(supabase, updatedUser.id, password, {
+        required: false,
+        telegramId: updatedUser.telegram_id,
+      });
 
       if (!credentialsResult.ok) {
         console.warn('Site credentials save skipped for existing user:', credentialsResult.error);
@@ -269,7 +245,10 @@ export default async function handler(request, response) {
     createdUserId = user.id;
 
     const authResult = await syncAuthAccount(authClient, user, password);
-    const credentialsResult = await saveSitePassword(supabase, user.id, password, { required: false });
+    const credentialsResult = await saveSitePassword(supabase, user.id, password, {
+      required: false,
+      telegramId: user.telegram_id,
+    });
 
     if (!credentialsResult.ok) {
       console.warn('Site credentials save skipped for new user:', credentialsResult.error);

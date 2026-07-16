@@ -1,7 +1,6 @@
 import {
   getSupabaseAuthClient,
   getSupabaseAdmin,
-  getSiteAuthEmailCandidates,
   normalizeEmail,
   readJsonBody,
   validateEmail,
@@ -47,31 +46,30 @@ const getPublicCredentialsError = (error) => {
 };
 
 const syncAuthAccount = async (authClient, user, email, password) => {
-  let lastError = null;
-
-  for (const authEmail of getSiteAuthEmailCandidates({ ...user, email })) {
-    const { error: authError } = await authClient.auth.signUp({
-      email: authEmail,
-      password,
-      options: {
-        data: {
-          login_email: email,
-          telegram_id: user.telegram_id,
-          username: user.username || null,
-          name: user.name || 'Клиент',
-          site_user_id: user.id,
-        },
-      },
-    });
-
-    if (!authError || isAlreadyRegisteredAuthError(authError)) {
-      return { ok: true, authEmail, alreadyRegistered: Boolean(authError) };
-    }
-
-    lastError = authError;
+  const authEmail = normalizeEmail(email);
+  if (!authEmail) {
+    return { ok: false, error: 'EMAIL_REQUIRED_FOR_AUTH_SIGNUP' };
   }
 
-  return { ok: false, error: lastError?.message || String(lastError || 'Supabase Auth signup failed') };
+  const { error: authError } = await authClient.auth.signUp({
+    email: authEmail,
+    password,
+    options: {
+      data: {
+        login_email: email,
+        telegram_id: user.telegram_id,
+        username: user.username || null,
+        name: user.name || 'Клиент',
+        site_user_id: user.id,
+      },
+    },
+  });
+
+  if (!authError || isAlreadyRegisteredAuthError(authError)) {
+    return { ok: true, authEmail, alreadyRegistered: Boolean(authError) };
+  }
+
+  return { ok: false, error: authError?.message || String(authError || 'Supabase Auth signup failed') };
 };
 
 export default async function handler(request, response) {
