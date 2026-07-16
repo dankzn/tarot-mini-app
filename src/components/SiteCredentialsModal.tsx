@@ -15,6 +15,7 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
   const [personalDataAccepted, setPersonalDataAccepted] = useState(false);
   const [offerAccepted, setOfferAccepted] = useState(false);
   const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -35,10 +36,12 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
     }
 
     setLoading(true);
+    setErrorMessage('');
     try {
       const response = await fetch('/api/site/credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           telegram_id: user.telegram_id,
           email,
@@ -55,17 +58,17 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
 
       onComplete(payload.user);
     } catch (error: any) {
-      alert(error.message || 'Не удалось сохранить данные для входа');
+      setErrorMessage(error.message || 'Не удалось сохранить данные для входа');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-[#15241D]/55 p-4 backdrop-blur-xl sm:items-center">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-[#15241D]/55 px-4 py-5 backdrop-blur-xl">
       <form
         onSubmit={submit}
-        className="w-full max-w-md rounded-[2rem] border border-white/70 bg-[#F8F3EC] p-6 shadow-[0_26px_90px_rgba(21,36,29,0.32)]"
+        className="mx-auto flex min-h-0 w-full max-w-md flex-col rounded-[2rem] border border-white/70 bg-[#F8F3EC] p-5 shadow-[0_26px_90px_rgba(21,36,29,0.32)] sm:p-6"
       >
         <p className="mb-3 text-xs font-black uppercase tracking-[0.32em] text-[#B8795C]">Вход на сайт</p>
         <h2 className="mb-3 text-3xl font-black leading-tight text-[#385144]">Добавьте почту и пароль</h2>
@@ -179,6 +182,12 @@ export const SiteCredentialsModal = ({ user, onComplete }: SiteCredentialsModalP
             </label>
           </div>
         </div>
+
+        {errorMessage && (
+          <div className="mt-4 rounded-2xl border border-[#B8795C]/25 bg-[#FFF1E8] px-4 py-3 text-sm font-black leading-relaxed text-[#8A5A3F]">
+            {errorMessage}
+          </div>
+        )}
 
         <button
           type="submit"

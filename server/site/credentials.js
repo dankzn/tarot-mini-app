@@ -13,6 +13,31 @@ const allowedProfileFields = ['name', 'city', 'phone', 'birth_date', 'gender'];
 const isAlreadyRegisteredAuthError = (error) =>
   /already|registered|exists|duplicate/i.test(String(error?.message || error || ''));
 
+const getPublicCredentialsError = (error) => {
+  const message = String(error?.message || error || '');
+  const details = String(error?.details || '');
+  const code = String(error?.code || '');
+  const combined = `${message} ${details} ${code}`;
+
+  if (/duplicate key|users_email_lower_unique|23505/i.test(combined)) {
+    return 'Эта почта уже привязана к другому профилю';
+  }
+
+  if (/invalid.*email|email.*invalid|validate email/i.test(combined)) {
+    return 'Введите корректную почту';
+  }
+
+  if (/password/i.test(combined)) {
+    return 'Пароль не принят. Используйте минимум 8 символов';
+  }
+
+  if (/row-level security|permission denied|SITE_CREDENTIALS_SAVE_FAILED|42501/i.test(combined)) {
+    return 'Не удалось сохранить пароль для входа. Проверьте настройки доступа к базе';
+  }
+
+  return 'Не удалось сохранить данные для входа';
+};
+
 const syncAuthAccount = async (authClient, user, email, password) => {
   let lastError = null;
 
@@ -85,7 +110,7 @@ export default async function handler(request, response) {
     const { data: emailOwner, error: emailOwnerError } = await supabase
       .from('users')
       .select('id')
-      .eq('email', email)
+      .ilike('email', email)
       .maybeSingle();
 
     if (emailOwnerError) throw emailOwnerError;
@@ -149,7 +174,7 @@ export default async function handler(request, response) {
     console.error('Site credentials failed:', error);
     return response.status(500).json({
       ok: false,
-      error: 'Не удалось сохранить данные для входа',
+      error: getPublicCredentialsError(error),
       reason: error?.message || String(error),
       code: error?.code || null,
       details: error?.details || null,
