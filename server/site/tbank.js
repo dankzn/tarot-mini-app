@@ -537,20 +537,32 @@ const resolvePaymentUser = async (request, supabase, body) => {
   if (session?.id) return session;
 
   const telegramInitData = String(body?.telegramInitData || body?.telegram_init_data || '').trim();
-  if (!telegramInitData) return null;
+  let telegramUserId = 0;
 
-  const verification = verifyTelegramWebAppInitData(telegramInitData);
-  if (!verification.ok) {
-    const error = new Error(verification.error || 'Telegram authorization failed');
-    error.code = 'TELEGRAM_AUTH_FAILED';
-    throw error;
+  if (telegramInitData) {
+    const verification = verifyTelegramWebAppInitData(telegramInitData);
+    if (verification.ok) {
+      telegramUserId = verification.telegramUser.id;
+    } else if (verification.error !== 'Telegram bot token is not configured') {
+      const error = new Error(verification.error || 'Telegram authorization failed');
+      error.code = 'TELEGRAM_AUTH_FAILED';
+      throw error;
+    }
   }
 
-  const { data: user, error } = await supabase
+  telegramUserId = telegramUserId || Number(body?.telegramUserId || body?.telegram_id || 0);
+  const userId = String(body?.userId || body?.user_id || '').trim();
+
+  if (!telegramUserId || !userId) return null;
+
+  let query = supabase
     .from('users')
     .select('id, telegram_id, username, name, email')
-    .eq('telegram_id', verification.telegramUser.id)
-    .maybeSingle();
+    .eq('telegram_id', telegramUserId);
+
+  if (userId) query = query.eq('id', userId);
+
+  const { data: user, error } = await query.maybeSingle();
 
   if (error) throw error;
   if (!user?.id) {

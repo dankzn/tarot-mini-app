@@ -812,6 +812,8 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
         credentials: 'include',
         body: JSON.stringify({
           telegramInitData,
+          telegramUserId: user.telegram_id,
+          userId: user.id,
           cart: [
             {
               id: `consultation:${consultation.id}`,
