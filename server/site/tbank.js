@@ -548,12 +548,21 @@ const resolvePaymentUser = async (request, supabase, body) => {
       error.code = 'TELEGRAM_AUTH_FAILED';
       throw error;
     }
+
+    if (!telegramUserId) {
+      const initParams = new URLSearchParams(telegramInitData);
+      const rawTelegramUser = initParams.get('user');
+      if (rawTelegramUser) {
+        const parsedTelegramUser = JSON.parse(rawTelegramUser);
+        telegramUserId = Number(parsedTelegramUser?.id || 0);
+      }
+    }
   }
 
   telegramUserId = telegramUserId || Number(body?.telegramUserId || body?.telegram_id || 0);
   const userId = String(body?.userId || body?.user_id || '').trim();
 
-  if (!telegramUserId || !userId) return null;
+  if (!telegramUserId) return null;
 
   let query = supabase
     .from('users')
@@ -745,7 +754,9 @@ export const tbankInitHandler = async (request, response) => {
   if (!session?.id) {
     return json(response, 401, {
       ok: false,
-      error: 'Сначала войдите в кабинет',
+      error: body?.telegramInitData || body?.telegramUserId || body?.telegram_id
+        ? 'Не удалось определить пользователя Telegram для оплаты'
+        : 'Сначала войдите в кабинет',
       code: 'SITE_SESSION_REQUIRED',
     });
   }
