@@ -19,7 +19,6 @@ import {
   Save,
   ShoppingCart,
   Sparkles,
-  Star,
   Sun,
   Trash2,
   UserRound,
@@ -710,7 +709,7 @@ const ReviewsSection = () => {
       try {
         const { data, error } = await supabase
           .from('reviews')
-          .select('id,author_name,author_username,rating,text,reviewed_at')
+          .select('id,author_name,author_username,rating,text,source,reviewed_at')
           .eq('is_published', true)
           .order('reviewed_at', { ascending: false })
           .order('created_at', { ascending: false })
@@ -745,30 +744,34 @@ const ReviewsSection = () => {
         <MessageSquareText className="h-9 w-9 text-[#B8795C]" />
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
         {loading
           ? Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="min-h-[220px] rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.58] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+              <div key={index} className="mb-5 break-inside-avoid rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.58] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
                 <div className="h-4 w-32 rounded-full bg-[#2F463B]/10" />
                 <div className="mt-8 h-4 w-full rounded-full bg-[#2F463B]/8" />
                 <div className="mt-3 h-4 w-3/4 rounded-full bg-[#2F463B]/8" />
               </div>
             ))
           : reviews.map((review) => (
-              <article key={review.id} className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
-                <div className="mb-5 flex items-start justify-between gap-4">
+              <article key={review.id} className="site-reveal mb-5 break-inside-avoid rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.68] p-7 shadow-[0_24px_90px_rgba(47,70,59,0.09)] backdrop-blur-xl">
+                <div className="mb-5">
                   <div>
                     <h3 className="text-xl font-semibold text-[#2F463B]">{review.author_name}</h3>
                     <p className="mt-1 text-sm font-bold text-[#2F463B]/46">
                       {review.author_username ? `@${review.author_username} · ` : ''}
-                      {new Date(review.reviewed_at).toLocaleDateString('ru-RU')}
+                      {new Date(review.reviewed_at).toLocaleDateString('ru-RU', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
                     </p>
                   </div>
-                  <div className="flex text-[#B8795C]">
-                    {Array.from({ length: Number(review.rating || 5) }).map((_, index) => (
-                      <Star key={index} className="h-4 w-4 fill-current" />
-                    ))}
-                  </div>
+                  {review.source === 'client' && (
+                    <p className="mt-3 inline-flex rounded-full bg-[#2F463B]/8 px-3 py-1 text-xs font-bold text-[#2F463B]/64">
+                      Проверенный клиент
+                    </p>
+                  )}
                 </div>
                 <p className="whitespace-pre-wrap text-base font-medium leading-relaxed text-[#2F463B]/64">{review.text}</p>
               </article>
@@ -2531,21 +2534,6 @@ const ProfileCabinetPage = ({
               <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Поделиться впечатлением</h2>
             </div>
             <MessageSquareText className="h-8 w-8 text-[#2F463B]/60" />
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {[1, 2, 3, 4, 5].map((rating) => (
-              <button
-                key={rating}
-                type="button"
-                onClick={() => setReviewDraft({ ...reviewDraft, rating })}
-                className={`grid h-11 w-11 place-items-center rounded-2xl transition ${
-                  rating <= reviewDraft.rating ? 'bg-[#B8795C] text-white' : 'bg-[#F7EDE0] text-[#2F463B]/40'
-                }`}
-                aria-label={`${rating} из 5`}
-              >
-                <Star className="h-5 w-5 fill-current" />
-              </button>
-            ))}
           </div>
           <textarea
             required
