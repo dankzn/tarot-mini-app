@@ -25,7 +25,6 @@ const PUBLIC_SERVICE_FIELDS = [
   'id',
   'title',
   'description',
-  'short_description',
   'price',
   'duration_minutes',
   'category',
@@ -36,6 +35,15 @@ const PUBLIC_SERVICE_FIELDS = [
   'promo_starts_at',
   'promo_ends_at',
   'sort_order',
+].join(',');
+
+const MINIMAL_SERVICE_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'price',
+  'duration_minutes',
+  'category',
 ].join(',');
 
 const getServiceOrder = (service) => Number(service?.sort_order || 0);
@@ -52,6 +60,34 @@ const normalizeServices = (services) => {
   return sortServices(activeServices.length > 0 ? activeServices : payableServices);
 };
 
+const loadServices = async (supabase) => {
+  const attempts = [
+    () => supabase
+      .from('services')
+      .select(SERVICE_FIELDS)
+      .order('sort_order', { ascending: true })
+      .order('price', { ascending: true }),
+    () => supabase
+      .from('services')
+      .select(PUBLIC_SERVICE_FIELDS)
+      .order('sort_order', { ascending: true })
+      .order('price', { ascending: true }),
+    () => supabase
+      .from('services')
+      .select(MINIMAL_SERVICE_FIELDS)
+      .order('price', { ascending: true }),
+  ];
+
+  let lastResult = { data: null, error: null };
+
+  for (const attempt of attempts) {
+    lastResult = await attempt();
+    if (!lastResult.error) return lastResult;
+  }
+
+  return lastResult;
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
@@ -60,23 +96,7 @@ export default async function handler(request, response) {
 
   const supabase = getSupabaseAdmin();
 
-  let query = supabase
-    .from('services')
-    .select(SERVICE_FIELDS)
-    .order('sort_order', { ascending: true })
-    .order('price', { ascending: true });
-
-  let { data, error } = await query;
-
-  if (error) {
-    const fallback = await supabase
-      .from('services')
-      .select(PUBLIC_SERVICE_FIELDS)
-      .order('price', { ascending: true });
-
-    data = fallback.data;
-    error = fallback.error;
-  }
+  const { data, error } = await loadServices(supabase);
 
   if (error) {
     return response.status(500).json({
