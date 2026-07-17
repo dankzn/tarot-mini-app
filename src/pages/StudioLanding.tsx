@@ -2146,10 +2146,10 @@ const SiteCartPanel = ({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Корзина</p>
-          <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">К оплате</h2>
+          <h2 className={`site-display mt-3 leading-[1.02] ${compact ? 'text-[clamp(1.65rem,2.3vw,2.5rem)]' : 'text-[clamp(2rem,3vw,3.2rem)]'}`}>К оплате</h2>
         </div>
-        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]">
-          <ShoppingCart className="h-6 w-6" />
+        <div className={`${compact ? 'h-12 w-12' : 'h-14 w-14'} grid place-items-center rounded-2xl bg-[#2F463B] text-[#F7EDE0]`}>
+          <ShoppingCart className={compact ? 'h-5 w-5' : 'h-6 w-6'} />
         </div>
       </div>
 
@@ -2386,51 +2386,69 @@ const ProfileCabinetPage = ({
   const serviceCategories = Array.from(new Set(services.map((service) => service.category).filter(Boolean))) as string[];
 
   return (
-    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-14 md:px-10 xl:px-16">
-      <div className="grid gap-10 xl:grid-cols-[0.86fr_1.14fr]">
-        <div className="site-reveal rounded-[2.7rem] bg-[#2F463B] p-7 text-[#F7EDE0] shadow-[0_34px_110px_rgba(47,70,59,0.22)] md:p-9">
+    <section className="mx-auto max-w-[1540px] px-5 pb-24 pt-10 md:px-10 xl:px-16">
+      <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
+        <div className="site-reveal rounded-[2.1rem] bg-[#2F463B] p-6 text-[#F7EDE0] shadow-[0_28px_90px_rgba(47,70,59,0.18)] md:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.36em] text-[#E2CDB6]/70">Личный кабинет</p>
-              <h1 className="site-display mt-4 text-[clamp(2.6rem,5vw,5.8rem)] leading-[0.98]">{user.name}</h1>
-              <p className="mt-4 text-lg font-semibold text-[#F7EDE0]/58">@{user.username || 'telegram'}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#E2CDB6]/70">Личный кабинет</p>
+              <h1 className="site-display mt-3 text-[clamp(2.1rem,3.6vw,3.6rem)] leading-[1]">{user.name}</h1>
+              <p className="mt-3 text-base font-semibold text-[#F7EDE0]/58">@{user.username || 'telegram'}</p>
             </div>
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex items-center rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-[#F7EDE0] transition hover:bg-white/18"
+              className="inline-flex items-center rounded-full bg-white/10 px-4 py-2.5 text-sm font-semibold text-[#F7EDE0] transition hover:bg-white/18"
             >
               <LogOut className="mr-2 h-4 w-4" />
               Выйти
             </button>
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <div className="mt-6 grid gap-2 sm:grid-cols-2">
             {[
               ['статус', user.status || 'Первое знакомство'],
               ['бонусы', formatMoney(user.bonus_balance || 0)],
               ['записи', consultations.length],
               ['обучение', enrollments.length],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-[1.6rem] bg-white/10 p-5">
-                <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#E2CDB6]/58">{label}</p>
-                <p className="mt-3 text-2xl font-semibold">{value}</p>
+              <div key={String(label)} className="rounded-[1.25rem] bg-white/10 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#E2CDB6]/58">{label}</p>
+                <p className="mt-2 text-xl font-semibold">{value}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 rounded-[2rem] border border-white/12 bg-white/8 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#E2CDB6]/70">Ближайшее</p>
+          <div className="mt-4 rounded-[1.5rem] border border-white/12 bg-white/8 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#E2CDB6]/70">Ближайшее</p>
             {nextConsultation ? (
               <>
-                <h2 className="mt-3 text-2xl font-semibold">{getConsultationTitle(nextConsultation)}</h2>
-                <p className="mt-2 text-base font-medium text-[#F7EDE0]/60">
+                <h2 className="mt-2 text-xl font-semibold">{getConsultationTitle(nextConsultation)}</h2>
+                <p className="mt-1 text-sm font-medium text-[#F7EDE0]/60">
                   {formatDateTime(nextConsultation.scheduled_at || nextConsultation.requested_date)}
                 </p>
               </>
             ) : (
-              <p className="mt-3 text-base font-medium text-[#F7EDE0]/60">Пока нет активной записи</p>
+              <p className="mt-2 text-sm font-medium text-[#F7EDE0]/60">Пока нет активной записи</p>
             )}
+          </div>
+
+          <div className="mt-4 rounded-[1.5rem] border border-[#E2CDB6]/16 bg-[#F7EDE0]/10 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#E2CDB6]/70">Telegram-бот</p>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-lg font-semibold">@{BOT_USERNAME}</p>
+                <p className="mt-1 text-sm font-medium text-[#F7EDE0]/58">Уведомления, мини-приложение и быстрый вход</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openExternal(BOT_URL)}
+                className="inline-flex items-center justify-center rounded-full bg-[#F7EDE0] px-4 py-2.5 text-sm font-semibold text-[#2F463B]"
+              >
+                Открыть
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2446,16 +2464,16 @@ const ProfileCabinetPage = ({
 
           <form
             onSubmit={updateCabinetPassword}
-            className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 text-[#2F463B] shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl md:p-7"
+            className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.74] p-5 text-[#2F463B] shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl"
           >
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Доступ</p>
-                <h2 className="site-display mt-3 text-[clamp(1.8rem,3vw,3rem)] leading-[1.02]">Пароль сайта</h2>
+                <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Пароль сайта</h2>
               </div>
-              <Lock className="h-8 w-8 text-[#B98266]" />
+              <Lock className="h-6 w-6 text-[#B98266]" />
             </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
               <label className="block md:col-span-2">
                 <span className="mb-2 flex items-center text-sm font-semibold">
                   <Mail className="mr-2 h-4 w-4" />
@@ -2466,7 +2484,7 @@ const ProfileCabinetPage = ({
                   required
                   value={passwordDraft.email}
                   onChange={(event) => setPasswordDraft({ ...passwordDraft, email: event.target.value })}
-                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-3.5 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
                 />
               </label>
               <label className="block">
@@ -2480,7 +2498,7 @@ const ProfileCabinetPage = ({
                   required
                   value={passwordDraft.password}
                   onChange={(event) => setPasswordDraft({ ...passwordDraft, password: event.target.value })}
-                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-3.5 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
                 />
               </label>
               <label className="block">
@@ -2494,7 +2512,7 @@ const ProfileCabinetPage = ({
                   required
                   value={passwordDraft.passwordRepeat}
                   onChange={(event) => setPasswordDraft({ ...passwordDraft, passwordRepeat: event.target.value })}
-                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-4 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
+                  className="w-full rounded-2xl border border-[#2F463B]/10 bg-[#F7EDE0]/72 px-4 py-3.5 font-semibold text-[#2F463B] outline-none focus:border-[#2F463B]"
                 />
               </label>
             </div>
@@ -2512,9 +2530,9 @@ const ProfileCabinetPage = ({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Ожидает оплаты</p>
-                <h2 className="site-display mt-3 text-[clamp(1.8rem,3vw,3rem)] leading-[1.02]">Оплаты и заявки</h2>
+                <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Оплаты и заявки</h2>
               </div>
-              <Wallet className="h-8 w-8 text-[#B98266]" />
+              <Wallet className="h-6 w-6 text-[#B98266]" />
             </div>
             <div className="mt-6 grid gap-3">
               {[...dueConsultations, ...dueEnrollments].length === 0 && (
@@ -2571,23 +2589,23 @@ const ProfileCabinetPage = ({
         </div>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[0.86fr_1.14fr]">
-        <div className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+        <div className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.72] p-5 shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Профиль</p>
-              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Данные клиента</h2>
+              <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Данные клиента</h2>
             </div>
-            <UserRound className="h-8 w-8 text-[#2F463B]/60" />
+            <UserRound className="h-6 w-6 text-[#2F463B]/60" />
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
               ['Telegram', user.username ? `@${user.username}` : 'не указан'],
               ['Почта', user.email || 'не указана'],
               ['Статус', user.status || 'Первое знакомство'],
               ['Бонусы', formatMoney(user.bonus_balance || 0)],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-[1.5rem] bg-[#F7EDE0]/72 p-5">
+              <div key={label} className="rounded-[1.3rem] bg-[#F7EDE0]/72 p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#B98266]">{label}</p>
                 <p className="mt-2 text-lg font-semibold text-[#2F463B]">{value}</p>
               </div>
@@ -2597,14 +2615,14 @@ const ProfileCabinetPage = ({
 
         <form
           onSubmit={submitReview}
-          className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl"
+          className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.72] p-5 shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Отзыв</p>
-              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Поделиться впечатлением</h2>
+              <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Поделиться впечатлением</h2>
             </div>
-            <MessageSquareText className="h-8 w-8 text-[#2F463B]/60" />
+            <MessageSquareText className="h-6 w-6 text-[#2F463B]/60" />
           </div>
           <textarea
             required
@@ -2624,13 +2642,13 @@ const ProfileCabinetPage = ({
           </button>
         </form>
 
-        <div className="site-reveal site-delay-1 rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+        <div className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.72] p-5 shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Записи</p>
-              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Последние действия</h2>
+              <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Последние действия</h2>
             </div>
-            <CalendarCheck className="h-8 w-8 text-[#2F463B]/60" />
+            <CalendarCheck className="h-6 w-6 text-[#2F463B]/60" />
           </div>
           <div className="mt-6 grid gap-3">
             {consultations.length === 0 && enrollments.length === 0 && (
@@ -2666,14 +2684,14 @@ const ProfileCabinetPage = ({
         </div>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="site-reveal rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="site-reveal rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.72] p-5 shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Сервисы</p>
-              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Все форматы</h2>
+              <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Все форматы</h2>
             </div>
-            <CalendarCheck className="h-8 w-8 text-[#2F463B]/64" />
+            <CalendarCheck className="h-6 w-6 text-[#2F463B]/64" />
           </div>
           {serviceCategories.length > 0 && (
             <div className="mt-5 flex flex-wrap gap-2">
@@ -2727,13 +2745,13 @@ const ProfileCabinetPage = ({
           </div>
         </div>
 
-        <div className="site-reveal site-delay-1 rounded-[2.2rem] border border-[#2F463B]/10 bg-white/[0.72] p-6 shadow-[0_26px_90px_rgba(47,70,59,0.08)] backdrop-blur-xl">
+        <div className="site-reveal site-delay-1 rounded-[2rem] border border-[#2F463B]/10 bg-white/[0.72] p-5 shadow-[0_22px_70px_rgba(47,70,59,0.07)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#B98266]">Обучение</p>
-              <h2 className="site-display mt-3 text-[clamp(2rem,3vw,3.2rem)] leading-[1.02]">Ваши курсы</h2>
+              <h2 className="site-display mt-2 text-[clamp(1.55rem,2.2vw,2.2rem)] leading-[1.04]">Ваши курсы</h2>
             </div>
-            <GraduationCap className="h-8 w-8 text-[#2F463B]/64" />
+            <GraduationCap className="h-6 w-6 text-[#2F463B]/64" />
           </div>
           <div className="mt-6 grid gap-3">
             {enrollments.length === 0 && (
