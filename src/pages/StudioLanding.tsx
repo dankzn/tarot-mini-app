@@ -150,6 +150,8 @@ type SiteNavRoute = { page?: SitePage; label: string; href: string; anchor?: boo
 
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
+const INSTAGRAM_URL = 'https://www.instagram.com/danil_tarot.academy/';
+const INSTAGRAM_USERNAME = 'danil_tarot.academy';
 const SITE_PENDING_PAYMENT_ORDER_KEY = 'tarot-site-tbank-order';
 
 const routes: SiteNavRoute[] = [
@@ -628,13 +630,43 @@ const PageShell = ({
         {children}
 
         <footer className="mx-auto max-w-[1540px] border-t border-[#2F463B]/10 px-5 py-10 text-sm font-medium text-[#2F463B]/52 md:px-10 xl:px-16">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr_1fr] lg:items-start">
+          <div className="grid gap-8 lg:grid-cols-[1.1fr_0.8fr_1fr_0.9fr] lg:items-start">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-[#C79672]">Tarot by Danil studio</p>
               <p className="mt-3 text-lg font-semibold text-[#2F463B]">© {studioYearRange}</p>
               <p className="mt-3 max-w-md leading-relaxed text-[#2F463B]/58">
                 Консультации, обучение Таро, личный кабинет, оплата и материалы курса в одной системе
               </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#C79672]">Соцсети студии</p>
+              <div className="mt-3 grid gap-2">
+                <a
+                  href={BOT_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 rounded-[1.1rem] bg-white/70 p-3 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:text-[#2F463B]"
+                >
+                  <img src="/social/telegram.png" alt="Telegram" className="h-9 w-9 rounded-xl" />
+                  <span>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/46">Телеграм бот</span>
+                    <span className="mt-0.5 block text-sm font-semibold">@{BOT_USERNAME}</span>
+                  </span>
+                </a>
+                <a
+                  href={INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 rounded-[1.1rem] bg-white/70 p-3 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:text-[#2F463B]"
+                >
+                  <img src="/social/instagram.png" alt="Instagram" className="h-9 w-9 rounded-xl" />
+                  <span>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/46">Инстаграм</span>
+                    <span className="mt-0.5 block text-sm font-semibold">@{INSTAGRAM_USERNAME}</span>
+                  </span>
+                </a>
+              </div>
             </div>
 
             <div>
