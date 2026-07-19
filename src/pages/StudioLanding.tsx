@@ -809,7 +809,6 @@ const ReviewsSection = () => {
   if (!loading && reviews.length === 0) return null;
 
   const activeReview = spotlightReviews[activeReviewIndex % Math.max(1, spotlightReviews.length)];
-  const nextReview = spotlightReviews[(activeReviewIndex + 1) % Math.max(1, spotlightReviews.length)];
 
   return (
     <section id="reviews" className="mx-auto max-w-[1540px] scroll-mt-28 px-5 py-20 md:px-10 xl:px-16">
@@ -825,13 +824,7 @@ const ReviewsSection = () => {
 
       {!loading && activeReview && (
         <div className="site-reveal relative mb-5 h-[430px] overflow-hidden rounded-[2.2rem] border border-[#C79672]/24 bg-[#2F463B] p-7 text-[#F7EDE0] shadow-[0_30px_100px_rgba(47,70,59,0.16)] md:h-[360px] md:p-8">
-          {nextReview && nextReview.id !== activeReview.id && (
-            <div className="pointer-events-none absolute -right-8 top-8 hidden w-[34%] rounded-[2rem] border border-white/12 bg-white/[0.06] p-5 opacity-45 blur-[0.2px] lg:block">
-              <p className="text-sm font-semibold text-[#F7EDE0]/72">{nextReview.author_name}</p>
-              <p className="mt-3 max-h-24 overflow-hidden text-sm font-medium leading-relaxed text-[#F7EDE0]/46">{nextReview.text}</p>
-            </div>
-          )}
-          <article key={activeReview.id} className="site-review-spotlight relative flex h-full max-w-4xl flex-col">
+          <article key={activeReview.id} className="site-review-spotlight relative flex h-full max-w-5xl flex-col">
             <div className="mb-5 shrink-0">
               <h3 className="text-2xl font-semibold">{activeReview.author_name}</h3>
               <p className="mt-1 text-sm font-bold text-[#F7EDE0]/54">
