@@ -1,7 +1,7 @@
 import { addDays, format } from 'date-fns';
 
 export const MOSCOW_TIME_ZONE = 'Europe/Moscow';
-const MOSCOW_OFFSET = '+03:00';
+const MOSCOW_UTC_OFFSET_HOURS = 3;
 
 const getMoscowDateParts = (value: string | Date) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -20,8 +20,17 @@ const getMoscowDateParts = (value: string | Date) => {
 };
 
 export const toMoscowDateTimeStringFromParts = (date: string, time: string) => {
-  const normalizedTime = time.length === 5 ? `${time}:00` : time;
-  return `${date}T${normalizedTime}${MOSCOW_OFFSET}`;
+  const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
+  const [hours = 0, minutes = 0, seconds = 0] = time.split(':').map(Number);
+
+  return new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    hours - MOSCOW_UTC_OFFSET_HOURS,
+    minutes,
+    seconds
+  )).toISOString();
 };
 
 export const toMoscowDateTimeString = (date: Date, time: string) => {
