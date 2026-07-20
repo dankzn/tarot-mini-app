@@ -97,7 +97,6 @@ export const AdminWebSlots = () => {
     while (current < end) {
       newSlots.push({
         start_time: format(current, "yyyy-MM-dd'T'HH:mm:ss"),
-        end_time: format(addMinutes(current, 30), "yyyy-MM-dd'T'HH:mm:ss"),
         duration_minutes: 30,
         is_booked: false,
       });

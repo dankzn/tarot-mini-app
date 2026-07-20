@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { format, addMinutes } from 'date-fns';
+import { addMinutes } from 'date-fns';
 import { CalendarDays, Clock, CheckCircle2, XCircle, Plus } from 'lucide-react';
 import { formatMoscowTime, getMoscowDayRange, toMoscowDateTimeString } from '../lib/moscowTime';
 
@@ -67,12 +67,10 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
 
     const slots = selectedTimes.map(time => {
       const slotStart = toMoscowDateTimeString(selectedDate, time);
-      const slotEnd = format(addMinutes(new Date(slotStart), duration), "yyyy-MM-dd'T'HH:mm:ss");
 
       return {
         admin_id: admin.id,
         start_time: slotStart,
-        end_time: slotEnd,
         duration_minutes: duration,
         is_booked: false,
       };
@@ -107,6 +105,11 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
       allTimeSlots.push({ time: timeString, isBooked });
     }
   }
+
+  const getSlotEndTime = (slot: any) => {
+    const durationMinutes = Number(slot.duration_minutes || duration || 30);
+    return formatMoscowTime(addMinutes(new Date(slot.start_time), durationMinutes).toISOString());
+  };
 
   return (
     <div className="min-h-screen bg-[#F8F5F2] p-4">
@@ -222,7 +225,7 @@ export const AdminSlotsManager = ({ admin, onBack }: AdminSlotsManagerProps) => 
             >
               <div>
                 <p className="text-[#385144] font-bold">
-                  {formatMoscowTime(slot.start_time)} - {formatMoscowTime(slot.end_time)}
+                  {formatMoscowTime(slot.start_time)} - {getSlotEndTime(slot)}
                 </p>
                 <p className="text-gray-500 text-xs">{slot.duration_minutes} мин</p>
               </div>
