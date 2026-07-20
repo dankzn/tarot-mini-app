@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
-import { formatMoscowDateKey, formatMoscowTime } from '../lib/moscowTime';
+import { formatMoscowDateKey, formatMoscowTime, toMoscowDateTimeStringFromParts } from '../lib/moscowTime';
 
 export const AdminWebSlots = () => {
   const navigate = useNavigate();
@@ -96,7 +96,10 @@ export const AdminWebSlots = () => {
     // Все окна по 30 минут
     while (current < end) {
       newSlots.push({
-        start_time: format(current, "yyyy-MM-dd'T'HH:mm:ss"),
+        start_time: toMoscowDateTimeStringFromParts(
+          format(current, 'yyyy-MM-dd'),
+          format(current, 'HH:mm')
+        ),
         duration_minutes: 30,
         is_booked: false,
       });
