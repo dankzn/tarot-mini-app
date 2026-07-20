@@ -37,6 +37,20 @@ const PUBLIC_SERVICE_FIELDS = [
   'sort_order',
 ].join(',');
 
+const PRICE_SERVICE_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'price',
+  'duration_minutes',
+  'next_price',
+  'price_increase_at',
+  'promo_title',
+  'promo_price',
+  'promo_starts_at',
+  'promo_ends_at',
+].join(',');
+
 const MINIMAL_SERVICE_FIELDS = [
   'id',
   'title',
@@ -102,6 +116,10 @@ const loadServices = async (supabase) => {
       .order('price', { ascending: true }),
     () => supabase
       .from('services')
+      .select(PRICE_SERVICE_FIELDS)
+      .order('price', { ascending: true }),
+    () => supabase
+      .from('services')
       .select(MINIMAL_SERVICE_FIELDS)
       .order('price', { ascending: true }),
   ];
@@ -123,6 +141,12 @@ export default async function handler(request, response) {
   }
 
   const supabase = getSupabaseAdmin();
+
+  await supabase.rpc('apply_due_service_price_changes').then(({ error }) => {
+    if (error && error.code !== '42883') {
+      console.warn('Could not apply due service price changes:', error.message);
+    }
+  });
 
   const { data, error } = await loadServices(supabase);
 
