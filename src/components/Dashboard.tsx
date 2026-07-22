@@ -140,6 +140,37 @@ const getPaymentStatusText = (consultation: any) => {
   return 'Можно оплатить заранее';
 };
 
+const getConsultationPaymentAmount = (consultation: any) => (
+  Number(consultation?.payment_amount ?? consultation?.price ?? 0) || 0
+);
+
+const getConsultationsPaymentTotal = (consultations: any[] = []) => (
+  consultations.reduce((sum, consultation) => sum + getConsultationPaymentAmount(consultation), 0)
+);
+
+const getConsultationsPaymentTitle = (consultations: any[] = []) => {
+  if (consultations.length === 0) return 'Консультация';
+  if (consultations.length === 1) return consultations[0]?.services?.title || 'Консультация';
+
+  const titles = consultations
+    .map((consultation) => consultation?.services?.title)
+    .filter(Boolean);
+
+  return `${consultations.length} консультации: ${titles.join(', ') || 'выбранные форматы'}`;
+};
+
+const getConsultationsPaymentDateText = (consultations: any[] = []) => {
+  if (consultations.length === 0) return 'Не назначена';
+  const dates = Array.from(new Set(consultations.map(getConsultationDateText)));
+  return dates.length === 1 ? dates[0] : 'Несколько дат';
+};
+
+const getConsultationsPaymentTimeText = (consultations: any[] = []) => {
+  if (consultations.length === 0) return 'Ждём предложения';
+  const times = Array.from(new Set(consultations.map(getConsultationTimeText)));
+  return times.length === 1 ? times[0] : 'Несколько времён';
+};
+
 const STATUS_MILESTONES = [
   { name: 'Первое знакомство', consultations: 0 },
   { name: 'Basic', consultations: 1 },
@@ -550,6 +581,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
   const [upcomingConsultation, setUpcomingConsultation] = useState<any>(null);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [paymentDueConsultation, setPaymentDueConsultation] = useState<any>(null);
+  const [paymentDueConsultations, setPaymentDueConsultations] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [miniPaymentStatus, setMiniPaymentStatus] = useState<MiniPaymentStatus | null>(null);
@@ -693,32 +725,54 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed', 'awaiting_payment'])
       .in('payment_status', ['unpaid', 'payment_requested', 'opened', 'marked_paid'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Ошибка загрузки оплаты:', error);
       setPaymentDueConsultation(null);
+      setPaymentDueConsultations([]);
       return;
     }
 
-    setPaymentDueConsultation(data || null);
-    setShowPaymentModal(Boolean(data?.status === 'awaiting_payment' && data?.payment_status !== 'marked_paid'));
+    const dueConsultations = data || [];
+    const latestConsultation = dueConsultations[0] || null;
+    const payableConsultations = dueConsultations.filter((consultation) => consultation.payment_status !== 'marked_paid');
 
-    if (data?.id) {
-      const savedOrderId = window.localStorage.getItem(getMiniPaymentOrderKey(data.id));
+    setPaymentDueConsultations(dueConsultations);
+    setPaymentDueConsultation(latestConsultation);
+    setShowPaymentModal(payableConsultations.some((consultation) => consultation.status === 'awaiting_payment'));
+
+    if (payableConsultations.length > 0) {
+      const paymentKey = getMiniPaymentBatchKey(payableConsultations);
+      const savedOrderId = window.localStorage.getItem(getMiniPaymentOrderKey(paymentKey));
       if (savedOrderId) {
-        pollMiniPaymentStatus(savedOrderId, data.id);
+        pollMiniPaymentStatus(savedOrderId, paymentKey);
       }
     }
   };
 
   const primaryPaymentMethod = paymentMethods[0] || null;
+  const payablePaymentDueConsultations = paymentDueConsultations.filter((consultation) => consultation.payment_status !== 'marked_paid');
+  const displayPaymentDueConsultations = payablePaymentDueConsultations.length > 0
+    ? payablePaymentDueConsultations
+    : paymentDueConsultations;
+  const paymentDueTotal = getConsultationsPaymentTotal(displayPaymentDueConsultations);
+  const paymentDueIsMarkedPaid = paymentDueConsultations.length > 0 && paymentDueConsultations.every(
+    (consultation) => consultation.payment_status === 'marked_paid',
+  );
 
-  const getMiniPaymentOrderKey = (consultationId: string) => `tarot-mini-tbank-order:${consultationId}`;
+  const getMiniPaymentBatchKey = (consultations: any[] = []) => {
+    const ids = consultations
+      .map((consultation) => consultation?.id)
+      .filter(Boolean)
+      .sort();
 
-  const pollMiniPaymentStatus = async (orderId: string, consultationId: string, attempt = 0) => {
+    return ids.length > 0 ? ids.join(':') : 'empty';
+  };
+
+  const getMiniPaymentOrderKey = (paymentKey: string) => `tarot-mini-tbank-order:${paymentKey}`;
+
+  const pollMiniPaymentStatus = async (orderId: string, paymentKey: string, attempt = 0) => {
     try {
       const response = await fetch(`/api/site/tbank-status?order=${encodeURIComponent(orderId)}`, {
         credentials: 'include',
@@ -730,7 +784,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       }
 
       if (payload.paymentState === 'paid') {
-        window.localStorage.removeItem(getMiniPaymentOrderKey(consultationId));
+        window.localStorage.removeItem(getMiniPaymentOrderKey(paymentKey));
         setMiniPaymentStatus({
           type: 'success',
           title: payload.title || 'Оплата прошла',
@@ -738,7 +792,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
           orderId: payload.orderId,
           bankStatus: payload.bankStatus,
           amount: payload.amount,
-          consultationId,
+          consultationId: paymentKey,
         });
         setShowPaymentModal(false);
         await loadPaymentDueConsultation();
@@ -747,7 +801,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       }
 
       if (payload.paymentState === 'failed') {
-        window.localStorage.removeItem(getMiniPaymentOrderKey(consultationId));
+        window.localStorage.removeItem(getMiniPaymentOrderKey(paymentKey));
         setMiniPaymentStatus({
           type: 'error',
           title: payload.title || 'Оплата не прошла',
@@ -755,7 +809,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
           orderId: payload.orderId,
           bankStatus: payload.bankStatus,
           amount: payload.amount,
-          consultationId,
+          consultationId: paymentKey,
         });
         return;
       }
@@ -767,11 +821,11 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
         orderId: payload.orderId,
         bankStatus: payload.bankStatus,
         amount: payload.amount,
-        consultationId,
+        consultationId: paymentKey,
       });
 
       if (attempt < 30) {
-        window.setTimeout(() => pollMiniPaymentStatus(orderId, consultationId, attempt + 1), attempt < 5 ? 3000 : 6000);
+        window.setTimeout(() => pollMiniPaymentStatus(orderId, paymentKey, attempt + 1), attempt < 5 ? 3000 : 6000);
       }
     } catch (error: any) {
       setMiniPaymentStatus({
@@ -779,17 +833,22 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
         title: 'Проверяю оплату',
         message: error?.message || 'Статус обновится автоматически чуть позже',
         orderId,
-        consultationId,
+        consultationId: paymentKey,
       });
 
       if (attempt < 30) {
-        window.setTimeout(() => pollMiniPaymentStatus(orderId, consultationId, attempt + 1), attempt < 5 ? 3000 : 6000);
+        window.setTimeout(() => pollMiniPaymentStatus(orderId, paymentKey, attempt + 1), attempt < 5 ? 3000 : 6000);
       }
     }
   };
 
-  const openPaymentLink = async (consultation = paymentDueConsultation) => {
-    if (!consultation?.id || paymentBusy) return;
+  const openPaymentLink = async (consultationOrConsultations: any | any[] = paymentDueConsultations.length > 0 ? paymentDueConsultations : paymentDueConsultation) => {
+    const consultations = (Array.isArray(consultationOrConsultations) ? consultationOrConsultations : [consultationOrConsultations])
+      .filter((consultation) => consultation?.id && consultation.payment_status !== 'marked_paid');
+
+    if (consultations.length === 0 || paymentBusy) return;
+
+    const paymentKey = getMiniPaymentBatchKey(consultations);
 
     const telegramInitData = (window.Telegram?.WebApp as any)?.initData || '';
     if (!telegramInitData) {
@@ -802,7 +861,8 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       type: 'info',
       title: 'Создаю платёж',
       message: 'Передаю заказ в Т-Банк',
-      consultationId: consultation.id,
+      amount: getConsultationsPaymentTotal(consultations),
+      consultationId: paymentKey,
     });
 
     try {
@@ -814,12 +874,10 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
           telegramInitData,
           telegramUserId: user.telegram_id,
           userId: user.id,
-          cart: [
-            {
-              id: `consultation:${consultation.id}`,
-              source: 'consultation',
-            },
-          ],
+          cart: consultations.map((consultation) => ({
+            id: `consultation:${consultation.id}`,
+            source: 'consultation',
+          })),
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -834,18 +892,18 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
           payment_status: 'opened',
           payment_method_id: primaryPaymentMethod?.id || null,
         })
-        .eq('id', consultation.id);
+        .in('id', consultations.map((consultation) => consultation.id));
 
-      window.localStorage.setItem(getMiniPaymentOrderKey(consultation.id), payload.orderId);
+      window.localStorage.setItem(getMiniPaymentOrderKey(paymentKey), payload.orderId);
       setMiniPaymentStatus({
         type: 'info',
         title: 'Платёж создан',
         message: 'После оплаты банк пришлёт подтверждение, а бот отправит дальнейшие шаги и @dan_kzn',
         orderId: payload.orderId,
         amount: payload.amount,
-        consultationId: consultation.id,
+        consultationId: paymentKey,
       });
-      pollMiniPaymentStatus(payload.orderId, consultation.id);
+      pollMiniPaymentStatus(payload.orderId, paymentKey);
 
       const telegramWebApp = window.Telegram?.WebApp as any;
       telegramWebApp?.openLink?.(payload.paymentUrl);
@@ -857,7 +915,8 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
         type: 'error',
         title: 'Оплата не создана',
         message: error?.message || 'Не удалось создать оплату',
-        consultationId: consultation.id,
+        amount: getConsultationsPaymentTotal(consultations),
+        consultationId: paymentKey,
       });
       alert(error?.message || 'Не удалось создать оплату');
     } finally {
@@ -1465,7 +1524,9 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                   Дата
                 </div>
                 <p className="text-sm font-black">
-                  {getConsultationDateText(paymentDueConsultation || upcomingConsultation)}
+                  {paymentDueConsultation
+                    ? getConsultationsPaymentDateText(displayPaymentDueConsultations)
+                    : getConsultationDateText(upcomingConsultation)}
                 </p>
               </div>
               <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
@@ -1474,7 +1535,9 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                   Время
                 </div>
                 <p className="text-sm font-black">
-                  {getConsultationTimeText(paymentDueConsultation || upcomingConsultation)}
+                  {paymentDueConsultation
+                    ? getConsultationsPaymentTimeText(displayPaymentDueConsultations)
+                    : getConsultationTimeText(upcomingConsultation)}
                 </p>
               </div>
             </div>
@@ -1851,13 +1914,13 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                     {getPaymentStatusText(paymentDueConsultation)}
                   </h3>
                   <p className="mt-1 text-sm font-semibold text-[#6C756C]">
-                    {paymentDueConsultation.services?.title || 'Консультация'}
+                    {getConsultationsPaymentTitle(displayPaymentDueConsultations)}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8FA092]">к оплате</p>
                   <p className="text-xl font-black text-[#8A5A3F]">
-                    {(paymentDueConsultation.payment_amount || paymentDueConsultation.price || 0).toLocaleString()} ₽
+                    {paymentDueTotal.toLocaleString()} ₽
                   </p>
                 </div>
               </div>
@@ -1869,7 +1932,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                     Дата
                   </div>
                   <p className="text-sm font-black text-[#385144]">
-                    {getConsultationDateText(paymentDueConsultation)}
+                    {getConsultationsPaymentDateText(displayPaymentDueConsultations)}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/65 p-3">
@@ -1878,18 +1941,18 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                     Время
                   </div>
                   <p className="text-sm font-black text-[#385144]">
-                    {getConsultationTimeText(paymentDueConsultation)}
+                    {getConsultationsPaymentTimeText(displayPaymentDueConsultations)}
                   </p>
                 </div>
               </div>
 
-              {paymentDueConsultation.payment_status === 'marked_paid' ? (
+              {paymentDueIsMarkedPaid ? (
                 <div className="rounded-2xl bg-[#385144]/10 px-4 py-3 text-sm font-black text-[#385144]">
                   Я уже вижу отметку об оплате. После проверки бонусы и консультация зачтутся автоматически.
                 </div>
               ) : (
                 <button
-                  onClick={() => openPaymentLink(paymentDueConsultation)}
+                  onClick={() => openPaymentLink(displayPaymentDueConsultations)}
                   disabled={paymentBusy}
                   className="w-full rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white disabled:opacity-60"
                 >
@@ -2255,25 +2318,25 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
               <div className="rounded-[1.4rem] bg-white/75 p-4">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Тема обращения</p>
                 <p className="mt-1 text-xl font-black text-[#385144]">
-                  {paymentDueConsultation.services?.title || 'Консультация'}
+                  {getConsultationsPaymentTitle(displayPaymentDueConsultations)}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-[1.4rem] bg-white/75 p-4">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Дата</p>
-                  <p className="mt-1 font-black text-[#385144]">{getConsultationDateText(paymentDueConsultation)}</p>
+                  <p className="mt-1 font-black text-[#385144]">{getConsultationsPaymentDateText(displayPaymentDueConsultations)}</p>
                 </div>
                 <div className="rounded-[1.4rem] bg-white/75 p-4">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8A5A3F]/70">Время</p>
-                  <p className="mt-1 font-black text-[#385144]">{getConsultationTimeText(paymentDueConsultation)}</p>
+                  <p className="mt-1 font-black text-[#385144]">{getConsultationsPaymentTimeText(displayPaymentDueConsultations)}</p>
                 </div>
               </div>
 
               <div className="rounded-[1.4rem] bg-[#385144] p-4 text-white">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-white/58">Итоговая стоимость</p>
                 <p className="mt-1 text-3xl font-black">
-                  {paymentDueConsultation.payment_amount || paymentDueConsultation.price || 0} ₽
+                  {paymentDueTotal.toLocaleString()} ₽
                 </p>
               </div>
 
@@ -2285,7 +2348,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
 
               <div className="grid grid-cols-1 gap-2">
                 <button
-                  onClick={() => openPaymentLink(paymentDueConsultation)}
+                  onClick={() => openPaymentLink(displayPaymentDueConsultations)}
                   disabled={paymentBusy}
                   className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)] disabled:opacity-60"
                 >
