@@ -13,12 +13,15 @@ import {
   Search,
   MessageSquare,
   FileText,
-  Sparkles
+  Sparkles,
+  Plus
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
 import { notifyClientBonusUpdate, notifyClientPaymentRequired, notifyClientTimeConfirmed, notifyClientTimeProposal } from '../lib/notifications';
 import { getBonusPercent, getConsultationCycleDate, getCurrentLoyaltyCycleStart, getNextLoyaltyStatus, isPersonalTarologistService } from '../lib/bonusLogic';
+import { toMoscowDateTimeStringFromParts } from '../lib/moscowTime';
+import { getServicePriceState } from '../lib/serviceCampaigns';
 
 const parseAdminDateTime = (value: string) => {
   const normalized = value.trim().replace(' ', 'T');
@@ -29,6 +32,24 @@ const parseAdminDateTime = (value: string) => {
 const formatDateTime = (value: string | null | undefined) => (
   value ? format(new Date(value), 'dd MMMM yyyy HH:mm', { locale: ru }) : 'Дата не указана'
 );
+
+const toAdminMoscowDateTime = (value: string) => {
+  if (!value) return null;
+  const [date, time] = value.trim().replace(' ', 'T').split('T');
+  if (!date || !time) return null;
+  const normalized = time.length === 5 ? time : time.slice(0, 5);
+  return toMoscowDateTimeStringFromParts(date, normalized);
+};
+
+const getAdminServicePrice = (service: any) => getServicePriceState({
+  price: Number(service?.price || 0),
+  next_price: service?.next_price,
+  price_increase_at: service?.price_increase_at,
+  promo_title: service?.promo_title,
+  promo_price: service?.promo_price,
+  promo_starts_at: service?.promo_starts_at,
+  promo_ends_at: service?.promo_ends_at,
+}).currentPrice;
 
 const manualSchedulingStatuses = new Set([
   'needs_admin_time',
@@ -43,11 +64,21 @@ const isManualScheduling = (consultation: any) => (
 export const AdminWebConsultations = () => {
   const navigate = useNavigate();
   const [consultations, setConsultations] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [showCompleteForm, setShowCompleteForm] = useState(false);
   const [selectedConsultation, setSelectedConsultation] = useState<any>(null);
+  const [manualRecord, setManualRecord] = useState({
+    user_id: '',
+    scheduled_at: '',
+    notes: '',
+    total_price: 0,
+  });
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [completeData, setCompleteData] = useState({
     admin_notes: '',
     new_price: 0,
@@ -74,11 +105,12 @@ export const AdminWebConsultations = () => {
 
       const { data: usersData } = await supabase
         .from('users')
-        .select('id, name, telegram_id, username, city, status, bonus_balance, personal_tarologist_until');
+        .select('id, name, telegram_id, username, email, city, status, bonus_balance, personal_tarologist_until');
 
       const { data: servicesData } = await supabase
         .from('services')
-        .select('id, title, price');
+        .select('id, title, price, duration_minutes, next_price, price_increase_at, promo_title, promo_price, promo_starts_at, promo_ends_at')
+        .order('price', { ascending: true });
 
       const enriched = (consultationsData || []).map(c => ({
         ...c,
@@ -87,11 +119,136 @@ export const AdminWebConsultations = () => {
       }));
 
       setConsultations(enriched);
+      setUsers((usersData || []).sort((left, right) => (left.name || '').localeCompare(right.name || '', 'ru')));
+      setServices(servicesData || []);
     } catch (error) {
       console.error('Ошибка загрузки:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetCreateForm = () => {
+    setManualRecord({
+      user_id: '',
+      scheduled_at: '',
+      notes: '',
+      total_price: 0,
+    });
+    setSelectedServiceIds([]);
+  };
+
+  const openCreateForm = () => {
+    resetCreateForm();
+    setShowCreateForm(true);
+  };
+
+  const toggleManualService = (serviceId: string) => {
+    setSelectedServiceIds((current) => {
+      const next = current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId];
+      const nextServices = services.filter((service) => next.includes(service.id));
+      const nextPrice = nextServices.reduce((sum, service) => sum + getAdminServicePrice(service), 0);
+      setManualRecord((record) => ({ ...record, total_price: nextPrice }));
+      return next;
+    });
+  };
+
+  const getDistributedPrices = (selectedServices: any[], totalPrice: number) => {
+    if (selectedServices.length === 0) return [];
+    if (selectedServices.length === 1) return [totalPrice];
+
+    const baseTotal = selectedServices.reduce((sum, service) => sum + getAdminServicePrice(service), 0);
+    let remaining = totalPrice;
+
+    return selectedServices.map((service, index) => {
+      if (index === selectedServices.length - 1) return remaining;
+
+      const basePrice = getAdminServicePrice(service);
+      const value = baseTotal > 0
+        ? Math.round(totalPrice * (basePrice / baseTotal))
+        : Math.floor(totalPrice / selectedServices.length);
+      remaining -= value;
+      return value;
+    });
+  };
+
+  const handleManualCreate = async () => {
+    const selectedUser = users.find((user) => user.id === manualRecord.user_id);
+    const selectedServices = services.filter((service) => selectedServiceIds.includes(service.id));
+    const totalPrice = Math.max(0, Number(manualRecord.total_price || 0));
+    const scheduledAt = manualRecord.scheduled_at
+      ? toAdminMoscowDateTime(manualRecord.scheduled_at)
+      : null;
+
+    if (!selectedUser) {
+      alert('Выберите клиента');
+      return;
+    }
+
+    if (selectedServices.length === 0) {
+      alert('Выберите хотя бы один формат');
+      return;
+    }
+
+    if (manualRecord.scheduled_at && !scheduledAt) {
+      alert('Не получилось распознать дату и время записи');
+      return;
+    }
+
+    const prices = getDistributedPrices(selectedServices, totalPrice);
+    const titles = selectedServices.map((service) => service.title).join(', ');
+    const commonNotes = [
+      manualRecord.notes.trim() ? manualRecord.notes.trim() : '',
+      selectedServices.length > 1 ? `Мультизапись администратора: ${titles}` : '',
+      `Итоговая сумма к оплате: ${totalPrice} ₽`,
+    ].filter(Boolean).join('\n\n');
+
+    const rows = selectedServices.map((service, index) => ({
+      user_id: selectedUser.id,
+      service_id: service.id,
+      scheduled_at: scheduledAt,
+      requested_date: scheduledAt ? format(new Date(scheduledAt), 'yyyy-MM-dd') : null,
+      requested_time_text: scheduledAt ? format(new Date(scheduledAt), 'HH:mm') : 'Время назначит администратор',
+      scheduling_status: scheduledAt ? 'scheduled' : 'needs_admin_time',
+      status: 'awaiting_payment',
+      notes: commonNotes,
+      price: prices[index],
+      payment_amount: prices[index],
+      payment_status: 'payment_requested',
+      bonus_used: 0,
+      priority_fee: 0,
+      admin_notes: selectedServices.length > 1
+        ? `Часть мультизаписи: ${index + 1}/${selectedServices.length}`
+        : 'Запись создана администратором',
+    }));
+
+    const { error } = await supabase
+      .from('consultations')
+      .insert(rows);
+
+    if (error) {
+      alert('Ошибка: ' + error.message);
+      return;
+    }
+
+    if (selectedUser.telegram_id && totalPrice > 0) {
+      const notificationResult = await notifyClientPaymentRequired(
+        selectedUser.telegram_id,
+        selectedServices.length > 1 ? `Несколько консультаций: ${titles}` : selectedServices[0].title,
+        totalPrice
+      );
+
+      if (!notificationResult.ok) {
+        console.error('❌ Уведомление клиенту об оплате не отправлено:', notificationResult.error);
+      }
+    }
+
+    alert(`✅ Создано записей: ${rows.length}. К оплате: ${totalPrice} ₽`);
+    setShowCreateForm(false);
+    resetCreateForm();
+    await loadConsultations();
   };
 
   const updateStatus = async (consultationId: string, newStatus: string) => {
@@ -391,6 +548,186 @@ export const AdminWebConsultations = () => {
     cancelled: 'Отменена',
   };
 
+  if (showCreateForm) {
+    const selectedServices = services.filter((service) => selectedServiceIds.includes(service.id));
+    const servicesBasePrice = selectedServices.reduce((sum, service) => sum + getAdminServicePrice(service), 0);
+    const distributedPrices = getDistributedPrices(selectedServices, Number(manualRecord.total_price || 0));
+
+    return (
+      <div className="min-h-screen bg-[#F8F5F2]">
+        <div className="bg-white border-b border-gray-200 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <AdminBackButton onClick={() => setShowCreateForm(false)} />
+            <h1 className="text-2xl font-bold text-[#385144]">Записать клиента</h1>
+            <div></div>
+          </div>
+        </div>
+
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-5">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+                  <User className="w-4 h-4 mr-2" />
+                  Клиент
+                </label>
+                <select
+                  value={manualRecord.user_id}
+                  onChange={(e) => setManualRecord({ ...manualRecord, user_id: e.target.value })}
+                  className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
+                >
+                  <option value="">Выберите зарегистрированного клиента</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name || 'Без имени'} {user.username ? `@${user.username}` : ''} {user.email ? `· ${user.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <label className="text-[#385144] font-bold text-sm flex items-center">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Форматы консультации
+                  </label>
+                  <span className="rounded-full bg-[#F8F5F2] px-3 py-1 text-xs font-black text-[#385144]/70">
+                    выбрано: {selectedServiceIds.length}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {services.map((service) => {
+                    const selected = selectedServiceIds.includes(service.id);
+
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        onClick={() => toggleManualService(service.id)}
+                        className={`rounded-2xl border p-4 text-left transition ${
+                          selected
+                            ? 'border-[#385144] bg-[#EAF1EA] text-[#385144]'
+                            : 'border-gray-100 bg-[#F8F5F2] text-[#385144] hover:border-[#385144]/30'
+                        }`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="block font-black">{service.title}</span>
+                            <span className="mt-1 block text-sm font-semibold text-[#385144]/58">
+                              {service.duration_minutes ? `${service.duration_minutes} мин · ` : ''}{getAdminServicePrice(service).toLocaleString('ru-RU')} ₽
+                            </span>
+                          </span>
+                          <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border ${
+                            selected ? 'border-[#385144] bg-[#385144] text-white' : 'border-[#385144]/20 bg-white'
+                          }`}>
+                            {selected ? <CheckCircle className="h-4 w-4" /> : null}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Дата и время
+                </label>
+                <input
+                  type="datetime-local"
+                  value={manualRecord.scheduled_at}
+                  onChange={(e) => setManualRecord({ ...manualRecord, scheduled_at: e.target.value })}
+                  className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-[#385144] font-bold focus:outline-none focus:border-[#385144]"
+                />
+                <p className="mt-2 text-xs font-semibold text-gray-500">
+                  Можно оставить пустым, тогда запись попадёт в режим подбора времени.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <label className="text-[#385144] font-bold text-sm mb-2 block flex items-center">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Комментарий
+                </label>
+                <textarea
+                  rows={5}
+                  value={manualRecord.notes}
+                  onChange={(e) => setManualRecord({ ...manualRecord, notes: e.target.value })}
+                  className="w-full p-3 bg-[#F8F5F2] border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:border-[#385144]"
+                  placeholder="Что важно зафиксировать по записи..."
+                />
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">Итог к оплате</p>
+                <label className="mt-4 block">
+                  <span className="mb-2 block text-sm font-bold text-[#385144]">Цена, которая пойдёт на оплату</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualRecord.total_price}
+                    onChange={(e) => setManualRecord({ ...manualRecord, total_price: Number(e.target.value) })}
+                    className="w-full p-4 bg-[#F8F5F2] border border-gray-200 rounded-xl text-3xl font-black text-[#385144] focus:outline-none focus:border-[#385144]"
+                  />
+                </label>
+                <div className="mt-4 rounded-2xl bg-[#F8F5F2] p-4 text-sm font-semibold text-[#385144]/70">
+                  <div className="flex justify-between gap-3">
+                    <span>Сумма выбранных форматов</span>
+                    <span className="text-[#385144]">{servicesBasePrice.toLocaleString('ru-RU')} ₽</span>
+                  </div>
+                  <div className="mt-2 flex justify-between gap-3">
+                    <span>Ручная итоговая цена</span>
+                    <span className="text-[#B8795C]">{Number(manualRecord.total_price || 0).toLocaleString('ru-RU')} ₽</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#B8795C]">Как ляжет в оплату</p>
+                <div className="mt-4 space-y-3">
+                  {selectedServices.length === 0 ? (
+                    <p className="text-sm font-semibold text-gray-500">Выберите форматы слева</p>
+                  ) : (
+                    selectedServices.map((service, index) => (
+                      <div key={service.id} className="rounded-2xl bg-[#F8F5F2] p-4">
+                        <p className="font-black text-[#385144]">{service.title}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#385144]/58">
+                          К оплате по этой записи: {Number(distributedPrices[index] || 0).toLocaleString('ru-RU')} ₽
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateForm(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 p-4 rounded-xl font-bold hover:bg-gray-300 transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={handleManualCreate}
+                  className="flex-1 bg-[#385144] text-white p-4 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center justify-center"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Создать
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (showCompleteForm && selectedConsultation) {
     const isEdit = selectedConsultation.status === 'completed';
     const cycleStart = getCurrentLoyaltyCycleStart();
@@ -532,7 +869,14 @@ export const AdminWebConsultations = () => {
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <AdminBackButton onClick={() => navigate('/admin-web/dashboard')} label="В dashboard" />
           <h1 className="text-2xl font-bold text-[#385144]">Управление записями</h1>
-          <div></div>
+          <button
+            type="button"
+            onClick={openCreateForm}
+            className="bg-[#385144] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#2d4238] transition flex items-center"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Записать
+          </button>
         </div>
       </div>
 
