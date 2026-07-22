@@ -152,6 +152,7 @@ const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
 const INSTAGRAM_URL = 'https://www.instagram.com/danil_tarot.academy/';
 const DZEN_URL = 'https://dzen.ru/tarot_studio';
+const TIKTOK_URL = 'https://www.tiktok.com/@danil_tarot.academy';
 const SITE_PENDING_PAYMENT_ORDER_KEY = 'tarot-site-tbank-order';
 
 const routes: SiteNavRoute[] = [
@@ -606,6 +607,20 @@ const PageShell = ({
                     <span className="absolute right-[7px] top-[7px] h-2.5 w-2.5 rounded-bl-lg bg-white" />
                     <span className="absolute bottom-[7px] left-[7px] h-2.5 w-2.5 rounded-tr-lg bg-white" />
                     <span className="absolute bottom-[7px] right-[7px] h-2.5 w-2.5 rounded-tl-lg bg-white" />
+                  </span>
+                </a>
+                <a
+                  href={TIKTOK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="TikTok @danil_tarot.academy"
+                  title="TikTok @danil_tarot.academy"
+                  className="group grid h-14 w-14 place-items-center rounded-[1.1rem] bg-white/70 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:bg-white"
+                >
+                  <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-[#111] font-black text-white">
+                    <span className="absolute left-[10px] top-[8px] text-[1.45rem] leading-none text-[#25F4EE]">♪</span>
+                    <span className="absolute left-[12px] top-[10px] text-[1.45rem] leading-none text-[#FE2C55]">♪</span>
+                    <span className="relative text-[1.45rem] leading-none">♪</span>
                   </span>
                 </a>
               </div>
