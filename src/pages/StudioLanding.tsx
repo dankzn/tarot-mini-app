@@ -151,7 +151,7 @@ type SiteNavRoute = { page?: SitePage; label: string; href: string; anchor?: boo
 const BOT_URL = 'https://t.me/danil_tarot_bot';
 const BOT_USERNAME = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'danil_tarot_bot').replace('@', '');
 const INSTAGRAM_URL = 'https://www.instagram.com/danil_tarot.academy/';
-const INSTAGRAM_USERNAME = 'danil_tarot.academy';
+const DZEN_URL = 'https://dzen.ru/tarot_studio';
 const SITE_PENDING_PAYMENT_ORDER_KEY = 'tarot-site-tbank-order';
 
 const routes: SiteNavRoute[] = [
@@ -572,29 +572,40 @@ const PageShell = ({
 
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#C79672]">Соцсети студии</p>
-              <div className="mt-3 grid gap-2">
+              <div className="mt-3 flex flex-wrap gap-3">
                 <a
                   href={BOT_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-[1.1rem] bg-white/70 p-3 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:text-[#2F463B]"
+                  aria-label={`Telegram бот @${BOT_USERNAME}`}
+                  title={`Telegram бот @${BOT_USERNAME}`}
+                  className="group grid h-14 w-14 place-items-center rounded-[1.1rem] bg-white/70 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:bg-white"
                 >
-                  <img src="/social/telegram.png" alt="Telegram" className="h-9 w-9 rounded-xl" />
-                  <span>
-                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/46">Телеграм бот</span>
-                    <span className="mt-0.5 block text-sm font-semibold">@{BOT_USERNAME}</span>
-                  </span>
+                  <img src="/social/telegram.png" alt="" className="h-9 w-9 rounded-xl" />
                 </a>
                 <a
                   href={INSTAGRAM_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-[1.1rem] bg-white/70 p-3 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:text-[#2F463B]"
+                  aria-label="Instagram @danil_tarot.academy"
+                  title="Instagram @danil_tarot.academy"
+                  className="group grid h-14 w-14 place-items-center rounded-[1.1rem] bg-white/70 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:bg-white"
                 >
-                  <img src="/social/instagram.png" alt="Instagram" className="h-9 w-9 rounded-xl" />
-                  <span>
-                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[#2F463B]/46">Инстаграм</span>
-                    <span className="mt-0.5 block text-sm font-semibold">@{INSTAGRAM_USERNAME}</span>
+                  <img src="/social/instagram.png" alt="" className="h-9 w-9 rounded-xl" />
+                </a>
+                <a
+                  href={DZEN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Дзен tarot_studio"
+                  title="Дзен tarot_studio"
+                  className="group grid h-14 w-14 place-items-center rounded-[1.1rem] bg-white/70 text-[#2F463B] shadow-[0_12px_36px_rgba(47,70,59,0.06)] transition hover:-translate-y-0.5 hover:bg-white"
+                >
+                  <span className="relative block h-9 w-9 rounded-xl bg-[#111]">
+                    <span className="absolute left-[7px] top-[7px] h-2.5 w-2.5 rounded-br-lg bg-white" />
+                    <span className="absolute right-[7px] top-[7px] h-2.5 w-2.5 rounded-bl-lg bg-white" />
+                    <span className="absolute bottom-[7px] left-[7px] h-2.5 w-2.5 rounded-tr-lg bg-white" />
+                    <span className="absolute bottom-[7px] right-[7px] h-2.5 w-2.5 rounded-tl-lg bg-white" />
                   </span>
                 </a>
               </div>
