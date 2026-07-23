@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import https from 'https';
-import { getSiteUrl, getSupabaseAdmin, readJsonBody, readSession, verifyTelegramWebAppInitData } from './_auth.js';
+import { getSiteUrl, getSupabaseAdmin, getSupabaseUserClient, readJsonBody, readSession, verifyTelegramWebAppInitData } from './_auth.js';
 import { notifyAdminsPaymentEvent, notifyClientPaymentSucceeded } from './_telegram-notify.js';
 
 const TBANK_INIT_URL = 'https://securepay.tinkoff.ru/v2/Init';
@@ -217,6 +217,32 @@ const readTbankBody = async (request) => {
   if (!raw) return {};
   if (raw.startsWith('{')) return JSON.parse(raw);
   return Object.fromEntries(new URLSearchParams(raw));
+};
+
+const getAuthToken = (request) => {
+  const header = request.headers.authorization || request.headers.Authorization || '';
+  return header.replace(/^Bearer\s+/i, '').trim();
+};
+
+const getAdminUserFromToken = async (token) => {
+  if (!token) return null;
+
+  const supabase = getSupabaseUserClient(token);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user?.id) return null;
+
+  const { data, error } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('id', authData.user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('T-Bank admin auth check failed:', error.message || error);
+    return null;
+  }
+
+  return data ? authData.user : null;
 };
 
 const normalizeCartItem = (item) => {
@@ -962,6 +988,61 @@ const deleteSourcePaymentItems = async (supabase, positions, userId) => {
   if (failedUpdate?.error) throw failedUpdate.error;
 };
 
+const attemptHasPosition = (attempt, positions) => {
+  const attemptItems = Array.isArray(attempt?.cart_items) ? attempt.cart_items : [];
+  const keys = new Set(
+    positions
+      .map((item) => getCartItemKey(item))
+      .filter(Boolean),
+  );
+
+  return attemptItems.some((item) => keys.has(getCartItemKey(item)));
+};
+
+const findLatestAttemptForPositions = async (supabase, userId, positions) => {
+  if (!userId || !Array.isArray(positions) || positions.length === 0) return null;
+
+  const { data, error } = await supabase
+    .from('payment_attempts')
+    .select('id,user_id,order_id,payment_id,status,amount,description,cart_items,raw_response,raw_notification,created_at,updated_at')
+    .eq('user_id', userId)
+    .not('status', 'in', '(paid,deleted)')
+    .order('updated_at', { ascending: false })
+    .limit(30);
+
+  if (error) throw error;
+  return (data || []).find((attempt) => attemptHasPosition(attempt, positions)) || null;
+};
+
+const cancelAttemptInTbank = async (request, supabase, attempt) => {
+  if (!attempt?.payment_id || ['canceled', 'cancelled', 'failed', 'deleted'].includes(String(attempt.status || '').toLowerCase())) {
+    return null;
+  }
+
+  const config = await getTbankConfig(request, supabase);
+  if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
+    const error = new Error('Т-Банк не настроен, поэтому активную банковскую ссылку нельзя отменить');
+    error.code = 'TBANK_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const cancelRequest = {
+    TerminalKey: config.terminalKey,
+    PaymentId: attempt.payment_id,
+  };
+  const token = await signTbankPayload(supabase, cancelRequest, config.password);
+  const { bankPayload } = await postTbankMethod(config.initUrl, 'Cancel', { ...cancelRequest, Token: token });
+
+  if (bankPayload && bankPayload.Success === false && String(bankPayload.ErrorCode || '0') !== '0') {
+    const error = new Error(getBankErrorMessage(bankPayload));
+    error.code = bankPayload.ErrorCode || 'TBANK_CANCEL_FAILED';
+    error.details = bankPayload;
+    throw error;
+  }
+
+  return bankPayload;
+};
+
 const refreshAttemptFromTbank = async (request, supabase, attempt) => {
   if (!attempt?.payment_id || attempt.status === 'paid' || attempt.status === 'failed') return attempt;
 
@@ -1224,22 +1305,28 @@ export const tbankCancelHandler = async (request, response) => {
   const mode = String(body.mode || body.action || 'cancel').trim().toLowerCase() === 'delete' ? 'delete' : 'cancel';
   const orderId = String(body.orderId || body.order_id || '').trim();
   const supabase = getSupabaseAdmin();
+  const adminUser = await getAdminUserFromToken(getAuthToken(request));
+  const adminTargetUserId = String(body.userId || body.user_id || '').trim();
   let session;
 
-  try {
-    session = await resolvePaymentUser(request, supabase, body);
-  } catch (error) {
-    return json(response, 401, {
-      ok: false,
-      error: error?.message || 'Не удалось подтвердить пользователя',
-      code: error?.code || 'PAYMENT_USER_AUTH_FAILED',
-    });
+  if (adminUser) {
+    session = adminTargetUserId ? { id: adminTargetUserId } : null;
+  } else {
+    try {
+      session = await resolvePaymentUser(request, supabase, body);
+    } catch (error) {
+      return json(response, 401, {
+        ok: false,
+        error: error?.message || 'Не удалось подтвердить пользователя',
+        code: error?.code || 'PAYMENT_USER_AUTH_FAILED',
+      });
+    }
   }
 
-  if (!session?.id) {
+  if (!session?.id && !orderId) {
     return json(response, 401, {
       ok: false,
-      error: 'Сначала войдите в кабинет',
+      error: adminUser ? 'Для действия из админки передайте клиента' : 'Сначала войдите в кабинет',
       code: 'SITE_SESSION_REQUIRED',
     });
   }
@@ -1264,7 +1351,11 @@ export const tbankCancelHandler = async (request, response) => {
       });
     }
 
-    if (data.user_id && data.user_id !== session.id) {
+    if (!session?.id && adminUser && data.user_id) {
+      session = { id: data.user_id };
+    }
+
+    if (!adminUser && data.user_id && data.user_id !== session.id) {
       return json(response, 403, {
         ok: false,
         error: 'Этот платёж относится к другому кабинету',
@@ -1283,32 +1374,15 @@ export const tbankCancelHandler = async (request, response) => {
 
     positions = Array.isArray(attempt.cart_items) ? attempt.cart_items : [];
 
-    if (attempt.payment_id && !['canceled', 'cancelled', 'failed', 'deleted'].includes(String(attempt.status || '').toLowerCase())) {
-      const config = await getTbankConfig(request, supabase);
-      if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
-        return json(response, 503, {
-          ok: false,
-          error: 'Т-Банк не настроен, поэтому активную банковскую ссылку нельзя отменить',
-          code: 'TBANK_NOT_CONFIGURED',
-        });
-      }
-
-      const cancelRequest = {
-        TerminalKey: config.terminalKey,
-        PaymentId: attempt.payment_id,
-      };
-      const token = await signTbankPayload(supabase, cancelRequest, config.password);
-      const { bankPayload } = await postTbankMethod(config.initUrl, 'Cancel', { ...cancelRequest, Token: token });
-      cancelPayload = bankPayload;
-
-      if (bankPayload && bankPayload.Success === false && String(bankPayload.ErrorCode || '0') !== '0') {
-        return json(response, 502, {
-          ok: false,
-          error: getBankErrorMessage(bankPayload),
-          code: bankPayload.ErrorCode || 'TBANK_CANCEL_FAILED',
-          details: bankPayload,
-        });
-      }
+    try {
+      cancelPayload = await cancelAttemptInTbank(request, supabase, attempt);
+    } catch (error) {
+      return json(response, error?.code === 'TBANK_NOT_CONFIGURED' ? 503 : 502, {
+        ok: false,
+        error: error?.message || 'Не удалось отменить платёж в Т-Банке',
+        code: error?.code || 'TBANK_CANCEL_FAILED',
+        details: error?.details || null,
+      });
     }
   } else {
     const cartItems = (Array.isArray(body.cart) ? body.cart : [])
@@ -1316,6 +1390,29 @@ export const tbankCancelHandler = async (request, response) => {
       .filter(Boolean);
 
     positions = await getCancelablePositionsFromCart(supabase, cartItems, session.id);
+    attempt = await findLatestAttemptForPositions(supabase, session.id, positions);
+
+    if (attempt) {
+      attempt = await refreshAttemptFromTbank(request, supabase, attempt);
+      if (attempt.status === 'paid') {
+        return json(response, 409, {
+          ok: false,
+          error: 'Оплаченный платёж нельзя отменить или удалить',
+          code: 'PAYMENT_ALREADY_PAID',
+        });
+      }
+
+      try {
+        cancelPayload = await cancelAttemptInTbank(request, supabase, attempt);
+      } catch (error) {
+        return json(response, error?.code === 'TBANK_NOT_CONFIGURED' ? 503 : 502, {
+          ok: false,
+          error: error?.message || 'Не удалось отменить платёж в Т-Банке',
+          code: error?.code || 'TBANK_CANCEL_FAILED',
+          details: error?.details || null,
+        });
+      }
+    }
   }
 
   if (!attempt && positions.length === 0) {

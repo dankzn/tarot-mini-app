@@ -14,7 +14,8 @@ import {
   MessageSquare,
   FileText,
   Sparkles,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { AdminBackButton } from '../components/admin/AdminBackButton';
 import { ensureAdminSession } from '../lib/adminAuth';
@@ -79,6 +80,7 @@ export const AdminWebConsultations = () => {
     total_price: 0,
   });
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [paymentActionId, setPaymentActionId] = useState<string | null>(null);
   const [completeData, setCompleteData] = useState({
     admin_notes: '',
     new_price: 0,
@@ -515,6 +517,55 @@ export const AdminWebConsultations = () => {
       await loadConsultations();
     } catch (error: any) {
       alert('Ошибка: ' + error.message);
+    }
+  };
+
+  const cancelConsultationPayment = async (consultation: any, mode: 'cancel' | 'delete') => {
+    const message = mode === 'delete'
+      ? 'Удалить запись и связанный неоплаченный платёж полностью?'
+      : 'Отменить платёж по этой записи? Клиент сможет получить новую ссылку оплаты.';
+
+    if (!confirm(message)) return;
+
+    setPaymentActionId(consultation.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        throw new Error('Админская сессия не найдена');
+      }
+
+      const response = await fetch('/api/site/tbank-cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode,
+          userId: consultation.user_id,
+          cart: [
+            {
+              id: `consultation:${consultation.id}`,
+              source: 'consultation',
+            },
+          ],
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'));
+      }
+
+      alert(mode === 'delete' ? '✅ Запись и платёж удалены' : '✅ Платёж отменён');
+      await loadConsultations();
+    } catch (error: any) {
+      alert('Ошибка: ' + (error?.message || 'Не удалось выполнить действие'));
+    } finally {
+      setPaymentActionId(null);
     }
   };
 
@@ -1161,13 +1212,32 @@ export const AdminWebConsultations = () => {
                     )}
 
                     {consultation.status === 'awaiting_payment' && (
-                      <button
-                        onClick={() => confirmPayment(consultation)}
-                        className="flex-1 bg-[#B8795C] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#9E654A] transition flex items-center justify-center"
-                      >
-                        <DollarSign className="w-4 h-4 mr-1" />
-                        Подтвердить оплату
-                      </button>
+                      <>
+                        <button
+                          onClick={() => confirmPayment(consultation)}
+                          disabled={paymentActionId === consultation.id}
+                          className="flex-1 bg-[#B8795C] text-white px-4 py-2 rounded-xl font-bold hover:bg-[#9E654A] transition flex items-center justify-center disabled:opacity-60"
+                        >
+                          <DollarSign className="w-4 h-4 mr-1" />
+                          Подтвердить оплату
+                        </button>
+                        <button
+                          onClick={() => cancelConsultationPayment(consultation, 'cancel')}
+                          disabled={paymentActionId === consultation.id}
+                          className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-bold hover:bg-gray-300 transition flex items-center justify-center disabled:opacity-60"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Отменить оплату
+                        </button>
+                        <button
+                          onClick={() => cancelConsultationPayment(consultation, 'delete')}
+                          disabled={paymentActionId === consultation.id}
+                          className="flex-1 bg-red-50 text-red-700 px-4 py-2 rounded-xl font-bold hover:bg-red-100 transition flex items-center justify-center disabled:opacity-60"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Удалить полностью
+                        </button>
+                      </>
                     )}
 
                     {consultation.status === 'completed' && (
