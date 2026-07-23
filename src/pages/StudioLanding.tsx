@@ -257,7 +257,7 @@ const getSiteServicePrice = (service: SiteService) =>
     promo_ends_at: service.promo_ends_at,
   }).currentPrice;
 
-const needsPayment = (status?: string | null) => !['paid', 'confirmed', 'completed'].includes(String(status || '').toLowerCase());
+const needsPayment = (status?: string | null) => !['paid', 'confirmed', 'completed', 'canceled', 'cancelled', 'deleted'].includes(String(status || '').toLowerCase());
 
 const getStoredTheme = (): SiteTheme => {
   if (typeof window === 'undefined') return 'light';
@@ -2772,6 +2772,7 @@ const PaymentPage = ({
 }) => {
   const activeMethod = paymentMethods[0];
   const [paymentResult, setPaymentResult] = useState<PaymentResultState>(null);
+  const [paymentCancelBusy, setPaymentCancelBusy] = useState(false);
   const cartClearedForOrderRef = useRef<string | null>(null);
   const onClearCartRef = useRef(onClearCart);
 
@@ -2910,6 +2911,60 @@ const PaymentPage = ({
     };
   }, []);
 
+  const cancelSitePayment = async (mode: 'cancel' | 'delete') => {
+    const orderId = paymentResult?.orderId || window.localStorage.getItem(SITE_PENDING_PAYMENT_ORDER_KEY);
+    if (!orderId || paymentCancelBusy) return;
+
+    if (mode === 'delete') {
+      const confirmed = window.confirm('Удалить запрос оплаты полностью? Неоплаченные позиции исчезнут из кабинета.');
+      if (!confirmed) return;
+    }
+
+    setPaymentCancelBusy(true);
+    try {
+      const response = await fetch('/api/site/tbank-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode,
+          orderId,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'));
+      }
+
+      window.localStorage.removeItem(SITE_PENDING_PAYMENT_ORDER_KEY);
+      setPaymentResult({
+        type: mode === 'delete' ? 'success' : 'info',
+        title: payload.title || (mode === 'delete' ? 'Платёж удалён' : 'Платёж отменён'),
+        message: payload.message || (mode === 'delete' ? 'Запрос оплаты удалён' : 'Можно создать новый платёж'),
+        orderId: payload.orderId || orderId,
+        bankStatus: payload.bankStatus || null,
+        amount: paymentResult?.amount || null,
+        checkedAt: new Date().toISOString(),
+      });
+
+      if (mode === 'delete') {
+        onClearCartRef.current();
+      }
+    } catch (error: any) {
+      setPaymentResult({
+        type: 'error',
+        title: mode === 'delete' ? 'Удаление не выполнено' : 'Отмена не выполнена',
+        message: error?.message || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'),
+        orderId,
+        amount: paymentResult?.amount || null,
+        checkedAt: new Date().toISOString(),
+      });
+    } finally {
+      setPaymentCancelBusy(false);
+    }
+  };
+
   const paymentStatusDetails = paymentResult
     ? [
       ['Заказ', paymentResult.orderId || 'ожидается'],
@@ -2993,6 +3048,26 @@ const PaymentPage = ({
                   Оставьте страницу открытой: статус обновится автоматически после ответа банка.
                 </p>
               </div>
+              {paymentResult.orderId && (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => cancelSitePayment('cancel')}
+                    disabled={paymentCancelBusy}
+                    className="rounded-full bg-white/72 px-4 py-3 text-sm font-black uppercase tracking-[0.16em] text-[#2F463B] transition hover:bg-white disabled:opacity-60"
+                  >
+                    {paymentCancelBusy ? 'Выполняю' : 'Отменить платёж'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelSitePayment('delete')}
+                    disabled={paymentCancelBusy}
+                    className="rounded-full bg-[#B98266]/14 px-4 py-3 text-sm font-black uppercase tracking-[0.16em] text-[#8B604A] transition hover:bg-[#B98266]/20 disabled:opacity-60"
+                  >
+                    Удалить полностью
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

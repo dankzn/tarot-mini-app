@@ -584,6 +584,7 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
   const [paymentDueConsultations, setPaymentDueConsultations] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentActionBusy, setPaymentActionBusy] = useState(false);
   const [miniPaymentStatus, setMiniPaymentStatus] = useState<MiniPaymentStatus | null>(null);
   const onboardingStorageKey = `tarot-onboarding-seen:${user.id || user.telegram_id || 'guest'}`;
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -921,6 +922,72 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
       alert(error?.message || 'Не удалось создать оплату');
     } finally {
       setPaymentBusy(false);
+    }
+  };
+
+  const cancelMiniPayment = async (mode: 'cancel' | 'delete') => {
+    const consultations = displayPaymentDueConsultations.filter((consultation) => consultation?.id && consultation.payment_status !== 'marked_paid');
+    if (consultations.length === 0 || paymentActionBusy) return;
+
+    if (mode === 'delete') {
+      const confirmed = window.confirm('Удалить запрос оплаты полностью? Неоплаченные консультации исчезнут из кабинета.');
+      if (!confirmed) return;
+    }
+
+    const paymentKey = getMiniPaymentBatchKey(consultations);
+    const orderId = miniPaymentStatus?.orderId || window.localStorage.getItem(getMiniPaymentOrderKey(paymentKey));
+    const telegramInitData = (window.Telegram?.WebApp as any)?.initData || '';
+
+    setPaymentActionBusy(true);
+    try {
+      const response = await fetch('/api/site/tbank-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode,
+          orderId,
+          telegramInitData,
+          telegramUserId: user.telegram_id,
+          userId: user.id,
+          cart: consultations.map((consultation) => ({
+            id: `consultation:${consultation.id}`,
+            source: 'consultation',
+          })),
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'));
+      }
+
+      window.localStorage.removeItem(getMiniPaymentOrderKey(paymentKey));
+      setMiniPaymentStatus({
+        type: mode === 'delete' ? 'success' : 'info',
+        title: payload.title || (mode === 'delete' ? 'Платёж удалён' : 'Платёж отменён'),
+        message: payload.message || (mode === 'delete' ? 'Запрос оплаты удалён' : 'Можно создать новый платёж'),
+        orderId: payload.orderId || orderId || null,
+        bankStatus: payload.bankStatus || null,
+        amount: getConsultationsPaymentTotal(consultations),
+        consultationId: paymentKey,
+      });
+
+      if (mode === 'delete') setShowPaymentModal(false);
+      await loadPaymentDueConsultation();
+      await loadUpcomingConsultation();
+    } catch (error: any) {
+      setMiniPaymentStatus({
+        type: 'error',
+        title: mode === 'delete' ? 'Удаление не выполнено' : 'Отмена не выполнена',
+        message: error?.message || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'),
+        orderId: orderId || null,
+        amount: getConsultationsPaymentTotal(consultations),
+        consultationId: paymentKey,
+      });
+      alert(error?.message || (mode === 'delete' ? 'Не удалось удалить платёж' : 'Не удалось отменить платёж'));
+    } finally {
+      setPaymentActionBusy(false);
     }
   };
 
@@ -1900,6 +1967,26 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
                   заказ {miniPaymentStatus.orderId}
                 </p>
               )}
+              {paymentDueConsultation && miniPaymentStatus.type === 'info' && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('cancel')}
+                    disabled={paymentActionBusy}
+                    className="rounded-2xl bg-white/70 px-3 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#385144] disabled:opacity-60"
+                  >
+                    {paymentActionBusy ? 'Делаю' : 'Отменить'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('delete')}
+                    disabled={paymentActionBusy}
+                    className="rounded-2xl bg-[#8A5A3F]/12 px-3 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#8A5A3F] disabled:opacity-60"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1953,11 +2040,31 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
               ) : (
                 <button
                   onClick={() => openPaymentLink(displayPaymentDueConsultations)}
-                  disabled={paymentBusy}
+                  disabled={paymentBusy || paymentActionBusy}
                   className="w-full rounded-2xl bg-[#385144] px-4 py-3 text-sm font-black text-white disabled:opacity-60"
                 >
                   {paymentBusy ? 'Создаю платёж' : 'Оплатить через Т-Банк'}
                 </button>
+              )}
+              {!paymentDueIsMarkedPaid && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('cancel')}
+                    disabled={paymentBusy || paymentActionBusy}
+                    className="rounded-2xl bg-white/70 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#385144] disabled:opacity-60"
+                  >
+                    Отменить платёж
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('delete')}
+                    disabled={paymentBusy || paymentActionBusy}
+                    className="rounded-2xl bg-[#8A5A3F]/12 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#8A5A3F] disabled:opacity-60"
+                  >
+                    Удалить полностью
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -2349,12 +2456,30 @@ export const Dashboard = ({ user, onOpenTraining }: DashboardProps) => {
               <div className="grid grid-cols-1 gap-2">
                 <button
                   onClick={() => openPaymentLink(displayPaymentDueConsultations)}
-                  disabled={paymentBusy}
+                  disabled={paymentBusy || paymentActionBusy}
                   className="flex w-full items-center justify-center rounded-2xl bg-[#385144] py-4 font-black text-white shadow-[0_14px_30px_rgba(56,81,68,0.22)] disabled:opacity-60"
                 >
                   <CreditCard className="mr-2 h-5 w-5" />
                   {paymentBusy ? 'Создаю платёж' : 'Оплатить через Т-Банк'}
                 </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('cancel')}
+                    disabled={paymentBusy || paymentActionBusy}
+                    className="rounded-2xl bg-white/70 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#385144] disabled:opacity-60"
+                  >
+                    Отменить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelMiniPayment('delete')}
+                    disabled={paymentBusy || paymentActionBusy}
+                    className="rounded-2xl bg-[#8A5A3F]/12 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#8A5A3F] disabled:opacity-60"
+                  >
+                    Удалить
+                  </button>
+                </div>
               </div>
             </div>
           </div>

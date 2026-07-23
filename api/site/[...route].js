@@ -10,7 +10,7 @@ import registerHandler from '../../server/site/register.js';
 import servicesHandler from '../../server/site/services.js';
 import sessionHandler from '../../server/site/session.js';
 import telegramLoginHandler from '../../server/site/telegram-login.js';
-import { tbankCartSyncHandler, tbankInitHandler, tbankNotificationHandler, tbankStatusHandler } from '../../server/site/tbank.js';
+import { tbankCancelHandler, tbankCartSyncHandler, tbankInitHandler, tbankNotificationHandler, tbankStatusHandler } from '../../server/site/tbank.js';
 import tbankSettingsHandler from '../../server/site/tbank-settings.js';
 
 const routeHandlers = {
@@ -27,6 +27,7 @@ const routeHandlers = {
   session: sessionHandler,
   'telegram-login': telegramLoginHandler,
   'tbank-init': tbankInitHandler,
+  'tbank-cancel': tbankCancelHandler,
   'tbank-cart-sync': tbankCartSyncHandler,
   'tbank-notification': tbankNotificationHandler,
   'tbank-settings': tbankSettingsHandler,

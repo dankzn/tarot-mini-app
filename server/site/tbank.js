@@ -768,7 +768,17 @@ const getBankStatusMessage = (attempt) => {
     };
   }
 
-  if (['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status) || attempt?.status === 'failed') {
+  if (['CANCELED', 'CANCELLED'].includes(status) || attempt?.status === 'canceled') {
+    return {
+      paymentState: 'failed',
+      title: 'Платёж отменён',
+      message: 'Ссылка оплаты отменена. Можно создать новый платёж',
+      bankStatus: status || attempt?.status || null,
+      bankCode: rawNotification.ErrorCode || rawResponse.ErrorCode || null,
+    };
+  }
+
+  if (['REJECTED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status) || attempt?.status === 'failed') {
     return {
       paymentState: 'failed',
       title: 'Оплата не прошла',
@@ -790,13 +800,14 @@ const getAttemptStatusPatch = (notification) => {
   const status = String(notification?.Status || '').toUpperCase();
   const isSuccess = notification?.Success === true || String(notification?.Success || '').toLowerCase() === 'true';
   const isPaid = isSuccess && ['AUTHORIZED', 'CONFIRMED', 'PAID'].includes(status);
-  const isFailed = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status);
+  const isCanceled = ['CANCELED', 'CANCELLED'].includes(status);
+  const isFailed = ['REJECTED', 'DEADLINE_EXPIRED', 'FAILED'].includes(status);
 
   return {
     status,
     isPaid,
-    isFailed,
-    nextStatus: isPaid ? 'paid' : isFailed ? 'failed' : status.toLowerCase() || 'updated',
+    isFailed: isCanceled || isFailed,
+    nextStatus: isPaid ? 'paid' : isCanceled ? 'canceled' : isFailed ? 'failed' : status.toLowerCase() || 'updated',
   };
 };
 
@@ -839,6 +850,116 @@ const applyPaidSourceUpdates = async (supabase, cartItems) => {
     },
   });
   await redeemPaidTrainingPromos(supabase, cartItems);
+};
+
+const applyCanceledSourceUpdates = async (supabase, cartItems) => {
+  if (!cartItems) return;
+
+  await updateSourcePaymentStatus(supabase, cartItems, {
+    consultation: {
+      payment_status: 'payment_requested',
+    },
+    training: {
+      payment_status: 'requested',
+    },
+  });
+};
+
+const getCancelablePositionsFromCart = async (supabase, cartItems, userId) => {
+  const positions = [];
+
+  for (const item of cartItems) {
+    if (item.source === 'consultation' && isUuid(item.id)) {
+      const { data, error } = await supabase
+        .from('consultations')
+        .select('id,user_id,payment_status')
+        .eq('id', item.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data && !['paid', 'confirmed', 'completed'].includes(String(data.payment_status || '').toLowerCase())) {
+        positions.push({
+          source: 'consultation',
+          source_id: data.id,
+          cart_id: item.rawId || `consultation:${data.id}`,
+        });
+      }
+    }
+
+    if (item.source === 'training' && isUuid(item.id)) {
+      const { data, error } = await supabase
+        .from('training_enrollments')
+        .select('id,user_id,payment_status')
+        .eq('id', item.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data && !['paid', 'confirmed', 'completed'].includes(String(data.payment_status || '').toLowerCase())) {
+        positions.push({
+          source: 'training',
+          source_id: data.id,
+          cart_id: item.rawId || `training:${data.id}`,
+        });
+      }
+    }
+  }
+
+  return positions;
+};
+
+const deleteSourcePaymentItems = async (supabase, positions, userId) => {
+  const updates = await Promise.all(
+    (Array.isArray(positions) ? positions : []).map(async (item) => {
+      if (item.source === 'consultation') {
+        const result = await supabase
+          .from('consultations')
+          .delete()
+          .eq('id', item.source_id)
+          .eq('user_id', userId)
+          .not('payment_status', 'in', '(paid,confirmed,completed)');
+
+        if (!result.error) return result;
+
+        return supabase
+          .from('consultations')
+          .update({
+            status: 'cancelled',
+            payment_status: 'cancelled',
+          })
+          .eq('id', item.source_id)
+          .eq('user_id', userId)
+          .not('payment_status', 'in', '(paid,confirmed,completed)');
+      }
+
+      if (item.source === 'training') {
+        const result = await supabase
+          .from('training_enrollments')
+          .delete()
+          .eq('id', item.source_id)
+          .eq('user_id', userId)
+          .not('payment_status', 'in', '(paid,confirmed,completed)');
+
+        if (!result.error) return result;
+
+        return supabase
+          .from('training_enrollments')
+          .update({
+            status: 'cancelled',
+            payment_status: 'cancelled',
+          })
+          .eq('id', item.source_id)
+          .eq('user_id', userId)
+          .not('payment_status', 'in', '(paid,confirmed,completed)');
+      }
+
+      return { error: null };
+    }),
+  );
+
+  const failedUpdate = updates.find((result) => result?.error);
+  if (failedUpdate?.error) throw failedUpdate.error;
 };
 
 const refreshAttemptFromTbank = async (request, supabase, attempt) => {
@@ -1096,6 +1217,170 @@ export const tbankStatusHandler = async (request, response) => {
   });
 };
 
+export const tbankCancelHandler = async (request, response) => {
+  if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
+
+  const body = await readJsonBody(request);
+  const mode = String(body.mode || body.action || 'cancel').trim().toLowerCase() === 'delete' ? 'delete' : 'cancel';
+  const orderId = String(body.orderId || body.order_id || '').trim();
+  const supabase = getSupabaseAdmin();
+  let session;
+
+  try {
+    session = await resolvePaymentUser(request, supabase, body);
+  } catch (error) {
+    return json(response, 401, {
+      ok: false,
+      error: error?.message || 'Не удалось подтвердить пользователя',
+      code: error?.code || 'PAYMENT_USER_AUTH_FAILED',
+    });
+  }
+
+  if (!session?.id) {
+    return json(response, 401, {
+      ok: false,
+      error: 'Сначала войдите в кабинет',
+      code: 'SITE_SESSION_REQUIRED',
+    });
+  }
+
+  let attempt = null;
+  let cancelPayload = null;
+  let positions = [];
+
+  if (orderId) {
+    const { data, error } = await supabase
+      .from('payment_attempts')
+      .select('id,user_id,order_id,payment_id,status,amount,description,cart_items,raw_response,raw_notification,created_at,updated_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return json(response, 404, {
+        ok: false,
+        error: 'Платёж не найден',
+        code: 'PAYMENT_ATTEMPT_NOT_FOUND',
+      });
+    }
+
+    if (data.user_id && data.user_id !== session.id) {
+      return json(response, 403, {
+        ok: false,
+        error: 'Этот платёж относится к другому кабинету',
+        code: 'PAYMENT_OWNER_MISMATCH',
+      });
+    }
+
+    attempt = await refreshAttemptFromTbank(request, supabase, data);
+    if (attempt.status === 'paid') {
+      return json(response, 409, {
+        ok: false,
+        error: 'Оплаченный платёж нельзя отменить или удалить',
+        code: 'PAYMENT_ALREADY_PAID',
+      });
+    }
+
+    positions = Array.isArray(attempt.cart_items) ? attempt.cart_items : [];
+
+    if (attempt.payment_id && !['canceled', 'cancelled', 'failed', 'deleted'].includes(String(attempt.status || '').toLowerCase())) {
+      const config = await getTbankConfig(request, supabase);
+      if (!config.terminalKey || (!config.password && !config.canSignRemotely)) {
+        return json(response, 503, {
+          ok: false,
+          error: 'Т-Банк не настроен, поэтому активную банковскую ссылку нельзя отменить',
+          code: 'TBANK_NOT_CONFIGURED',
+        });
+      }
+
+      const cancelRequest = {
+        TerminalKey: config.terminalKey,
+        PaymentId: attempt.payment_id,
+      };
+      const token = await signTbankPayload(supabase, cancelRequest, config.password);
+      const { bankPayload } = await postTbankMethod(config.initUrl, 'Cancel', { ...cancelRequest, Token: token });
+      cancelPayload = bankPayload;
+
+      if (bankPayload && bankPayload.Success === false && String(bankPayload.ErrorCode || '0') !== '0') {
+        return json(response, 502, {
+          ok: false,
+          error: getBankErrorMessage(bankPayload),
+          code: bankPayload.ErrorCode || 'TBANK_CANCEL_FAILED',
+          details: bankPayload,
+        });
+      }
+    }
+  } else {
+    const cartItems = (Array.isArray(body.cart) ? body.cart : [])
+      .map(normalizeCartItem)
+      .filter(Boolean);
+
+    positions = await getCancelablePositionsFromCart(supabase, cartItems, session.id);
+  }
+
+  if (!attempt && positions.length === 0) {
+    return json(response, 400, {
+      ok: false,
+      error: 'Не передан заказ или позиции для отмены',
+      code: 'PAYMENT_TARGET_REQUIRED',
+    });
+  }
+
+  if (mode === 'delete') {
+    await deleteSourcePaymentItems(supabase, positions, session.id);
+
+    if (attempt) {
+      const { error: deleteAttemptError } = await supabase
+        .from('payment_attempts')
+        .delete()
+        .eq('order_id', attempt.order_id)
+        .neq('status', 'paid');
+
+      if (deleteAttemptError) throw deleteAttemptError;
+    }
+
+    return json(response, 200, {
+      ok: true,
+      mode,
+      orderId: attempt?.order_id || null,
+      title: 'Платёж удалён',
+      message: 'Запрос оплаты и неоплаченные позиции удалены',
+      bankStatus: cancelPayload?.Status || null,
+    });
+  }
+
+  await applyCanceledSourceUpdates(supabase, positions);
+
+  if (attempt) {
+    const nextRawNotification = cancelPayload || {
+      Status: 'CANCELED',
+      Success: true,
+      Message: 'Canceled locally',
+    };
+
+    const { error: updateAttemptError } = await supabase
+      .from('payment_attempts')
+      .update({
+        status: 'canceled',
+        raw_notification: nextRawNotification,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', attempt.order_id)
+      .neq('status', 'paid');
+
+    if (updateAttemptError) throw updateAttemptError;
+  }
+
+  return json(response, 200, {
+    ok: true,
+    mode,
+    orderId: attempt?.order_id || null,
+    title: 'Платёж отменён',
+    message: 'Ссылка оплаты отменена. Можно создать новый платёж',
+    bankStatus: cancelPayload?.Status || 'CANCELED',
+  });
+};
+
 export const tbankCartSyncHandler = async (request, response) => {
   if (request.method !== 'POST') return json(response, 405, { ok: false, error: 'Method not allowed' });
 
@@ -1182,14 +1467,15 @@ export const tbankNotificationHandler = async (request, response) => {
   const status = String(notification.Status || '').toUpperCase();
   const isSuccess = notification.Success === true || String(notification.Success || '').toLowerCase() === 'true';
   const isPaid = isSuccess && ['AUTHORIZED', 'CONFIRMED'].includes(status);
-  const isFailed = ['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED'].includes(status);
+  const isCanceled = ['CANCELED', 'CANCELLED'].includes(status);
+  const isFailed = ['REJECTED', 'DEADLINE_EXPIRED'].includes(status);
   const { data: attempt } = await supabase
     .from('payment_attempts')
     .select('id,user_id,order_id,payment_id,status,amount,description,cart_items')
     .eq('order_id', orderId)
     .maybeSingle();
 
-  const nextStatus = isPaid ? 'paid' : isFailed ? 'failed' : status.toLowerCase() || 'updated';
+  const nextStatus = isPaid ? 'paid' : isCanceled ? 'canceled' : isFailed ? 'failed' : status.toLowerCase() || 'updated';
 
   await supabase
     .from('payment_attempts')
